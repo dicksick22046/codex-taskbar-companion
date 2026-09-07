@@ -10,7 +10,7 @@ import os
 import subprocess
 
 BASE = Path(__file__).resolve().parent
-from preferences import runtime_dir, migrate_legacy, read_settings, write_settings, DISPLAY_DEFAULTS
+from preferences import runtime_dir, migrate_legacy, read_settings, write_settings, DISPLAY_DEFAULTS, legacy_runtime_dirs
 RUNTIME = runtime_dir()
 sys.path.insert(0, str(BASE / ".deps"))
 try:
@@ -687,13 +687,13 @@ def main():
     if sys.argv[1:]==["--smoke-test"]:return
     if len(sys.argv)==4 and sys.argv[1]=='--install-update':
         install_after_exit(sys.argv[2],int(sys.argv[3]),RUNTIME);return
-    migrate_legacy(BASE/'.runtime',RUNTIME)
     ctypes.windll.kernel32.CreateMutexW.restype=ctypes.c_void_p
     mutex=ctypes.windll.kernel32.CreateMutexW(None,False,"Local\\CodexTaskbarStatus")
     if ctypes.windll.kernel32.GetLastError()==183:
         hwnd=windows.user32.FindWindowW(None,"Codex 任务栏状态")
         if hwnd:windows.user32.PostMessageW(hwnd,windows.OPEN_SETTINGS_MESSAGE,0,0)
         return
+    migrate_legacy(BASE/'.runtime',RUNTIME,legacy_runtime_dirs())
     sys.stdout=sys.stderr=(RUNTIME/"app.log").open("a",encoding="utf-8",buffering=1)
     app=QApplication(sys.argv);app.setQuitOnLastWindowClosed(False);app.setApplicationName(APP_NAME)
     provider=Provider(RUNTIME);bar=StatusBar(provider)

@@ -5,7 +5,7 @@
 - 先读docs/HANDOFF.md、docs/status-bar.md和docs/release-v0.1.md，以当前工作区为准。
 - 保持Codex、Windows11、左侧单行的首版范围；不重新展开用户取消的完整实时错误检测。
 - 右键只保留设置与退出，设置内管理显示、启动和更新；主栏不添加外部大边框或反复提示。
-- 程序数据位于LOCALAPPDATA/CodexTaskbar；运行目录与数据分离，不能提交账号、日志、历史记录或个人截图。
+- 程序数据位于USERPROFILE/.codex-taskbar-companion；运行目录与数据分离，不能提交账号、日志、历史记录或个人截图。
 - 当前机器运行安装版时，开发前先从托盘退出，再用仓库start.ps1启动源码；重复启动只会打开已有实例设置，不能据此判断新代码已加载。
 - 发布构建使用scripts/package.ps1；构建PATH隔离是必要约束，禁止让Poppler等外部工具的同名DLL混入包。
 - 透明属性必须在创建原生窗口句柄前设置。既要运行测试，也要检查实际安装版的窗口。

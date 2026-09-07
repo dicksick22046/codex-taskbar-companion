@@ -2,7 +2,7 @@
 import json
 import os
 from pathlib import Path
-import shutil
+import math
 
 DISPLAY_DEFAULTS = {
     'show_week': True, 'show_session': True, 'show_countdown': True,
@@ -11,15 +11,41 @@ DISPLAY_DEFAULTS = {
 
 
 def runtime_dir():
-    return Path(os.environ['LOCALAPPDATA']) / 'CodexTaskbar'
+    return Path.home() / '.codex-taskbar-companion'
 
 
-def migrate_legacy(source, destination):
+def legacy_runtime_dirs():
+    local=Path(os.environ['LOCALAPPDATA'])
+    return [local/'CodexTaskbar', *sorted((local/'Packages').glob('*/LocalCache/Local/CodexTaskbar'))]
+
+
+def migrate_legacy(source, destination, additional_sources=()):
     destination.mkdir(parents=True, exist_ok=True)
-    for name in ('ui_settings.json', 'quota_history.json'):
-        old, new = source / name, destination / name
-        if old.is_file() and not new.exists():
-            shutil.copy2(old, new)
+    sources=list(dict.fromkeys([source, *additional_sources]))
+    settings=[p/'ui_settings.json' for p in sources if (p/'ui_settings.json').is_file()]
+    if settings and not (destination/'ui_settings.json').exists():
+        for path in sorted(settings,key=lambda p:p.stat().st_mtime,reverse=True):
+            try:
+                value=json.loads(path.read_text(encoding='utf-8'))
+                if not isinstance(value,dict):continue
+                write_json(destination/'ui_settings.json',value);break
+            except (OSError,ValueError):continue
+    history_path=destination/'quota_history.json'
+    try:existing=json.loads(history_path.read_text(encoding='utf-8'))
+    except (OSError,ValueError):existing=None
+    samples={}
+    for source in [*sources,destination]:
+        try:
+            rows=json.loads((source/'quota_history.json').read_text(encoding='utf-8'))
+        except (OSError,ValueError):continue
+        if not isinstance(rows,list):continue
+        for row in rows:
+            if not isinstance(row,dict):continue
+            if not all(isinstance(row.get(k),(int,float)) and not isinstance(row[k],bool) and math.isfinite(row[k]) for k in ('at','used','reset')):continue
+            if row['at']<=0 or row['reset']<=0 or not 0<=row['used']<=100:continue
+            samples[(row['at'],row['reset'])]={k:row[k] for k in ('at','used','reset')}
+    merged=sorted(samples.values(),key=lambda r:r['at'])
+    if samples and merged!=existing:write_json(history_path,merged)
 
 
 def read_settings(path):
@@ -34,8 +60,14 @@ def read_settings(path):
     return result
 
 
-def write_settings(path, settings):
+def write_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix('.tmp')
-    temporary.write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding='utf-8')
+    temporary=path.with_suffix('.tmp')
+    with temporary.open('w',encoding='utf-8') as stream:
+        json.dump(value,stream,ensure_ascii=False,indent=2)
+        stream.flush();os.fsync(stream.fileno())
     temporary.replace(path)
+
+
+def write_settings(path, settings):
+    write_json(path,settings)

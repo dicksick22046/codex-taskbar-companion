@@ -8,6 +8,7 @@ import time
 from codex_api import CodexApi, project_name
 from usage import UsageCursor, FIELDS, quota_windows
 from unread import UnreadState
+from preferences import write_json
 
 
 class Provider:
@@ -120,7 +121,7 @@ class Provider:
                             self.quota_history.append({"at": time.time(), "used": 100-week["remaining"], "reset": week["resets_at"]})
                             self.quota_history = [s for s in self.quota_history if s["at"] >= time.time()-8*86400]
                             try:
-                                self.quota_history_path.write_text(json.dumps(self.quota_history), encoding="utf-8")
+                                write_json(self.quota_history_path,self.quota_history)
                             except OSError:
                                 pass
                     catalog_due=refresh or now - catalog_at >= 5
