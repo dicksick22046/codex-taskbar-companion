@@ -38,7 +38,7 @@ class Provider:
     def refresh(self):
         self.refresh_event.set()
 
-    def _publish(self, threads, projects, cursors, quota, quota_at, error, last_turns=None):
+    def _publish(self, threads, projects, cursors, quota, quota_at, error, last_turns=None, quota_error=None):
         totals = {key: 0 for key in FIELDS}
         tasks = []
         recent = []
@@ -85,7 +85,7 @@ class Provider:
                     "unread_count": sum(task['unread'] is True for task in recent) if unread_ids is not None else None,
                     "history": daily, "daily_quota": daily_quota_text(self.quota_history, week),
                     "totals": totals, "usage_at": newest_usage, "loading": False,
-                    "updated_at": datetime.now().astimezone().isoformat(), "error": error,
+                    "updated_at": datetime.now().astimezone().isoformat(), "error": error, "quota_error": quota_error,
                     "source": "本机 Codex 日志；Token 包含缓存输入，按模型步骤上报"}
         with self.lock:
             self.snapshot = snapshot
@@ -99,37 +99,51 @@ class Provider:
     def _run(self):
         api = None
         projects, threads, cursors, quota = [], [], {}, []
-        last_turns,turn_signatures={},{}
+        last_turns,turn_signatures,last_turn_errors={},{},{}
         catalog_at = quota_at_mono = 0
         quota_at = None
-        error = None
+        error = None;quota_error=None;catalog_error=None;stage='connection'
         try:
             while not self.stop_event.is_set():
                 try:
                     if api is None:
+                        stage='connection'
                         api = CodexApi()
                         self.api = api
                     now = time.monotonic()
                     refresh = self.refresh_event.is_set()
                     self.refresh_event.clear()
                     if refresh or now - quota_at_mono >= 30:
-                        quota = quota_windows(api.call("account/rateLimits/read"))
-                        quota_at = datetime.now().astimezone().isoformat()
-                        quota_at_mono = time.monotonic()
-                        week = next((w for w in quota if w["label"] == "周"), None)
-                        if week:
-                            self.quota_history.append({"at": time.time(), "used": 100-week["remaining"], "reset": week["resets_at"]})
-                            self.quota_history = [s for s in self.quota_history if s["at"] >= time.time()-8*86400]
-                            try:
-                                write_json(self.quota_history_path,self.quota_history)
-                            except OSError:
-                                pass
+                        stage='quota';quota_at_mono=time.monotonic()
+                        try:
+                            received=quota_windows(api.call("account/rateLimits/read"))
+                            if not received:raise ValueError('No quota windows returned')
+                        except (RuntimeError,ValueError,TimeoutError) as exc:
+                            message=f'{type(exc).__name__}: {exc}'
+                            if message!=quota_error:print(f'{datetime.now().astimezone().isoformat()} quota: {message}',flush=True)
+                            quota_error=message
+                        else:
+                            quota=received;quota_error=None
+                            quota_at=datetime.now().astimezone().isoformat()
+                            week=next((w for w in quota if w["label"]=="周"),None)
+                            if week:
+                                self.quota_history.append({"at":time.time(),"used":100-week["remaining"],"reset":week["resets_at"]})
+                                self.quota_history=[s for s in self.quota_history if s["at"]>=time.time()-8*86400]
+                                try:write_json(self.quota_history_path,self.quota_history)
+                                except OSError:pass
                     catalog_due=refresh or now - catalog_at >= 5
                     if catalog_due:
-                        projects, threads = api.catalog()
-                        live_ids = {t["id"] for t in threads}
-                        cursors = {k: v for k, v in cursors.items() if k in live_ids}
-                        catalog_at = now
+                        stage='catalog';catalog_at=now
+                        try:new_projects,new_threads=api.catalog()
+                        except (RuntimeError,TimeoutError) as exc:
+                            message=f'{type(exc).__name__}: {exc}'
+                            if message!=catalog_error:print(f'{datetime.now().astimezone().isoformat()} catalog: {message}',flush=True)
+                            catalog_error=message
+                        else:
+                            projects,threads=new_projects,new_threads;catalog_error=None
+                            live_ids={t['id'] for t in threads}
+                            cursors={k:v for k,v in cursors.items() if k in live_ids}
+                    stage='local records'
                     for thread in threads:
                         path = thread.get("path")
                         if not path:
@@ -144,28 +158,34 @@ class Provider:
                             cursor.update()
                         except OSError:
                             cursors.pop(thread["id"], None)
-                    if catalog_due:
+                    if catalog_due and not catalog_error:
                         today=datetime.now().astimezone().date()
                         for thread in threads:
                             cursor=cursors.get(thread['id'])
                             if not cursor or not cursor.activity_at or datetime.fromisoformat(cursor.activity_at).astimezone().date()!=today:continue
                             signature=(cursor.turn,cursor.offset,thread.get('updatedAt'))
                             if turn_signatures.get(thread['id'])==signature:continue
+                            stage='latest turn'
                             try:last_turns[thread['id']]=api.latest_turn(thread['id'])
-                            except RuntimeError:
-                                last_turns.pop(thread['id'],None)
+                            except (RuntimeError,TimeoutError) as exc:
+                                message=f'{type(exc).__name__}: {exc}'
+                                if last_turn_errors.get(thread['id'])!=message:print(f'{datetime.now().astimezone().isoformat()} latest turn: {message}',flush=True)
+                                last_turn_errors[thread['id']]=message
                                 continue
+                            last_turn_errors.pop(thread['id'],None)
                             turn_signatures[thread['id']]=signature
-                    error = None
-                    self._publish(threads, projects, cursors, quota, quota_at, error,last_turns)
+                    error = catalog_error
+                    self._publish(threads, projects, cursors, quota, quota_at, error,last_turns,quota_error)
                 except Exception as exc:
                     error = f"{type(exc).__name__}: {exc}"
+                    print(f"{datetime.now().astimezone().isoformat()} {stage}: {error}",flush=True)
+                    if stage=="quota":quota_error=error
                     if api:
                         api.close()
                         api = None
                         self.api = None
                     with self.lock:
-                        self.snapshot = {**self.snapshot, "error": error}
+                        self.snapshot = {**self.snapshot, "error": error, "quota_error": quota_error}
                     self.stop_event.wait(5)
                 self.stop_event.wait(1)
         finally:

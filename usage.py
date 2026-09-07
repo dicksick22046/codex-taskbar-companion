@@ -234,7 +234,11 @@ def chart_window(data):
 
 def visible_metrics(data, settings):
     """Display actual account windows; never infer them from a plan name."""
-    if data.get('error'):data={**data,'quota':[],'daily_quota':'—'}
+    if data.get('quota_error') or data.get('error'):
+        current=datetime.now().timestamp()
+        valid=[q for q in data.get('quota',[]) if q.get('resets_at') is None or q['resets_at']>current]
+        data={**data,'quota':valid}
+        if not quota_window(data,10080):data['daily_quota']='—'
     week, session = quota_window(data, 10080), quota_window(data, 300)
     show_week = settings.get('show_week', True)
     show_session = settings.get('show_session', True) and session is not None

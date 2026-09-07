@@ -49,7 +49,8 @@ class SettingsDialog(QDialog):
     def refresh(self):
         self.login.blockSignals(True);self.login.setChecked(startup.enabled());self.login.blockSignals(False)
         data = self.bar.provider.get()
-        if data.get('error'): message = 'Codex 暂时不可用，请确认桌面程序已安装并登录。'
+        if data.get('quota_error'): message = '额度暂未更新，当前显示上次有效记录。' if data.get('quota') else '暂时无法读取额度，请稍后再试。'
+        elif data.get('error'): message = '部分数据暂未更新，当前保留已读取的内容。'
         elif data.get('loading'): message = '正在连接 Codex…'
         elif self.bar.placement_unavailable: message = '任务栏左侧空间不足，已收起到系统托盘。'
         else: message = '所有显示关闭后，仍可从系统托盘打开设置。'

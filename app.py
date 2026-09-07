@@ -389,11 +389,14 @@ class StatusBar(QWidget):
         def field(kind,value,fraction):
             nonlocal x
             color={"quota":"#45ba91","session":"#51adb4","clock":"#5d9dd7","spent":"#a088d1"}[kind]
+            p.save()
+            if data.get('quota_error'):p.setOpacity(.75)
             icon(p,kind,x,y,color,fraction=None if fraction is None else self.ring_values.get(kind,fraction))
             x+=12
             ink=QColor(TITLE_MUTED)
             if kind=='spent' and value=='—':ink.setAlpha(90);value='–'
             x+=text(p,x,y,value,face(8),ink)+17
+            p.restore()
         def separator():
             nonlocal x
             pen(p,"#53606d",.7)

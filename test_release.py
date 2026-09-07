@@ -1,4 +1,4 @@
-import json,hashlib,tempfile,io,unittest
+import json,hashlib,tempfile,io,unittest,time
 from pathlib import Path
 from unittest.mock import patch
 from preferences import read_settings,write_settings,migrate_legacy,DISPLAY_DEFAULTS
@@ -6,7 +6,7 @@ from usage import quota_windows,visible_metrics
 from updates import release_candidate,download_installer
 class ReleaseTests(unittest.TestCase):
     def test_actual_windows_and_display_switches(self):
-        q=quota_windows({'rateLimits':{'primary':{'usedPercent':20,'windowDurationMins':300,'resetsAt':20000},'secondary':{'usedPercent':35,'windowDurationMins':10080,'resetsAt':900000}}})
+        q=quota_windows({'rateLimits':{'primary':{'usedPercent':20,'windowDurationMins':300,'resetsAt':time.time()+18000},'secondary':{'usedPercent':35,'windowDurationMins':10080,'resetsAt':time.time()+604800}}})
         data={'quota':q,'daily_quota':'4%'}
         fields=visible_metrics(data,DISPLAY_DEFAULTS)
         self.assertEqual([x[0] for x in fields],['quota','session','spent','clock'])
@@ -14,7 +14,8 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(visible_metrics(data,dict.fromkeys(DISPLAY_DEFAULTS,False)),[])
         self.assertNotIn('spent',[x[0] for x in visible_metrics({'quota':q[:1]},DISPLAY_DEFAULTS)])
         self.assertNotIn('session',[x[0] for x in visible_metrics({'quota':q[1:]},DISPLAY_DEFAULTS)])
-        self.assertTrue(all(x[2] is None for x in visible_metrics({**data,'error':'offline'},DISPLAY_DEFAULTS)))
+        self.assertEqual([(k,v) for k,v,f in visible_metrics({**data,'error':'task lookup failed'},DISPLAY_DEFAULTS)],[(k,v) for k,v,f in fields])
+        self.assertEqual([(k,v) for k,v,f in visible_metrics({**data,'quota_error':'offline'},DISPLAY_DEFAULTS)],[(k,v) for k,v,f in fields])
     def test_settings_and_selective_migration(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);old=root/'old';new=root/'new';old.mkdir()
@@ -91,3 +92,14 @@ class ReleaseTests(unittest.TestCase):
             stamp=(stable/'quota_history.json').stat().st_mtime_ns
             migrate_legacy(normal,stable,[host])
             self.assertEqual((stable/'quota_history.json').stat().st_mtime_ns,stamp)
+
+    def test_quota_failure_keeps_valid_values_but_not_an_expired_window(self):
+        import time
+        now=time.time()
+        data={'quota':[{'minutes':10080,'remaining':65,'starts_at':now-100,'resets_at':now+1000}], 'daily_quota':'12%'}
+        normal=visible_metrics(data,DISPLAY_DEFAULTS)
+        stale=visible_metrics({**data,'quota_error':'timeout'},DISPLAY_DEFAULTS)
+        self.assertEqual([(k,v) for k,v,f in normal],[(k,v) for k,v,f in stale])
+        for before,after in zip(normal,stale):self.assertAlmostEqual(before[2],after[2],places=4)
+        expired={**data,'quota':[dict(data['quota'][0],resets_at=now-1)],'quota_error':'timeout'}
+        self.assertTrue(all(fraction is None for kind,value,fraction in visible_metrics(expired,DISPLAY_DEFAULTS)))

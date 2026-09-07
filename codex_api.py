@@ -54,7 +54,8 @@ class CodexApi:
         self.process.stdin.flush()
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
-            item = self.messages.get(timeout=max(0.01, deadline - time.monotonic()))
+            try:item = self.messages.get(timeout=max(0.01, deadline - time.monotonic()))
+            except queue.Empty as exc:raise TimeoutError(f'{method}: response timed out') from exc
             if item.get("disconnected"):
                 raise ConnectionError("Codex 数据连接已关闭")
             if item.get("id") == self.sequence:
