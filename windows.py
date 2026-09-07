@@ -1,0 +1,149 @@
+"""Small Win32 helpers for an unactivated taskbar-adjacent tool window."""
+import ctypes
+from ctypes import wintypes as w
+
+OPEN_SETTINGS_MESSAGE = 0x8000 + 42
+user32 = ctypes.windll.user32
+user32.PostMessageW.argtypes = [w.HWND, w.UINT, w.WPARAM, w.LPARAM]
+user32.FindWindowW.argtypes = [w.LPCWSTR, w.LPCWSTR]
+user32.FindWindowW.restype = w.HWND
+user32.FindWindowExW.argtypes = [w.HWND, w.HWND, w.LPCWSTR, w.LPCWSTR]
+user32.FindWindowExW.restype = w.HWND
+user32.ShowWindow.argtypes = [w.HWND, ctypes.c_int]
+user32.GetForegroundWindow.restype = w.HWND
+user32.GetShellWindow.restype = w.HWND
+user32.GetDesktopWindow.restype = w.HWND
+user32.GetWindowRect.argtypes = [w.HWND, ctypes.POINTER(w.RECT)]
+user32.SetWindowPos.argtypes = [w.HWND, w.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, w.UINT]
+user32.GetDpiForWindow.argtypes = [w.HWND]
+user32.GetDpiForWindow.restype = w.UINT
+user32.IsWindow.argtypes = [w.HWND]
+user32.IsWindow.restype = w.BOOL
+user32.GetWindowLongPtrW.argtypes = [w.HWND, ctypes.c_int]
+user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
+user32.SetWindowLongPtrW.argtypes = [w.HWND, ctypes.c_int, ctypes.c_ssize_t]
+user32.SetWindowLongPtrW.restype = ctypes.c_ssize_t
+
+
+class ClickHook:
+    """Route clicks on our transparent strip and observe outside dismissal."""
+    def __init__(self, callback):
+        class MouseInfo(ctypes.Structure):
+            _fields_=[('point',w.POINT),('data',w.DWORD),('flags',w.DWORD),('time',w.DWORD),('extra',ctypes.c_size_t)]
+        signature=ctypes.WINFUNCTYPE(ctypes.c_ssize_t,ctypes.c_int,w.WPARAM,w.LPARAM)
+        user32.CallNextHookEx.argtypes=[w.HHOOK,ctypes.c_int,w.WPARAM,w.LPARAM]
+        user32.CallNextHookEx.restype=ctypes.c_ssize_t
+        def dispatch(code,message,pointer):
+            if code>=0 and message in (0x0201,0x0204):
+                point=ctypes.cast(pointer,ctypes.POINTER(MouseInfo)).contents.point
+                try:
+                    if callback(point.x,point.y,'right' if message==0x0204 else 'left'):return 1
+                except Exception:
+                    pass
+            return user32.CallNextHookEx(None,code,message,pointer)
+        self.proc=signature(dispatch)
+        user32.SetWindowsHookExW.argtypes=[ctypes.c_int,signature,w.HINSTANCE,w.DWORD]
+        user32.SetWindowsHookExW.restype=w.HHOOK
+        ctypes.windll.kernel32.GetModuleHandleW.restype=w.HINSTANCE
+        self.handle=user32.SetWindowsHookExW(14,self.proc,ctypes.windll.kernel32.GetModuleHandleW(None),0)
+        if not self.handle:raise OSError('无法建立状态条点击监听')
+
+    def close(self):
+        if self.handle:
+            user32.UnhookWindowsHookEx.argtypes=[w.HHOOK]
+            user32.UnhookWindowsHookEx(self.handle);self.handle=None
+
+
+def dpi_aware():
+    user32.SetProcessDpiAwarenessContext.argtypes = [ctypes.c_void_p]
+    user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
+
+
+def rect(hwnd):
+    box = w.RECT()
+    if not user32.GetWindowRect(hwnd, ctypes.byref(box)):
+        return None
+    return box.left, box.top, box.right, box.bottom
+
+
+def placement(minimum_width=240):
+    tray = user32.FindWindowW("Shell_TrayWnd", None)
+    box = rect(tray) if tray else None
+    if not box:
+        return None
+    left, top, right, bottom = box
+    scale = max(1, user32.GetDpiForWindow(tray) / 96)
+    inset = round(8 * scale)
+    height = round(30 * scale)
+    rebar = user32.FindWindowExW(tray, None, "ReBarWindow32", None)
+    icons = rect(rebar) if rebar else None
+    start = user32.FindWindowExW(tray, None, "Start", None)
+    start_box = rect(start) if start else None
+    edges = [r[0] for r in (start_box, icons) if r]
+    if not edges or bottom-top > right-left:return None
+    available = min(edges)-left-inset*2
+    width = round(min(540*scale,available))
+    if width < minimum_width*scale:return None
+    x = left+inset
+    y = top+max(0,(bottom-top-height)//2)
+    screen_bottom = user32.GetSystemMetrics(1)
+    hidden = top >= screen_bottom - 2 or bottom - top < 3
+    foreground = user32.GetForegroundWindow()
+    fg = rect(foreground) if foreground else None
+    if fg and foreground not in (tray, user32.GetShellWindow(), user32.GetDesktopWindow()):
+        hidden = hidden or (fg[0] <= left and fg[1] <= 0 and fg[2] >= right and fg[3] >= bottom)
+    return x, y, width, height, scale, hidden
+
+
+def topmost(hwnd):
+    user32.SetWindowPos(hwnd, w.HWND(-1), 0, 0, 0, 0, 0x0010 | 0x0001 | 0x0002)
+
+
+def follow_taskbar(hwnd):
+    """Keep the strip above its taskbar owner when Windows raises shell surfaces."""
+    tray = user32.FindWindowW("Shell_TrayWnd", None)
+    if tray and user32.GetWindowLongPtrW(hwnd, -8) != tray:
+        user32.SetWindowLongPtrW(hwnd, -8, tray)  # GWLP_HWNDPARENT: owner, not child parenting.
+        topmost(hwnd)
+
+
+def hide_border(hwnd):
+    dwm = ctypes.windll.dwmapi.DwmSetWindowAttribute
+    dwm.argtypes = [w.HWND, w.DWORD, ctypes.c_void_p, w.DWORD]
+    color = w.DWORD(0xFFFFFFFE)  # DWMWA_COLOR_NONE
+    dwm(hwnd, 34, ctypes.byref(color), ctypes.sizeof(color))
+    policy = w.DWORD(1)  # DWMNCRP_DISABLED: no non-client frame on tool windows.
+    dwm(hwnd, 2, ctypes.byref(policy), ctypes.sizeof(policy))
+    backdrop = w.DWORD(1)  # DWMSBT_NONE: the strip itself stays transparent.
+    dwm(hwnd, 38, ctypes.byref(backdrop), ctypes.sizeof(backdrop))
+    corners = w.DWORD(1)  # DWMWCP_DONOTROUND; popup corners are drawn by Qt.
+    dwm(hwnd, 33, ctypes.byref(corners), ctypes.sizeof(corners))
+    class Margins(ctypes.Structure):
+        _fields_ = [(name, ctypes.c_int) for name in ("left", "right", "top", "bottom")]
+    class Blur(ctypes.Structure):
+        _fields_ = [("flags", w.DWORD), ("enable", w.BOOL), ("region", w.HRGN), ("transition", w.BOOL)]
+    api = ctypes.windll.dwmapi
+    api.DwmExtendFrameIntoClientArea.argtypes = [w.HWND, ctypes.POINTER(Margins)]
+    api.DwmEnableBlurBehindWindow.argtypes = [w.HWND, ctypes.POINTER(Blur)]
+    api.DwmExtendFrameIntoClientArea(hwnd, ctypes.byref(Margins(0, 0, 0, 0)))
+    api.DwmEnableBlurBehindWindow(hwnd, ctypes.byref(Blur(1, False, None, False)))
+    _set_accent(hwnd,0,0)
+
+
+def _set_accent(hwnd,state,color):
+    class Accent(ctypes.Structure):
+        _fields_ = [(name, ctypes.c_int) for name in ("state", "flags", "color", "animation")]
+    class Composition(ctypes.Structure):
+        _fields_ = [("attribute", ctypes.c_int), ("data", ctypes.c_void_p), ("size", ctypes.c_size_t)]
+    accent = Accent(state, 0, ctypes.c_int(color).value, 0)
+    value = Composition(19, ctypes.cast(ctypes.pointer(accent), ctypes.c_void_p), ctypes.sizeof(accent))
+    user32.SetWindowCompositionAttribute.argtypes = [w.HWND, ctypes.POINTER(Composition)]
+    user32.SetWindowCompositionAttribute(hwnd, ctypes.byref(value))
+
+
+def popup_glass(hwnd):
+    """Dark acrylic for both nonactivating panels, without a native border."""
+    hide_border(hwnd)
+    _set_accent(hwnd,4,0x604E4033)
+    corners=w.DWORD(2)
+    ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd,33,ctypes.byref(corners),ctypes.sizeof(corners))
