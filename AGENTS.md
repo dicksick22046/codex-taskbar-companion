@@ -11,4 +11,4 @@
 - 透明属性必须在创建原生窗口句柄前设置。既要运行测试，也要检查实际安装版的窗口。
 - 单元测试、受控数据、实际窗口、安装升级卸载和其他机器验收分别报告，不互相替代。
 - 版本号唯一来源build_info.py；首次候选及发布信息见CHANGELOG和docs/publishing.md。
-- 提交、推送、发布遵循用户授权；发布目标仅GitHub Guid16/codex-taskbar-companion，禁止改用内网GitLab。
+- 提交、推送、发布遵循用户授权；发布目标仅GitHub dicksick22046/codex-taskbar-companion，禁止改用内网GitLab。

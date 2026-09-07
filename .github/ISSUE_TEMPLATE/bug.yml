@@ -1,0 +1,17 @@
+name: 问题反馈
+description: 哪一步没按预期工作？
+body:
+  - type: input
+    id: version
+    attributes:
+      label: 工具版本与 Windows 版本
+      placeholder: 例如 0.1.3 / Windows 11 24H2
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: 遇到了什么
+      description: 写下复现步骤、预期结果和实际结果。截图请先遮住私人任务名称等信息，不要上传账号凭据或完整会话日志。
+    validations:
+      required: true
