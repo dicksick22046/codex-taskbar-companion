@@ -9,7 +9,7 @@ import urllib.parse
 import urllib.request
 
 from PySide6.QtCore import QObject, Signal
-from build_info import VERSION, RELEASE_REPOSITORY
+from .build_info import VERSION, RELEASE_REPOSITORY
 
 
 def version_tuple(value):
@@ -145,6 +145,6 @@ def install_after_exit(installer, parent_pid, runtime):
             if kernel.WaitForSingleObject(process,30000)!=0:raise TimeoutError('程序尚未退出')
         finally:kernel.CloseHandle(process)
     elif ctypes.get_last_error()!=87:raise ctypes.WinError(ctypes.get_last_error())
-    import startup
+    from . import startup
     tasks='/TASKS=autostart' if startup.enabled() else '/TASKS='
     subprocess.Popen([str(path),'/SP-','/SILENT','/CLOSEAPPLICATIONS','/UPDATE=1',tasks],creationflags=0x08000000)

@@ -6,8 +6,8 @@ import time
 from pathlib import Path
 from uuid import uuid4
 
-from preferences import write_json
-from usage import quota_windows
+from .preferences import write_json
+from .usage import quota_windows
 
 
 def available_credits(credits, now=None):
@@ -47,6 +47,18 @@ class ResetLedger:
         try:self.accounts = json.loads(self.path.read_text(encoding='utf-8'))
         except (OSError, ValueError):self.accounts = {}
         if not isinstance(self.accounts,dict):self.accounts={}
+        for record in self.accounts.values():
+            events=[]
+            for event in record.get('events',[]):
+                if event.get('kind')=='unknown' and event.get('before') and event.get('after'):
+                    before,after=event['before'],event['after']
+                    windows=changed_windows(before,after,event['at'])
+                    if not windows:continue
+                    scheduled=all(scheduled_rollover(before[k],after[k],event['at']) for k in windows)
+                    event={**event,'windows':windows,'kind':'scheduled' if scheduled else 'official'}
+                    if not scheduled:event['classification']='inferred'
+                events.append(event)
+            record['events']=events
         self.account = None
         self.credits = None
         self.state = 'idle'
@@ -63,11 +75,12 @@ class ResetLedger:
         for key in changed_windows(before, after, at):
             old, new = before[key], after[key]
             scheduled = scheduled_rollover(old,new,at)
-            groups.setdefault('scheduled' if scheduled else 'unknown', []).append(key)
+            groups.setdefault('scheduled' if scheduled else 'official', []).append(key)
         for kind, windows in groups.items():
             self.record['events'].append({'id': str(uuid4()), 'at': at, 'kind': kind, 'windows': windows,
                                          'before':{k:dict(before[k]) for k in windows},
-                                         'after':{k:dict(after[k]) for k in windows}})
+                                         'after':{k:dict(after[k]) for k in windows},
+                                         **({'classification':'inferred'} if kind=='official' else {})})
 
     def observe(self, raw, at=None):
         at = time.time() if at is None else at
@@ -134,6 +147,16 @@ class ResetLedger:
 
     def failed(self):
         self.state = 'uncertain' if self.record and self.record.get('pending') else 'unavailable'
+
+    def periods(self):
+        periods=[];previous=None
+        for event in sorted(self.record['events'] if self.record else [],key=lambda e:e['at']):
+            before=event.get('before',{})
+            window=before.get('10080') or before.get('300') or {}
+            start=previous if previous is not None else window.get('starts_at')
+            if start is not None and start<event['at']:periods.append((event['id'],start,event['at']))
+            previous=event['at']
+        return tuple(periods)
 
     def view(self):
         pending = self.record.get('pending') if self.record else None

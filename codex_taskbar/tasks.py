@@ -1,6 +1,6 @@
 """Task-list ordering and labels, independent of the window implementation."""
 from uuid import UUID
-from usage import human_tokens
+from .usage import human_tokens
 
 CATEGORIES = ('running', 'unread', 'failed', 'stopped', 'recent')
 CATEGORY_LABELS = dict(zip(CATEGORIES, ('Running', 'Unread', 'Failed', 'Stopped', 'Recent')))

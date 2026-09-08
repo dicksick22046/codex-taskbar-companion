@@ -2,9 +2,9 @@ from datetime import datetime,timedelta
 from unittest.mock import patch,Mock
 import unittest
 
-import app
-from tasks import panel_rows,category_counts
-from test_resets import credit
+from codex_taskbar import app
+from codex_taskbar.tasks import panel_rows,category_counts
+from tests.test_resets import credit
 
 
 class InteractionTests(unittest.TestCase):
@@ -20,7 +20,7 @@ class InteractionTests(unittest.TestCase):
                      {'minutes':300,'remaining':60,'starts_at':now-3600,'resets_at':now+4*3600}],
             'daily_quota':'12%','reset_account':'fixture-account','reset_selected':credit(),'reset_available':3}
         self.provider=Mock();self.provider.get.side_effect=lambda:self.data
-        with patch('app.windows.ClickHook'),patch('app.windows.placement',return_value=None),patch('app.RELEASE_REPOSITORY',''):
+        with patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.RELEASE_REPOSITORY',''):
             self.bar=app.StatusBar(self.provider)
         self.bar.timer.stop();self.bar.animation.stop();self.bar.update_timer.stop();self.bar.tray.hide()
         self.bar.resize(1200,30);self.bar.data=self.data;self.bar.task=self.data['tasks'][0]
@@ -50,9 +50,9 @@ class InteractionTests(unittest.TestCase):
 
     def test_task_target_is_frozen_at_press_and_dragging_out_cancels(self):
         region=next(r for m,r,t in self.bar.hit_regions if m=='task');point=region.center()
-        with patch.object(self.bar,'isVisible',return_value=True),patch('app.windows.rect',return_value=(0,0,1200,30)), \
-             patch('app.windows.user32.GetDpiForWindow',return_value=96),patch.object(self.bar,'open_task') as navigate, \
-             patch('app.QTimer.singleShot',side_effect=lambda ms,fn:fn()):
+        with patch.object(self.bar,'isVisible',return_value=True),patch('codex_taskbar.app.windows.rect',return_value=(0,0,1200,30)), \
+             patch('codex_taskbar.app.windows.user32.GetDpiForWindow',return_value=96),patch.object(self.bar,'open_task') as navigate, \
+             patch('codex_taskbar.app.QTimer.singleShot',side_effect=lambda ms,fn:fn()):
             self.bar.desktop_click(point.x(),point.y())
             self.bar.task={'id':'replacement','project':'Other','title':'Another task'};self.bar.grab()
             self.bar.desktop_click(point.x(),point.y(),'left_up')
@@ -62,9 +62,9 @@ class InteractionTests(unittest.TestCase):
             self.bar.desktop_click(1199,100,'left_up');navigate.assert_not_called()
 
     def test_popup_regions_dispatch_their_own_mode(self):
-        with patch.object(self.bar,'isVisible',return_value=True),patch('app.windows.rect',return_value=(0,0,1200,30)), \
-             patch('app.windows.user32.GetDpiForWindow',return_value=96),patch.object(self.bar,'toggle_popup') as toggle, \
-             patch('app.QTimer.singleShot',side_effect=lambda ms,fn:fn()):
+        with patch.object(self.bar,'isVisible',return_value=True),patch('codex_taskbar.app.windows.rect',return_value=(0,0,1200,30)), \
+             patch('codex_taskbar.app.windows.user32.GetDpiForWindow',return_value=96),patch.object(self.bar,'toggle_popup') as toggle, \
+             patch('codex_taskbar.app.QTimer.singleShot',side_effect=lambda ms,fn:fn()):
             for mode,region,payload in self.bar.hit_regions[:-1]:
                 point=region.center();self.bar.desktop_click(point.x(),point.y())
                 self.bar.desktop_click(point.x(),point.y(),'left_up')
@@ -80,7 +80,7 @@ class InteractionTests(unittest.TestCase):
                 text='确认重置' if confirm else '取消'
                 next(b for b in self.buttons() if b.text()==text).click()
                 return 0
-        with patch('app.QMessageBox',AutoDialog),patch('app.windows.user32.ShowWindow'):
+        with patch('codex_taskbar.app.QMessageBox',AutoDialog),patch('codex_taskbar.app.windows.user32.ShowWindow'):
             self.bar.confirm_reset()
 
     def test_cancel_never_queues_a_reset(self):
@@ -92,7 +92,7 @@ class InteractionTests(unittest.TestCase):
 
     def test_busy_reset_does_not_open_another_confirmation(self):
         self.data['reset_busy']=True
-        with patch('app.QMessageBox') as dialog:self.bar.confirm_reset();dialog.assert_not_called()
+        with patch('codex_taskbar.app.QMessageBox') as dialog:self.bar.confirm_reset();dialog.assert_not_called()
         self.provider.request_reset.assert_not_called()
 
     def test_reset_panel_has_one_action_without_credit_selector(self):
@@ -118,12 +118,24 @@ class InteractionTests(unittest.TestCase):
         panel=app.TaskListPopup(self.bar,'daily');self.bar.popup=panel;panel.refresh(self.data)
         event=Mock();event.button.return_value=app.Qt.MouseButton.LeftButton
         event.position.return_value=panel.unit_rects()['100M'].center()
-        with patch('app.write_settings'),patch.object(self.bar,'open_task') as navigate:
+        with patch('codex_taskbar.app.write_settings'),patch.object(self.bar,'open_task') as navigate:
             panel.mousePressEvent(event);panel.mouseReleaseEvent(event)
             self.assertEqual(panel.values['running'],'1.43')
             with patch.object(panel,'usage_header') as header:panel.grab()
             self.assertEqual(header.call_args.args[2],142704000)
             navigate.assert_not_called()
+
+    def test_unit_hover_and_refresh_keep_cursor_without_changing_selection(self):
+        panel=app.TaskListPopup(self.bar,'daily');panel.refresh(self.data)
+        point=panel.unit_rects()['100M'].center()
+        event=Mock();event.position.return_value=point
+        with patch.object(self.bar,'set_chart_unit') as select,patch.object(panel,'mapFromGlobal',return_value=point):
+            panel.mouseMoveEvent(event)
+            self.assertEqual(panel.cursor().shape(),app.Qt.CursorShape.PointingHandCursor)
+            panel.refresh(self.data)
+            self.assertEqual(panel.cursor().shape(),app.Qt.CursorShape.PointingHandCursor)
+            self.assertEqual(self.bar.chart_unit,'M');select.assert_not_called()
+        panel.close();panel.deleteLater()
 
     def test_all_credit_expiries_are_visible_but_only_one_reset_action(self):
         now=datetime.now().timestamp()
@@ -132,7 +144,7 @@ class InteractionTests(unittest.TestCase):
         self.data['reset_credits']=[credit(str(i),now-i*100,now+(i+1)*86400) for i in range(3)]
         self.data['reset_selected']=self.data['reset_credits'][0]
         panel=app.ResetPopup(self.bar);panel.refresh(self.data)
-        with patch('app.text',wraps=app.text) as draw:panel.grab()
+        with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
         labels=[c.args[3] for c in draw.call_args_list]
         for item in self.data['reset_credits']:
             self.assertIn(datetime.fromtimestamp(item['expiresAt']).strftime('%m.%d %H:%M'),labels)
@@ -151,11 +163,39 @@ class InteractionTests(unittest.TestCase):
         tasks=[{'id':'a'},{'id':'b'},{'id':'c'}]
         self.bar.current_id='a';self.bar.rotated_at=0
         panel=app.ResetPopup(self.bar);self.bar.popup=panel
-        with patch('app.time.monotonic',return_value=10):
+        with patch('codex_taskbar.app.time.monotonic',return_value=10):
             self.assertEqual(self.bar.selected_task(tasks)['id'],'b')
         self.bar.task_hover=True
-        with patch('app.time.monotonic',return_value=20):
+        with patch('codex_taskbar.app.time.monotonic',return_value=20):
             self.assertEqual(self.bar.selected_task(tasks)['id'],'b')
         self.bar.task_hover=False
-        with patch('app.time.monotonic',return_value=21):
+        with patch('codex_taskbar.app.time.monotonic',return_value=21):
             self.assertEqual(self.bar.selected_task(tasks)['id'],'c')
+
+    def test_hover_and_popup_close_preserve_rotation_progress(self):
+        self.bar.current_id='running';self.bar.rotated_at=0
+        point=self.bar.task_area.center()
+        with patch('codex_taskbar.app.time.monotonic',return_value=6):self.bar.track_pointer(point)
+        with patch('codex_taskbar.app.time.monotonic',return_value=16):self.bar.track_pointer(app.QPointF(-1,-1))
+        self.assertEqual(self.bar.rotated_at,10)
+        self.bar.popup=app.TaskPopup(self.bar)
+        with patch('codex_taskbar.app.time.monotonic',return_value=17):self.bar.hide_popup(immediate=True)
+        self.assertEqual(self.bar.rotated_at,10)
+        tasks=[self.bar.task,{'id':'next'}]
+        with patch('codex_taskbar.app.time.monotonic',return_value=18):
+            self.assertEqual(self.bar.selected_task(tasks)['id'],'next')
+
+    def test_replacement_task_does_not_inherit_previous_hover_wait(self):
+        self.bar.current_id='finished';self.bar.task_hover=True;self.bar.title_hover_started=0
+        with patch('codex_taskbar.app.time.monotonic',return_value=10):self.bar.selected_task([{'id':'next'}])
+        with patch('codex_taskbar.app.time.monotonic',return_value=16):self.bar.track_pointer(app.QPointF(-1,-1))
+        self.assertEqual(self.bar.rotated_at,16)
+
+    def test_entire_interactive_regions_have_native_hit_pixels(self):
+        self.bar.resize(1500,30)
+        img=self.bar.grab().toImage();ratio=img.devicePixelRatio()
+        for mode,rect,target in self.bar.hit_regions:
+            for dx in (3,rect.width()/2,rect.width()-3):
+                for dy in (3,rect.height()-3):
+                    self.assertGreater(img.pixelColor(round((rect.left()+dx)*ratio),round(dy*ratio)).alpha(),0,mode)
+        self.assertEqual(img.pixelColor(img.width()-3,3).alpha(),0)

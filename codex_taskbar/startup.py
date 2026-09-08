@@ -12,7 +12,7 @@ def command():
     if getattr(sys, 'frozen', False):
         return subprocess.list2cmdline([sys.executable])
     python = Path(sys.executable).with_name('pythonw.exe')
-    return subprocess.list2cmdline([str(python), str(Path(__file__).with_name('app.py'))])
+    return subprocess.list2cmdline([str(python), str(Path(__file__).resolve().parents[1]/'app.py')])
 
 
 def enabled():

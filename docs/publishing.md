@@ -2,7 +2,7 @@
 
 ## 版本来源
 
-唯一版本号为 `build_info.py` 的 `VERSION`。正式版本使用 `X.Y.Z`，Git标签为 `vX.Y.Z`。不要修改已发布版本的安装包；修正后递增补丁号。
+唯一版本号为 `codex_taskbar/build_info.py` 的 `VERSION`。正式版本使用 `X.Y.Z`，Git标签为 `vX.Y.Z`。不要修改已发布版本的安装包；修正后递增补丁号。
 更新仓库为 `dicksick22046/codex-taskbar-companion`。公开前必须确认该仓库由项目所有者控制。
 
 ## 构建与验收

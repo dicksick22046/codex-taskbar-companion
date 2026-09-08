@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 import unittest
-from app import chart_values, chart_number, chart_total, marquee_offset
+from codex_taskbar.app import chart_values, chart_number, chart_total, marquee_offset
 
 
 class ChartTests(unittest.TestCase):

@@ -1,9 +1,9 @@
 import json,hashlib,tempfile,io,unittest,time
 from pathlib import Path
 from unittest.mock import patch
-from preferences import read_settings,write_settings,migrate_legacy,DISPLAY_DEFAULTS
-from usage import quota_windows,visible_metrics
-from updates import release_candidate,download_installer
+from codex_taskbar.preferences import read_settings,write_settings,migrate_legacy,DISPLAY_DEFAULTS
+from codex_taskbar.usage import quota_windows,visible_metrics
+from codex_taskbar.updates import release_candidate,download_installer
 class ReleaseTests(unittest.TestCase):
     def test_actual_windows_and_display_switches(self):
         q=quota_windows({'rateLimits':{'primary':{'usedPercent':20,'windowDurationMins':300,'resetsAt':time.time()+18000},'secondary':{'usedPercent':35,'windowDurationMins':10080,'resetsAt':time.time()+604800}}})
@@ -37,15 +37,15 @@ class ReleaseTests(unittest.TestCase):
     def test_download_rejects_corruption(self):
         with tempfile.TemporaryDirectory() as d:
             release={'name':'test.exe','checksum_url':'checksum','url':'installer'}
-            with patch('updates.open_url',side_effect=[io.BytesIO(b'0'*64),io.BytesIO(b'bad installer')]):
+            with patch('codex_taskbar.updates.open_url',side_effect=[io.BytesIO(b'0'*64),io.BytesIO(b'bad installer')]):
                 with self.assertRaises(ValueError):download_installer(release,Path(d))
             self.assertEqual(list(Path(d).iterdir()),[])
             payload=b'verified fixture';checksum=hashlib.sha256(payload).hexdigest().encode()
-            with patch('updates.open_url',side_effect=[io.BytesIO(checksum),io.BytesIO(payload)]):
+            with patch('codex_taskbar.updates.open_url',side_effect=[io.BytesIO(checksum),io.BytesIO(payload)]):
                 path=download_installer(release,Path(d));self.assertEqual(path.read_bytes(),payload)
 
     def test_runtime_location_is_independent_of_packaged_localappdata(self):
-        from preferences import runtime_dir
+        from codex_taskbar.preferences import runtime_dir
         with patch.dict('os.environ',{'LOCALAPPDATA':'C:/Users/test/AppData/Local'}):first=runtime_dir()
         with patch.dict('os.environ',{'LOCALAPPDATA':'C:/Users/test/AppData/Local/Packages/host/LocalCache/Local'}):second=runtime_dir()
         self.assertEqual(first,second)
@@ -53,8 +53,8 @@ class ReleaseTests(unittest.TestCase):
 
     def test_migration_merges_restart_history_and_keeps_the_day_baseline(self):
         from datetime import datetime,timedelta,timezone
-        from preferences import write_json
-        from usage import daily_quota_text
+        from codex_taskbar.preferences import write_json
+        from codex_taskbar.usage import daily_quota_text
         midnight=datetime(2026,9,7,tzinfo=timezone(timedelta(hours=8))).timestamp()
         old_reset=midnight+10.5*3600;new_reset=old_reset+7*86400
         old=[{'at':midnight+24,'used':82,'reset':old_reset},
@@ -80,7 +80,7 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual(json.loads((stable/'quota_history.json').read_text()),rows)
 
     def test_migration_can_see_another_launch_context_later(self):
-        from preferences import write_json
+        from codex_taskbar.preferences import write_json
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);host=root/'host';normal=root/'normal';stable=root/'stable'
             first={'at':100,'used':10,'reset':1000};second={'at':200,'used':20,'reset':1000}

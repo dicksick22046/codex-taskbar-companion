@@ -6,9 +6,10 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from provider import Provider
-from unread import UnreadState
-from test_usage import record
+from codex_taskbar.provider import Provider
+from codex_taskbar.unread import UnreadState
+from codex_taskbar.usage import UsageCursor
+from tests.test_usage import record
 
 
 class ProviderFailureTests(unittest.TestCase):
@@ -46,7 +47,7 @@ class ProviderFailureTests(unittest.TestCase):
             snapshots=[];publish=provider._publish
             def capture(*args,**kwargs):
                 publish(*args,**kwargs);snapshots.append(copy.deepcopy(provider.snapshot))
-            with patch('provider.CodexApi',return_value=api) as factory,patch('provider.time.monotonic',side_effect=lambda:1000+stop.ticks*31),patch.object(provider,'_publish',side_effect=capture),patch('builtins.print'):
+            with patch('codex_taskbar.provider.CodexApi',return_value=api) as factory,patch('codex_taskbar.provider.time.monotonic',side_effect=lambda:1000+stop.ticks*31),patch.object(provider,'_publish',side_effect=capture),patch('builtins.print'):
                 provider._run()
             self.assertEqual(factory.call_count,1)
             self.assertEqual(api.closed,1)
@@ -76,3 +77,25 @@ class ProviderFailureTests(unittest.TestCase):
         snapshots=self.run_failure('catalog_timeout')
         self.assertIsNotNone(snapshots[1]['error'])
         self.assertIsNone(snapshots[1]['quota_error'])
+
+
+class SideChatAggregationTests(unittest.TestCase):
+    def test_side_only_activity_counts_parent_once_and_restores_parent_after_completion(self):
+        from datetime import timedelta
+        now=datetime.now().astimezone()
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);path=root/'parent.jsonl'
+            path.write_bytes(record('task_started',now-timedelta(seconds=60))+record('token_count',now-timedelta(seconds=50),100)+record('task_complete',now-timedelta(seconds=40)))
+            cursor=UsageCursor(path);cursor.update()
+            provider=Provider.__new__(Provider);provider.runtime_dir=root;provider.lock=threading.Lock()
+            provider.quota_history=[];provider.unread_state=UnreadState(root/'missing.json');provider.boot_time=now.timestamp()-1000
+            provider.side_rows=[{'id':str(i),'parent_id':'main','running':True,'started_at':now.timestamp()-20+i,'activity_at':now.timestamp()-20+i} for i in range(2)]
+            threads=[{'id':'main','name':'Parent task'}]
+            provider._publish(threads,[],{'main':cursor},[],None,None)
+            tasks=provider.snapshot['tasks']
+            self.assertEqual(len(tasks),1);self.assertEqual(tasks[0]['id'],'main');self.assertTrue(tasks[0]['side_chat'])
+            self.assertEqual(tasks[0]['tokens'],100);self.assertIn(tasks[0]['round_seconds'],(20,21))
+            for side in provider.side_rows:side.update(running=False,ended_at=now.timestamp(),activity_at=now.timestamp())
+            provider._publish(threads,[],{'main':cursor},[],None,None)
+            self.assertEqual(provider.snapshot['tasks'],[])
+            self.assertFalse(provider.snapshot['recent_tasks'][0].get('side_chat',False))

@@ -6,8 +6,8 @@ import time
 import unittest
 from unittest.mock import patch
 
-from provider import Provider
-from resets import ResetLedger, latest_credit
+from codex_taskbar.provider import Provider
+from codex_taskbar.resets import ResetLedger, latest_credit
 
 
 def credit(name='new', granted=None, expiry=None):
@@ -71,7 +71,7 @@ class ResetTests(unittest.TestCase):
         self.assertEqual([e['kind'] for e in events],['scheduled'])
         self.assertEqual(events[0]['before']['10080']['resets_at'],1000)
 
-    def test_scheduled_and_unknown_changes_are_distinct(self):
+    def test_scheduled_and_official_changes_are_distinct(self):
         first=response(reset=1000)
         self.ledger.observe(first,100)
         self.ledger.record['events']=[]
@@ -79,10 +79,10 @@ class ResetTests(unittest.TestCase):
         self.assertEqual(self.ledger.view()['reset_events'][0]['kind'],'scheduled')
         self.ledger.observe(response(used=20,reset=1000+604800),1100)
         self.ledger.observe(response(used=0,reset=1000+604800),1200)
-        self.assertEqual(self.ledger.view()['reset_events'][0]['kind'],'unknown')
-        self.assertNotIn('official',[e['kind'] for e in self.ledger.view()['reset_events']])
+        self.assertEqual(self.ledger.view()['reset_events'][0]['kind'],'official')
+        self.assertEqual(self.ledger.view()['reset_events'][0]['classification'],'inferred')
 
-    def test_success_is_one_manual_event_not_an_extra_unknown(self):
+    def test_success_is_one_manual_event_not_an_extra_official(self):
         params=self.ledger.begin('fixture-account','new')
         self.ledger.finish('reset')
         after=copy.deepcopy(self.raw);after['rateLimits']['primary']['usedPercent']=0
@@ -90,6 +90,21 @@ class ResetTests(unittest.TestCase):
         events=self.ledger.view()['reset_events']
         self.assertEqual(len(events),1);self.assertEqual(events[0]['kind'],'manual')
         self.assertEqual(events[0]['id'],params['idempotencyKey']);self.assertEqual(events[0]['windows'],['10080'])
+
+    def test_old_unknown_events_are_reclassified_without_reintroducing_jitter(self):
+        before=copy.deepcopy(self.ledger.record['windows'])
+        after=copy.deepcopy(before);after['10080']['remaining']=100
+        jitter=copy.deepcopy(before);jitter['10080']['resets_at']+=1
+        at=time.time()
+        self.ledger.record['events']=[{'id':'restored','at':at,'kind':'unknown','windows':['10080'],'before':before,'after':after},
+                                      {'id':'jitter','at':at,'kind':'unknown','windows':['10080'],'before':before,'after':jitter}]
+        self.ledger.save()
+        restarted=ResetLedger(self.path);restarted.observe(self.raw)
+        events=restarted.view()['reset_events']
+        self.assertEqual(len(events),1)
+        self.assertEqual((events[0]['id'],events[0]['at'],events[0]['kind']),('restored',at,'official'))
+        again=ResetLedger(self.path);again.observe(self.raw)
+        self.assertEqual(again.view()['reset_events'],events)
 
     def test_restart_and_uncertain_retry_keep_same_credit_and_key(self):
         original=self.ledger.begin('fixture-account','new');self.ledger.failed()

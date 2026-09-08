@@ -5,6 +5,12 @@ __pycache__/
 .venv/
 .pytest_cache/
 .coverage
+*.log
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+.ruff_cache/
 
 build/
 dist/

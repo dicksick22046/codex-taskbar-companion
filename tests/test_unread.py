@@ -5,10 +5,10 @@ import tempfile
 import threading
 import unittest
 
-from provider import Provider
-from unread import UnreadState
-from usage import UsageCursor
-from test_usage import record
+from codex_taskbar.provider import Provider
+from codex_taskbar.unread import UnreadState
+from codex_taskbar.usage import UsageCursor
+from tests.test_usage import record
 
 
 class UnreadTests(unittest.TestCase):

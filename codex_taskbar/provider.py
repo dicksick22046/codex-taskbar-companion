@@ -4,12 +4,14 @@ import json
 from pathlib import Path
 import threading
 import time
+import sqlite3
 
-from codex_api import CodexApi, project_name
-from usage import UsageCursor, FIELDS, quota_windows
-from unread import UnreadState
-from preferences import write_json
-from resets import ResetLedger
+from .codex_api import CodexApi, project_name
+from .usage import UsageCursor, FIELDS, quota_windows
+from .unread import UnreadState
+from .preferences import write_json
+from .resets import ResetLedger
+from .side_chats import SideChats
 
 
 class Provider:
@@ -26,6 +28,7 @@ class Provider:
             self.quota_history = []
         self.snapshot = {"tasks": [], "quota": [], "totals": None, "loading": True}
         self.unread_state = UnreadState()
+        self.side_reader=SideChats();self.side_rows=[]
         self.api = None
         self.reset_busy = False
         self.reset_request = None
@@ -120,12 +123,22 @@ class Provider:
                               "daily_seconds": daily_seconds, "round_seconds": round_seconds,
                               "unread": (cursor.completion_kind == 'task_complete' and not running and not failed
                                          and thread['id'] in unread_ids) if unread_ids is not None else None}
-            if running:
+            sides=[s for s in getattr(self,'side_rows',[]) if s['parent_id']==thread['id']]
+            active=[s for s in sides if s['running']]
+            if sides:
+                task['activity_at']=max([task['activity_at'] or '']+[datetime.fromtimestamp(s['activity_at']).astimezone().isoformat() for s in sides])
+            if active:
+                task.update(running=True,status='running',unread=False,side_chat=True)
+                if not running:
+                    start=min(s['started_at'] for s in active if s.get('started_at') is not None)
+                    task['started_at']=datetime.fromtimestamp(start).astimezone().isoformat()
+                    task['ended_at']=None;task['round_seconds']=max(0,int(time.time()-start))
+            if task['running']:
                 tasks.append(task)
-            elif cursor.activity_at and datetime.fromisoformat(cursor.activity_at).astimezone().date() == datetime.now().astimezone().date():
+            elif task['activity_at'] and datetime.fromisoformat(task['activity_at']).astimezone().date() == datetime.now().astimezone().date():
                 recent.append(task)
         tasks.sort(key=lambda t: (t["project"], t["started_at"] or "", t["id"]))
-        from usage import daily_quota_text
+        from .usage import daily_quota_text
         week = next((w for w in quota if w["label"] == "周"), None)
         snapshot = {"tasks": tasks, "recent_tasks": recent, "quota": quota, "quota_updated_at": quota_at,
                     "unread_count": sum(task['unread'] is True for task in recent) if unread_ids is not None else None,
@@ -134,7 +147,13 @@ class Provider:
                     "updated_at": datetime.now().astimezone().isoformat(), "error": error, "quota_error": quota_error,
                     "source": "本机 Codex 日志；Token 包含缓存输入，按模型步骤上报"}
         with self.lock:
-            if hasattr(self,'resets'):snapshot.update(self.resets.view())
+            if hasattr(self,'resets'):
+                snapshot.update(self.resets.view())
+                period_ids={period[0] for period in self.resets.periods()}
+                known=[c for c in cursors.values() if c.initialized]
+                for event in snapshot['reset_events']:
+                    if event['id'] in period_ids and known:
+                        event['tokens']=sum(getattr(c,'period_totals',{}).get(event['id'],0) for c in known)
             snapshot['reset_busy']=getattr(self,'reset_busy',False)
             self.snapshot = snapshot
         temporary = self.runtime_dir / "snapshot.tmp"
@@ -193,7 +212,11 @@ class Provider:
                             projects,threads=new_projects,new_threads;catalog_error=None
                             live_ids={t['id'] for t in threads}
                             cursors={k:v for k,v in cursors.items() if k in live_ids}
+                        if hasattr(self,'side_reader'):
+                            try:self.side_rows=self.side_reader.update(threads)
+                            except (OSError,ValueError,sqlite3.Error):pass
                     stage='local records'
+                    periods=self.resets.periods()
                     for thread in threads:
                         path = thread.get("path")
                         if not path:
@@ -202,9 +225,9 @@ class Provider:
                             cursor = cursors.get(thread["id"])
                             week = next((w for w in quota if w["label"] == "周"), quota[0] if quota else None)
                             since = datetime.fromtimestamp(week["starts_at"]).astimezone() if week and week.get("starts_at") else datetime.now().astimezone().replace(hour=0,minute=0,second=0,microsecond=0)
-                            if cursor is None or str(cursor.path) != path or cursor.since != since:
+                            if cursor is None or str(cursor.path) != path or cursor.since != since or cursor.periods!=periods:
                                 cursor = cursors[thread["id"]] = UsageCursor(path, since=since,
-                                    created_after=thread.get("createdAt") if thread.get("forkedFromId") else None)
+                                    created_after=thread.get("createdAt") if thread.get("forkedFromId") else None,periods=periods)
                             cursor.update()
                         except OSError:
                             cursors.pop(thread["id"], None)

@@ -1,5 +1,5 @@
 import unittest
-from app import QApplication,QWidget,TaskPopup,TaskListPopup,StatusBar,SessionPopup,ResetPopup,DISPLAY_DEFAULTS
+from codex_taskbar.app import QApplication,QWidget,TaskPopup,TaskListPopup,StatusBar,SessionPopup,ResetPopup,DISPLAY_DEFAULTS
 from unittest.mock import patch
 
 
@@ -39,7 +39,7 @@ class PopupInitialFrameTests(unittest.TestCase):
         panel=TaskListPopup(owner)
         panel.refresh({'tasks':[{'id':'a','title':'Task','project':'Project','running':True,
                                 'daily_seconds':17940,'tokens':142700000}]})
-        from app import QFontMetricsF,face
+        from codex_taskbar.app import QFontMetricsF,face
         metrics=QFontMetricsF(face(8))
         self.assertAlmostEqual(panel.info_divider-(panel.TITLE_X+panel.TITLE_WIDTH),12)
         self.assertEqual(panel.values['a'],'142.7')
@@ -49,8 +49,8 @@ class PopupInitialFrameTests(unittest.TestCase):
     def test_both_panels_leave_space_above_taskbar_not_inside_it(self):
         owner=QWidget();owner.setGeometry(20,610,540,30);owner.popup=None;owner.chart_unit="M"
         owner.settings=DISPLAY_DEFAULTS;owner.confirm_reset=lambda:None
-        with patch('app.windows.user32.FindWindowW',return_value=1), \
-             patch('app.windows.rect',return_value=(0,900,1600,972)), \
+        with patch('codex_taskbar.app.windows.user32.FindWindowW',return_value=1), \
+             patch('codex_taskbar.app.windows.rect',return_value=(0,900,1600,972)), \
              patch.object(owner,'devicePixelRatioF',return_value=1.5):
             for kind in (TaskPopup,TaskListPopup,SessionPopup,ResetPopup):
                 panel=kind(owner)
@@ -62,7 +62,7 @@ class PopupInitialFrameTests(unittest.TestCase):
     def test_task_hit_area_follows_visible_content(self):
         data={'tasks':[]}
         provider=type('Provider',(),{'get':lambda self:data,'stop':lambda self:None})()
-        with patch('app.windows.ClickHook'),patch('app.windows.placement',return_value=None):
+        with patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None):
             bar=StatusBar(provider)
         bar.timer.stop();bar.animation.stop();bar.resize(810,30)
         task={'id':'a','project':'Project','title':'Short'}
@@ -70,8 +70,8 @@ class PopupInitialFrameTests(unittest.TestCase):
         bar.grab()
         self.assertLess(bar.task_area.right(),bar.width()-100)
         self.assertLess(bar.task_rect.width(),100)
-        with patch.object(bar,'isVisible',return_value=True),patch('app.windows.rect',return_value=(0,0,810,30)), \
-             patch('app.windows.user32.GetDpiForWindow',return_value=96),patch('app.QTimer.singleShot') as dispatch:
+        with patch.object(bar,'isVisible',return_value=True),patch('codex_taskbar.app.windows.rect',return_value=(0,0,810,30)), \
+             patch('codex_taskbar.app.windows.user32.GetDpiForWindow',return_value=96),patch('codex_taskbar.app.QTimer.singleShot') as dispatch:
             self.assertFalse(bar.desktop_click(800,15))
             dispatch.assert_not_called()
             self.assertTrue(bar.desktop_click(round(bar.task_area.center().x()),15))
@@ -88,9 +88,9 @@ class PopupInitialFrameTests(unittest.TestCase):
 
 
     def test_native_strip_is_layered_even_before_it_is_shown(self):
-        import app
+        from codex_taskbar import app
         provider=type('Provider',(),{'get':lambda self:{},'stop':lambda self:None})()
-        with patch('app.windows.ClickHook'),patch('app.windows.placement',return_value=None):
+        with patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None):
             bar=StatusBar(provider)
         try:
             self.assertTrue(app.windows.user32.GetWindowLongPtrW(int(bar.winId()),-20)&0x80000)

@@ -4,11 +4,11 @@ import tempfile
 import threading
 import unittest
 
-from provider import Provider
-from tasks import task_rows, task_metrics, thread_url
-from usage import UsageCursor
-from unread import UnreadState
-from test_usage import record
+from codex_taskbar.provider import Provider
+from codex_taskbar.tasks import task_rows, task_metrics, thread_url
+from codex_taskbar.usage import UsageCursor
+from codex_taskbar.unread import UnreadState
+from tests.test_usage import record
 
 
 class TaskTests(unittest.TestCase):

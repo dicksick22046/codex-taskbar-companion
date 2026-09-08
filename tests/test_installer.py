@@ -7,7 +7,7 @@ import unittest
 
 class InstallerTests(unittest.TestCase):
     def test_bootstrap_preserves_windows_arguments(self):
-        root = Path(__file__).resolve().parent
+        root = Path(__file__).resolve().parents[1]
         compiler = Path(os.environ['WINDIR']) / 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
         with tempfile.TemporaryDirectory() as folder:
             executable = Path(folder) / 'BootstrapTests.exe'

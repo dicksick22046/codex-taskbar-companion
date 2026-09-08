@@ -1,5 +1,6 @@
 """Incremental lifecycle and token metrics from the locally observed JSONL format."""
 from datetime import datetime, timedelta, timezone
+from bisect import bisect_right
 import json
 import math
 from pathlib import Path
@@ -26,11 +27,14 @@ def event_from_line(line):
 
 
 class UsageCursor:
-    def __init__(self, path, today=None, since=None, created_after=None):
+    def __init__(self, path, today=None, since=None, created_after=None, periods=()):
         self.path = Path(path)
         self.day = today or datetime.now().astimezone().date()
         self.since = since or datetime.combine(self.day, datetime.min.time()).astimezone()
         self.created_after = created_after
+        self.periods=tuple(periods)
+        self.period_starts=[row[1] for row in self.periods]
+        self.period_totals={row[0]:0 for row in self.periods}
         self.by_day = {}
         self.offset = 0
         self.pending = b""
@@ -90,6 +94,9 @@ class UsageCursor:
                     if original and key == "total_tokens" and event["at"] >= self.since:
                         name = local_day.isoformat()
                         self.by_day[name] = self.by_day.get(name, 0) + delta
+                    if original and key=='total_tokens' and self.periods:
+                        at=event['at'].timestamp();index=bisect_right(self.period_starts,at)-1
+                        if index>=0 and at<self.periods[index][2]:self.period_totals[self.periods[index][0]]+=delta
             self.last = current
             self.usage_at = event["at"].isoformat()
 
@@ -109,6 +116,7 @@ class UsageCursor:
         window = min(size, 1024 * 1024)
         events = []
         boundary=min(self.since,datetime.combine(self.day,datetime.min.time()).astimezone())
+        if self.periods:boundary=min(boundary,datetime.fromtimestamp(self.periods[0][1]).astimezone())
         with self.path.open("rb") as stream:
             while True:
                 start = max(0, size - window)
@@ -137,7 +145,7 @@ class UsageCursor:
         if not self.initialized:
             self.bootstrap()
         elif size < self.offset or today != self.day:
-            self.__init__(self.path, today, self.since, self.created_after)
+            self.__init__(self.path, today, self.since, self.created_after,self.periods)
             self.bootstrap()
         elif size > self.offset:
             with self.path.open("rb") as stream:

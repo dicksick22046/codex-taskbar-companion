@@ -2,8 +2,8 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap, QColor, QPen
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QCheckBox, QPushButton
-from build_info import APP_NAME, VERSION
-import startup
+from .build_info import APP_NAME, VERSION
+from . import startup
 
 DISPLAY_LABELS = {
     'show_week': '周额度', 'show_session': '5 小时额度（可用时显示）',
