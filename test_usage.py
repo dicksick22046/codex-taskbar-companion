@@ -56,6 +56,26 @@ class UsageTests(unittest.TestCase):
         with self.path.open('ab') as f:f.write(line[-3:])
         c.update();c.update();self.assertEqual(c.daily['total_tokens'],70)
 
+    def test_midnight_clears_today_without_new_events_and_retains_delta_baseline(self):
+        midnight=self.now.replace(hour=0,minute=0,second=0,microsecond=0)
+        before=midnight-timedelta(minutes=1)
+        class Clock(datetime):
+            current=before
+            @classmethod
+            def now(cls,tz=None):return cls.current.astimezone(tz)
+        self.path.write_bytes(record('token_count',before-timedelta(days=1),800)+record('token_count',before,1000))
+        with patch('usage.datetime',Clock):
+            cursor=UsageCursor(self.path);cursor.update()
+            self.assertEqual(cursor.daily['total_tokens'],200)
+            Clock.current=midnight+timedelta(seconds=1)
+            cursor.update()
+            self.assertEqual(cursor.daily['total_tokens'],0)
+            with self.path.open('ab') as f:f.write(record('token_count',Clock.current,1200))
+            cursor.update()
+            self.assertEqual(cursor.daily['total_tokens'],200)
+            restarted=UsageCursor(self.path);restarted.update()
+            self.assertEqual(restarted.daily['total_tokens'],200)
+
     def test_truncation_reloads_instead_of_adding_old_total(self):
         self.path.write_bytes(record('task_started',self.now)+record('token_count',self.now,900))
         c=UsageCursor(self.path);c.update()

@@ -10,8 +10,11 @@
 1. 更新CHANGELOG和VERSION。
 2. 安装requirements-build.txt，运行unittest discover。
 3. 使用scripts/package.ps1生成安装器及SHA-256文件。
+   脚本先生成Inno负载，再用Windows自带.NET Framework编译安装引导程序，发布文件仍是单个Setup.exe。原始负载只留在build中，不能单独作为Release安装包。
 4. 在Windows 11上验证安装、设置恢复、退出、再次启动、覆盖升级、卸载保留数据。
 5. 检查发布目录只包含安装包和校验文件，不包含账号、用户数据、截图或虚拟环境。
+
+0.1.5起分别检查普通与隔离宿主启动，使用系统StdRegProv和Win32_StartupCommand核对真实登记；同时核对取消/失败退出码、命令行参数、临时任务及安装缓存清理。安装引导程序使用Windows 11自带.NET Framework，不要求用户另装运行时。
 
 GitHub Actions的build工作流提供编译产物，不会自动公开发布。
 只有正式GitHub Release才会触发已安装客户端的版本提示；单纯push代码没有这个效果。

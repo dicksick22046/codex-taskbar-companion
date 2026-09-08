@@ -46,6 +46,18 @@ class PopupInitialFrameTests(unittest.TestCase):
         self.assertGreaterEqual(panel.time_right-metrics.horizontalAdvance('4h 59m')-panel.info_divider,12)
         panel.close();panel.deleteLater();owner.close();owner.deleteLater()
 
+    def test_both_panels_leave_space_above_taskbar_not_inside_it(self):
+        owner=QWidget();owner.setGeometry(20,610,540,30);owner.popup=None
+        with patch('app.windows.user32.FindWindowW',return_value=1), \
+             patch('app.windows.rect',return_value=(0,900,1600,972)), \
+             patch.object(owner,'devicePixelRatioF',return_value=1.5):
+            for kind in (TaskPopup,TaskListPopup):
+                panel=kind(owner)
+                panel.refresh({'tasks':[]})
+                self.assertEqual(panel.y()+panel.height(),600-8)
+                panel.close();panel.deleteLater()
+        owner.close();owner.deleteLater()
+
     def test_task_hit_area_follows_visible_content(self):
         data={'tasks':[]}
         provider=type('Provider',(),{'get':lambda self:data,'stop':lambda self:None})()

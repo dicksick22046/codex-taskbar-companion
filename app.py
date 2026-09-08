@@ -464,6 +464,7 @@ class StatusBar(QWidget):
 
 class TaskPopup(QWidget):
     mode='usage'
+    GAP=8
     UNIT_RECTS={'M':QRectF(277,9,28,24),'100M':QRectF(309,9,40,24)}
     def __init__(self,owner):
         super().__init__(None,FLAGS)
@@ -499,6 +500,12 @@ class TaskPopup(QWidget):
             self.owner.popup=None;self.owner.rotated_at=time.monotonic()
             self.owner.title_hover_started=time.monotonic();self.close();self.deleteLater()
 
+    def anchor_bottom(self):
+        tray=windows.user32.FindWindowW('Shell_TrayWnd',None)
+        bounds=windows.rect(tray) if tray else None
+        top=min(self.owner.y(),round(bounds[1]/self.owner.devicePixelRatioF())) if bounds else self.owner.y()
+        return top-self.GAP
+
     def refresh(self,data):
         self.data=data;now=datetime.now().astimezone()
         week=chart_window(data)
@@ -510,7 +517,7 @@ class TaskPopup(QWidget):
         self.extra=24 if self.window_summary else 0
         self.full_height=158+self.extra
         shown=min(round(self.full_height),max(180,self.owner.y()-16))
-        self.setGeometry(self.owner.x(),max(0,self.owner.y()-shown-7),360,shown)
+        self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-shown),360,shown)
         self.scroll=min(self.scroll,max(0,self.full_height-self.height()));self.update()
 
     def paintEvent(self,event):
@@ -606,7 +613,7 @@ class TaskListPopup(TaskPopup):
         height=min(round(self.full_height+16),500,max(100,self.owner.y()-16))
         screen=self.owner.screen().availableGeometry()
         left=max(screen.left(),min(self.owner.x(),screen.right()-width+1))
-        self.setGeometry(left,max(screen.top(),self.owner.y()-height-7),width,height)
+        self.setGeometry(left,max(screen.top(),self.anchor_bottom()-height),width,height)
         self.scroll=min(self.scroll,max(0,self.full_height-(height-16)))
         self.track_hover(self.mapFromGlobal(QCursor.pos()))
         self.update()
