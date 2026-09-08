@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from codex_taskbar.provider import Provider
-from codex_taskbar.resets import ResetLedger, latest_credit
+from codex_taskbar.resets import ResetLedger, default_credit, available_credits
 
 
 def credit(name='new', granted=None, expiry=None):
@@ -37,17 +37,23 @@ class ResetTests(unittest.TestCase):
         provider.quota_history=[];provider.quota_history_path=Path(self.folder.name)/'quota_history.json'
         return provider
 
-    def test_latest_means_newest_grant_not_earliest_expiry(self):
+    def test_default_uses_earliest_expiry_then_oldest_grant(self):
         now=time.time()
         rows=[credit('old',now-200,now+20),credit('new',now-100,now+500)]
-        self.assertEqual(latest_credit({'availableCount':2,'credits':rows})['id'],'new')
+        self.assertEqual(default_credit({'availableCount':2,'credits':rows})['id'],'old')
+        rows[1]['expiresAt']=now+10
+        self.assertEqual(default_credit({'availableCount':2,'credits':rows})['id'],'new')
+        rows[1]['expiresAt']=now+20
+        self.assertEqual(default_credit({'availableCount':2,'credits':rows})['id'],'old')
+        rows[0]['expiresAt']=None
+        self.assertEqual([c['id'] for c in available_credits({'availableCount':2,'credits':rows})],['new','old'])
 
     def test_incomplete_or_expired_credits_do_not_invent_a_choice(self):
-        self.assertIsNone(latest_credit({'availableCount':2,'credits':[credit()]}))
+        self.assertIsNone(default_credit({'availableCount':2,'credits':[credit()]}))
         expired=credit(expiry=time.time()-1)
-        self.assertIsNone(latest_credit({'availableCount':1,'credits':[expired]}))
+        self.assertIsNone(default_credit({'availableCount':1,'credits':[expired]}))
         unknown=credit();unknown['expiresAt']=None
-        self.assertEqual(latest_credit({'availableCount':1,'credits':[unknown]})['id'],'new')
+        self.assertEqual(default_credit({'availableCount':1,'credits':[unknown]})['id'],'new')
 
     def test_granting_an_opportunity_is_not_a_reset_event(self):
         changed=copy.deepcopy(self.raw);changed['rateLimitResetCredits']['credits'].append(credit('other'))

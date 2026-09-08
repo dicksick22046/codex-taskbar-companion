@@ -20,10 +20,11 @@ def available_credits(credits, now=None):
              and isinstance(c.get('grantedAt'),(int,float)) and math.isfinite(c['grantedAt'])
              and (c.get('expiresAt') is None or isinstance(c['expiresAt'], (int, float))
                   and math.isfinite(c['expiresAt']) and c['expiresAt'] > now)]
-    return [dict(c) for c in sorted({c['id']:c for c in valid}.values(),key=lambda c:(c['grantedAt'],c['id']),reverse=True)]
+    return [dict(c) for c in sorted({c['id']:c for c in valid}.values(),
+        key=lambda c:(c['expiresAt'] if c.get('expiresAt') is not None else math.inf,c['grantedAt'],c['id']))]
 
 
-def latest_credit(credits, now=None):
+def default_credit(credits, now=None):
     rows=available_credits(credits,now)
     count=credits.get('availableCount') if isinstance(credits,dict) else None
     return rows[0] if isinstance(count,int) and count>0 and len(rows)==count else None
@@ -117,7 +118,7 @@ class ResetLedger:
         if pending:
             if pending['credit']['id'] != credit_id:raise ValueError('Another reset is unresolved')
         else:
-            credit = latest_credit(self.credits)
+            credit = default_credit(self.credits)
             if not credit or credit['id'] != credit_id:raise ValueError('Selected reset credit changed or expired')
             pending = {'key': str(uuid4()), 'credit': credit, 'at': time.time(), 'before': self.record['windows']}
             self.record['pending'] = pending
@@ -160,7 +161,7 @@ class ResetLedger:
 
     def view(self):
         pending = self.record.get('pending') if self.record else None
-        selected = dict(pending['credit']) if pending else latest_credit(self.credits)
+        selected = dict(pending['credit']) if pending else default_credit(self.credits)
         return {'reset_account': self.account, 'reset_selected': selected,
                 'reset_credits':available_credits(self.credits),
                 'reset_available': self.credits.get('availableCount') if isinstance(self.credits, dict) else None,

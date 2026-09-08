@@ -119,6 +119,18 @@ def project_tag(p,x,y,value,font,available):
     return width
 
 
+def side_tag_width():
+    return QFontMetricsF(face(7)).horizontalAdvance('Side')+10
+
+
+def side_tag(p,x,y):
+    width=side_tag_width()
+    pen(p,'#536170',.6);p.setBrush(QColor('#303740'))
+    p.drawRoundedRect(QRectF(x,y-7,width,14),2,2)
+    text(p,x+5,y,'Side',face(7),'#a6b2c0')
+    return width
+
+
 def activity_count(p,x,y,count,color=ACCENT,pulse=True):
     font=face(8);label=str(count)
     width=QFontMetricsF(font).horizontalAdvance(label)+24
@@ -366,7 +378,7 @@ class StatusBar(QWidget):
         if not data.get('reset_retry') and credit.get('expiresAt') is not None and credit['expiresAt']<=time.time():return
         self.confirming_reset=True;self.hide_popup(immediate=True)
         try:
-            message='继续上次未确认结果的重置请求？' if data.get('reset_retry') else '使用最新授予的一次额度重置机会？'
+            message='继续上次未确认结果的重置请求？' if data.get('reset_retry') else '使用一次额度重置机会？'
             expiry=datetime.fromtimestamp(credit['expiresAt']).strftime('%m.%d %H:%M') if credit.get('expiresAt') is not None else '未提供'
             dialog=QMessageBox(self);dialog.setWindowTitle('重置额度');dialog.setFont(self.font)
             dialog.setText(message);dialog.setInformativeText('机会到期时间：'+expiry)
@@ -509,8 +521,9 @@ class StatusBar(QWidget):
             def task_label(task,opacity,offset,current=False):
                 p.save();p.setOpacity(opacity);p.translate(0,offset)
                 title_x=x+project_tag(p,x,y,task['project'],face(8),min(112,max(0,(self.width()-x)*.35)))+10
+                if task.get('side_chat'):title_x+=side_tag(p,title_x,y)+7
                 available=max(0,self.width()-title_x-6)
-                label=('Side chat · ' if task.get('side_chat') else '')+task['title']
+                label=task['title']
                 metrics=QFontMetricsF(self.font)
                 title_y=y-metrics.tightBoundingRect(label).center().y()-(metrics.ascent()-metrics.descent())/2
                 shown=min(available,metrics.horizontalAdvance(label))
@@ -801,7 +814,7 @@ class TaskListPopup(TaskPopup):
         self.project_width=min(80,max([metrics.horizontalAdvance(t['project'])+12 for t in self.rows]+[44]))
         self.TITLE_X=33+self.project_width+10
         title_metrics=QFontMetricsF(face())
-        longest=max([title_metrics.horizontalAdvance(('Side chat · ' if task.get('side_chat') else '')+task['title']) for task in self.rows]+[0])
+        longest=max([title_metrics.horizontalAdvance(task['title'])+(side_tag_width()+7 if task.get('side_chat') else 0) for task in self.rows]+[0])
         self.values={t['id']:chart_number(t.get('tokens'),self.owner.chart_unit) if self.mode=='daily' else duration_text(t.get('round_seconds')) for t in self.rows}
         info_width=max([metrics.horizontalAdvance(value) for value in self.values.values()]+[24])
         width=min(self.owner.width(),max(260,math.ceil(self.TITLE_X+longest+24+info_width+18)))
@@ -866,12 +879,15 @@ class TaskListPopup(TaskPopup):
                 p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(AMBER if task.get('unread') else '#718096'))
                 p.drawEllipse(QPointF(22,y),2.4,2.4)
             project_tag(p,33,y,task['project'],face(8),self.project_width)
-            title=('Side chat · ' if task.get('side_chat') else '')+task['title'];metrics=QFontMetricsF(face());shift=0.
+            title_x=self.TITLE_X
+            if task.get('side_chat'):title_x+=side_tag(p,title_x,y)+7
+            title_width=max(0,self.TITLE_WIDTH-(title_x-self.TITLE_X))
+            title=task['title'];metrics=QFontMetricsF(face());shift=0.
             if task['id']==self.hovered:
-                shift=marquee_offset(time.monotonic()-self.hover_started,metrics.horizontalAdvance(title)-self.TITLE_WIDTH)
-            else:title=metrics.elidedText(title,Qt.TextElideMode.ElideRight,self.TITLE_WIDTH)
-            p.save();p.setClipRect(QRectF(self.TITLE_X,yy,self.TITLE_WIDTH,self.ROW_HEIGHT),Qt.ClipOperation.IntersectClip)
-            text(p,self.TITLE_X-shift,y,title,face());p.restore()
+                shift=marquee_offset(time.monotonic()-self.hover_started,metrics.horizontalAdvance(title)-title_width)
+            else:title=metrics.elidedText(title,Qt.TextElideMode.ElideRight,title_width)
+            p.save();p.setClipRect(QRectF(title_x,yy,title_width,self.ROW_HEIGHT),Qt.ClipOperation.IntersectClip)
+            text(p,title_x-shift,y,title,face());p.restore()
             pen(p,'#4a5566',.6);p.drawLine(QPointF(self.info_divider,y-5),QPointF(self.info_divider,y+5))
             right_label(self.values[task['id']],self.value_right,y,face(8),'#8eb1d4' if self.mode=='daily' else '#afa2c5')
         p.restore()
