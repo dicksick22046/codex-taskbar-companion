@@ -9,7 +9,7 @@ class PopupInitialFrameTests(unittest.TestCase):
         cls.application=QApplication.instance() or QApplication([])
 
     def test_both_panels_are_transparent_before_first_animation_tick(self):
-        owner=QWidget();owner.popup=None
+        owner=QWidget();owner.popup=None;owner.chart_unit="M"
         for kind in (TaskPopup,TaskListPopup):
             with self.subTest(panel=kind.__name__):
                 panel=kind(owner)
@@ -21,13 +21,13 @@ class PopupInitialFrameTests(unittest.TestCase):
         owner.close();owner.deleteLater()
 
     def test_task_panel_adapts_to_names_and_caps_at_bar_width(self):
-        owner=QWidget();owner.setGeometry(20,600,540,30);owner.popup=None
+        owner=QWidget();owner.setGeometry(20,600,540,30);owner.popup=None;owner.chart_unit="M"
         panel=TaskListPopup(owner)
         data={'tasks':[{'id':'a','title':'Task','project':'Project','running':True}],
               'recent_tasks':[{'id':'b','title':'Earlier','project':'Project','running':False}]}
         panel.refresh(data)
         self.assertLess(panel.width(),owner.width())
-        self.assertEqual([label for label,y in panel.sections],['Today · Tokens','Running','Recent'])
+        self.assertEqual([label for label,y in panel.sections],['Running','Recent'])
         data['tasks'][0]['title']='A very long task title '*30
         panel.refresh(data)
         self.assertEqual(panel.width(),owner.width())
@@ -35,19 +35,19 @@ class PopupInitialFrameTests(unittest.TestCase):
         panel.close();panel.deleteLater();owner.close();owner.deleteLater()
 
     def test_task_metrics_form_a_compact_group_separate_from_title(self):
-        owner=QWidget();owner.setGeometry(20,600,540,30);owner.popup=None
+        owner=QWidget();owner.setGeometry(20,600,540,30);owner.popup=None;owner.chart_unit="M"
         panel=TaskListPopup(owner)
         panel.refresh({'tasks':[{'id':'a','title':'Task','project':'Project','running':True,
                                 'daily_seconds':17940,'tokens':142700000}]})
         from app import QFontMetricsF,face
         metrics=QFontMetricsF(face(8))
         self.assertAlmostEqual(panel.info_divider-(panel.TITLE_X+panel.TITLE_WIDTH),12)
-        self.assertEqual(panel.values['a'],'142.7M')
-        self.assertAlmostEqual(panel.value_right-metrics.horizontalAdvance('142.7M')-panel.info_divider,12)
+        self.assertEqual(panel.values['a'],'142.7')
+        self.assertAlmostEqual(panel.value_right-metrics.horizontalAdvance('142.7')-panel.info_divider,12)
         panel.close();panel.deleteLater();owner.close();owner.deleteLater()
 
     def test_both_panels_leave_space_above_taskbar_not_inside_it(self):
-        owner=QWidget();owner.setGeometry(20,610,540,30);owner.popup=None
+        owner=QWidget();owner.setGeometry(20,610,540,30);owner.popup=None;owner.chart_unit="M"
         owner.settings=DISPLAY_DEFAULTS;owner.confirm_reset=lambda:None
         with patch('app.windows.user32.FindWindowW',return_value=1), \
              patch('app.windows.rect',return_value=(0,900,1600,972)), \
@@ -82,7 +82,8 @@ class PopupInitialFrameTests(unittest.TestCase):
         bar.grab()
         self.assertEqual(bar.task_area.right(),bar.width())
         bar.task=None;bar.data={'tasks':[]};bar.grab()
-        self.assertLess(bar.task_area.width(),100)
+        self.assertTrue(bar.task_area.isEmpty())
+        self.assertEqual(sum(mode=='daily' for mode,rect,target in bar.hit_regions),1)
         bar.close();bar.deleteLater()
 
 

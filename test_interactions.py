@@ -24,7 +24,7 @@ class InteractionTests(unittest.TestCase):
             self.bar=app.StatusBar(self.provider)
         self.bar.timer.stop();self.bar.animation.stop();self.bar.update_timer.stop();self.bar.tray.hide()
         self.bar.resize(1200,30);self.bar.data=self.data;self.bar.task=self.data['tasks'][0]
-        self.bar.settings=dict(app.DISPLAY_DEFAULTS);self.bar.grab()
+        self.bar.settings=dict(app.DISPLAY_DEFAULTS);self.bar.chart_unit='M';self.bar.grab()
 
     def tearDown(self):self.bar.close();self.bar.deleteLater()
 
@@ -36,8 +36,8 @@ class InteractionTests(unittest.TestCase):
 
     def test_daily_has_only_tokens_and_category_has_only_current_round_time(self):
         daily=app.TaskListPopup(self.bar,'daily');daily.refresh(self.data)
-        self.assertEqual(daily.values['running'],'500')
-        self.assertEqual([s for s,y in daily.sections],['Today · Tokens','Running','Unread','Failed','Stopped','Recent'])
+        self.assertEqual(daily.values['running'],'<0.1')
+        self.assertEqual([s for s,y in daily.sections],['Running','Unread','Failed','Stopped','Recent'])
         running=app.TaskListPopup(self.bar,'running');running.refresh(self.data)
         self.assertEqual(running.values,{'running':'42s'})
         self.assertEqual([s for s,y in running.sections],['Running'])
@@ -109,5 +109,45 @@ class InteractionTests(unittest.TestCase):
                 change.assert_not_called()
                 self.assertEqual(panel.cursor().shape(),app.Qt.CursorShape.ArrowCursor)
                 panel.close();panel.deleteLater()
-            panel=app.TaskPopup(self.bar);panel.mousePressEvent(event)
+            panel=app.TaskPopup(self.bar);panel.refresh(self.data);panel.mousePressEvent(event)
             change.assert_called_once_with('M');panel.close();panel.deleteLater()
+
+    def test_daily_units_refresh_rows_and_total_without_navigation(self):
+        self.data['tasks'][0]['tokens']=142700000
+        self.data['totals']={'total_tokens':142704000}
+        panel=app.TaskListPopup(self.bar,'daily');self.bar.popup=panel;panel.refresh(self.data)
+        event=Mock();event.button.return_value=app.Qt.MouseButton.LeftButton
+        event.position.return_value=panel.unit_rects()['100M'].center()
+        with patch('app.write_settings'),patch.object(self.bar,'open_task') as navigate:
+            panel.mousePressEvent(event);panel.mouseReleaseEvent(event)
+            self.assertEqual(panel.values['running'],'1.43')
+            with patch.object(panel,'usage_header') as header:panel.grab()
+            self.assertEqual(header.call_args.args[2],142704000)
+            navigate.assert_not_called()
+
+    def test_all_credit_expiries_are_visible_but_only_one_reset_action(self):
+        now=datetime.now().timestamp()
+        self.data['reset_credits']=[credit(str(i),now-i*100,now+(i+1)*86400) for i in range(3)]
+        self.data['reset_selected']=self.data['reset_credits'][0]
+        panel=app.ResetPopup(self.bar);panel.refresh(self.data)
+        with patch('app.text',wraps=app.text) as draw:panel.grab()
+        labels=[c.args[3] for c in draw.call_args_list]
+        self.assertEqual(sum(label.endswith(' 到期') for label in labels),3)
+        self.assertEqual(labels.count('默认'),1)
+        self.assertGreater(panel.height(),panel.credits_top+24+2*20+8)
+        self.assertEqual(len(panel.findChildren(app.QPushButton)),1)
+        self.provider.request_reset.assert_not_called()
+        panel.close();panel.deleteLater()
+
+    def test_popups_do_not_freeze_rotation_and_hover_still_pauses(self):
+        tasks=[{'id':'a'},{'id':'b'},{'id':'c'}]
+        self.bar.current_id='a';self.bar.rotated_at=0
+        panel=app.ResetPopup(self.bar);self.bar.popup=panel
+        with patch('app.time.monotonic',return_value=10):
+            self.assertEqual(self.bar.selected_task(tasks)['id'],'b')
+        self.bar.task_hover=True
+        with patch('app.time.monotonic',return_value=20):
+            self.assertEqual(self.bar.selected_task(tasks)['id'],'b')
+        self.bar.task_hover=False
+        with patch('app.time.monotonic',return_value=21):
+            self.assertEqual(self.bar.selected_task(tasks)['id'],'c')

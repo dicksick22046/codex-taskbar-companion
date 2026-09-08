@@ -145,6 +145,6 @@ def _set_accent(hwnd,state,color):
 def popup_glass(hwnd):
     """Dark acrylic for both nonactivating panels, without a native border."""
     hide_border(hwnd)
-    _set_accent(hwnd,4,0x604E4033)
+    _set_accent(hwnd,4,0xCC2E2722)
     corners=w.DWORD(2)
     ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd,33,ctypes.byref(corners),ctypes.sizeof(corners))

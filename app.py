@@ -280,7 +280,7 @@ class StatusBar(QWidget):
         if unit not in ('M','100M'):return
         self.chart_unit=unit
         self.save_settings()
-        if self.popup:self.popup.update()
+        if self.popup:self.popup.refresh(self.data)
 
     def save_settings(self):
         self.settings['chart_unit']=self.chart_unit
@@ -372,7 +372,7 @@ class StatusBar(QWidget):
         ids=[t["id"] for t in tasks]
         if self.current_id not in ids:
             self.current_id,self.rotated_at=ids[0],time.monotonic()
-        elif self.popup is None and not getattr(self,'task_hover',False) and not getattr(self,'pressed',None) and not getattr(self,'confirming_reset',False) and time.monotonic()-self.rotated_at>=ROTATE_SECONDS:
+        elif not getattr(self,'task_hover',False) and not getattr(self,'pressed',None) and not getattr(self,'confirming_reset',False) and time.monotonic()-self.rotated_at>=ROTATE_SECONDS:
             self.current_id=ids[(ids.index(self.current_id)+1)%len(ids)];self.rotated_at=time.monotonic()
         return tasks[ids.index(self.current_id)]
 
@@ -385,7 +385,7 @@ class StatusBar(QWidget):
         minimum=12+sum(29+QFontMetricsF(face(8)).horizontalAdvance(value) for kind,value,fraction in metrics)
         if self.settings['show_tasks']:
             counts=category_counts(self.data)
-            minimum+=60+sum(30+QFontMetricsF(face(8)).horizontalAdvance(str(counts[k])) for k in ('running','unread','failed','stopped') if counts[k])
+            minimum+=(60 if self.data.get('tasks') else 0)+sum(30+QFontMetricsF(face(8)).horizontalAdvance(str(counts[k])) for k in ('running','unread','failed','stopped') if counts[k])
         if not metrics and not self.settings['show_tasks']:
             self.hide();self.hide_popup(immediate=True);return
         placed=windows.placement(minimum_width=minimum)
@@ -445,9 +445,10 @@ class StatusBar(QWidget):
         for kind,value,fraction in visible_metrics(data,self.settings):field(kind,value,fraction)
         self.task_area=QRectF();self.task_rect=QRectF()
         if not self.settings['show_tasks']:p.end();return
+        counts=category_counts(data)
+        if not self.task and not any(counts[k] for k in ('running','unread','failed','stopped')):p.end();return
         if x>12:separator()
         badge_x=x-6
-        counts=category_counts(data)
         for mode,color in [('running',ACCENT),('unread',AMBER),('failed',FAILED),('stopped','#8795a5')]:
             if counts[mode]:
                 width=activity_count(p,badge_x,y,counts[mode],color,pulse=mode=='running')
@@ -484,11 +485,6 @@ class StatusBar(QWidget):
             task_label(self.task,self.task_blend,22*(1-self.task_blend),current=True);p.restore()
             shown=self.previous_task if self.previous_task and self.task_blend<.5 else self.task
             self.hit_regions.append(('task',QRectF(self.task_area),dict(shown)))
-        else:
-            self.task_rect=QRectF()
-            end=x+text(p,x,y,'Tasks',self.font,TITLE_MUTED)
-            self.task_area=QRectF(x-2,0,min(self.width(),end+6)-x+2,self.height())
-            self.hit_regions.append(('daily',QRectF(self.task_area),None))
         p.end()
 
     def hide_popup(self,immediate=False):
@@ -565,19 +561,9 @@ class TaskPopup(QWidget):
 
     def paintEvent(self,event):
         p=panel_painter(self)
-        icon(p,"chart",23,21,LILAC)
-        date_width=text(p,39,21,f"{self.start:%m.%d} — {self.end:%m.%d %H:%M}",face(8),BLUE)
         history=self.data.get("history",{});today=datetime.now().astimezone().date()
         values,extremes=chart_values(self.days,history,today)
-        total='Σ '+chart_number(chart_total(values),self.owner.chart_unit)
-        text(p,39+date_width+12,21,total,face(8),LILAC)
-        for unit,rect in self.UNIT_RECTS.items():
-            selected=unit==self.owner.chart_unit
-            p.setFont(face(8));p.setPen(QColor(BLUE if selected else MUTED))
-            p.drawText(rect,Qt.AlignmentFlag.AlignCenter,unit)
-            if selected:
-                pen(p,BLUE,1.2)
-                p.drawLine(QPointF(rect.left()+5,rect.bottom()-2),QPointF(rect.right()-5,rect.bottom()-2))
+        self.usage_header(p,f"{self.start:%m.%d} — {self.end:%m.%d %H:%M}",chart_total(values))
         if self.window_summary:
             window=self.window_summary
             text(p,18,43,f"5h  {window['remaining']:g}%   ·   {reset_countdown_text(window)}",face(8),'#51adb4')
@@ -601,17 +587,32 @@ class TaskPopup(QWidget):
             p.drawText(QRectF(x-step/2,bottom+9,step,16),Qt.AlignmentFlag.AlignCenter,f"{day.month}/{day.day}")
         p.end()
 
+    def unit_rects(self):
+        return {unit:rect.translated(self.width()-360,0) for unit,rect in self.UNIT_RECTS.items()}
+
+    def usage_header(self,p,period,total):
+        icon(p,'chart',23,21,LILAC)
+        date_width=text(p,39,21,period,face(8),BLUE)
+        text(p,39+date_width+12,21,'Σ '+chart_number(total,self.owner.chart_unit),face(8),LILAC)
+        for unit,rect in self.unit_rects().items():
+            selected=unit==self.owner.chart_unit
+            p.setFont(face(8));p.setPen(QColor(BLUE if selected else MUTED))
+            p.drawText(rect,Qt.AlignmentFlag.AlignCenter,unit)
+            if selected:
+                pen(p,BLUE,1.2)
+                p.drawLine(QPointF(rect.left()+5,rect.bottom()-2),QPointF(rect.right()-5,rect.bottom()-2))
+
     def mousePressEvent(self,event):
-        if self.mode!='usage':return
+        if self.mode not in ('usage','daily'):return
         if event.button()==Qt.MouseButton.LeftButton:
-            for unit,rect in self.UNIT_RECTS.items():
+            for unit,rect in self.unit_rects().items():
                 if rect.contains(event.position()):
                     self.owner.set_chart_unit(unit);event.accept();return
 
     def mouseMoveEvent(self,event):
         if self.mode!='usage':
             self.setCursor(Qt.CursorShape.ArrowCursor);return
-        over=any(rect.contains(event.position()) for rect in self.UNIT_RECTS.values())
+        over=any(rect.contains(event.position()) for rect in self.unit_rects().values())
         self.setCursor(Qt.CursorShape.PointingHandCursor if over else Qt.CursorShape.ArrowCursor)
 
     def wheelEvent(self,event):
@@ -662,7 +663,11 @@ class ResetPopup(TaskPopup):
 
     def refresh(self,data):
         self.data=data;self.rows=data.get('reset_events',[])
-        height=120+28*max(1,min(6,len(self.rows)))
+        self.credits=data.get('reset_credits',[])
+        self.history_height=28*max(1,min(6,len(self.rows)))
+        self.credits_top=60+self.history_height+12
+        height=self.credits_top+24+20*max(1,len(self.credits))+16
+        self.full_height=height
         self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-height),360,height)
         self.button.setGeometry(222,height-42,120,30)
         credit=data.get('reset_selected')
@@ -671,34 +676,38 @@ class ResetPopup(TaskPopup):
         self.button.setEnabled(eligible and not data.get('reset_busy') and (not data.get('quota_error') or data.get('reset_retry',False)))
         label='处理中…' if data.get('reset_busy') else '重试' if data.get('reset_retry') or data.get('reset_state')=='unavailable' else '暂不可重置' if data.get('reset_state')=='nothingToReset' else '使用一次重置'
         self.button.setText(label)
-        self.scroll=min(self.scroll,max(0,len(self.rows)*28-(height-120)))
+        self.scroll=min(self.scroll,max(0,len(self.rows)*28-self.history_height))
         self.update()
 
     def paintEvent(self,event):
         p=panel_painter(self);window=countdown_window(self.data,self.owner.settings)
-        text(p,18,21,'Next reset',face(8),MUTED)
+        text(p,18,21,'下次自然重置',face(8),MUTED)
         value=datetime.fromtimestamp(window['resets_at']).strftime('%m.%d %H:%M') if window and window.get('resets_at') else '—'
         text(p,238,21,value,face(8),BLUE)
-        text(p,18,47,'History',face(8),'#8797aa')
-        p.save();p.setClipRect(QRectF(12,60,336,self.height()-120))
-        labels={'scheduled':'Scheduled','manual':'Manual','official':'Official','unknown':'Unknown'}
+        text(p,18,47,'重置记录',face(8),'#8797aa')
+        p.save();p.setClipRect(QRectF(12,60,336,self.history_height))
+        labels={'scheduled':'自然','manual':'手动','official':'官方','unknown':'来源未确认'}
         colors={'scheduled':BLUE,'manual':LILAC,'official':ACCENT,'unknown':'#8797aa'}
-        if not self.rows:text(p,18,74,'No reset records',face(8),'#8797aa')
+        if not self.rows:text(p,18,74,'暂无记录',face(8),'#8797aa')
         for i,row in enumerate(self.rows):
             y=74+i*28-self.scroll
-            text(p,18,y,labels.get(row['kind'],'Unknown'),face(8),colors.get(row['kind'],'#8797aa'))
+            text(p,18,y,labels.get(row['kind'],'来源未确认'),face(8),colors.get(row['kind'],'#8797aa'))
             text(p,112,y,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),face(8),MUTED)
             windows_text=' + '.join({'300':'5h','10080':'7d'}.get(k,k+'m') for k in row.get('windows',[])) or 'Codex'
             text(p,342-QFontMetricsF(face(7)).horizontalAdvance(windows_text),y,windows_text,face(7),'#8797aa')
         p.restore()
         count=self.data.get('reset_available');credit=self.data.get('reset_selected')
-        text(p,18,self.height()-37,f'{count} 次可用' if count is not None else '—',face(8),MUTED)
-        expiry=datetime.fromtimestamp(credit['expiresAt']).strftime('%m.%d %H:%M')+' 到期' if credit and credit.get('expiresAt') is not None else '有效期未提供' if credit else '—'
-        text(p,18,self.height()-20,expiry,face(7),'#8797aa')
+        text(p,18,self.credits_top,f'{count} 次可用' if count is not None else '—',face(8),MUTED)
+        for i,item in enumerate(self.credits):
+            selected=bool(credit and item['id']==credit['id'])
+            expiry=datetime.fromtimestamp(item['expiresAt']).strftime('%m.%d %H:%M')+' 到期' if item.get('expiresAt') is not None else '有效期未提供'
+            width=text(p,18,self.credits_top+24+i*20,expiry,face(7),MUTED if selected else '#8797aa')
+            if selected:text(p,18+width+10,self.credits_top+24+i*20,'默认',face(7),LILAC)
+        if not self.credits and count:text(p,18,self.credits_top+24,'有效期明细未提供',face(7),'#8797aa')
         p.end()
 
     def wheelEvent(self,event):
-        self.scroll=max(0,min(max(0,len(self.rows)*28-(self.height()-120)),self.scroll-event.angleDelta().y()/120*28));self.update()
+        self.scroll=max(0,min(max(0,len(self.rows)*28-self.history_height),self.scroll-event.angleDelta().y()/120*28));self.update()
 
 
 class TaskListPopup(TaskPopup):
@@ -724,13 +733,14 @@ class TaskListPopup(TaskPopup):
         self.TITLE_X=33+self.project_width+10
         title_metrics=QFontMetricsF(face())
         longest=max([title_metrics.horizontalAdvance(task['title']) for task in self.rows]+[0])
-        self.values={t['id']:human_tokens(t.get('tokens')) if self.mode=='daily' else duration_text(t.get('round_seconds')) for t in self.rows}
+        self.values={t['id']:chart_number(t.get('tokens'),self.owner.chart_unit) if self.mode=='daily' else duration_text(t.get('round_seconds')) for t in self.rows}
         info_width=max([metrics.horizontalAdvance(value) for value in self.values.values()]+[24])
         width=min(self.owner.width(),max(260,math.ceil(self.TITLE_X+longest+24+info_width+18)))
+        if self.mode=='daily':width=max(360,width)
         self.value_right=width-18
         self.info_divider=self.value_right-info_width-12
         self.TITLE_WIDTH=max(0,self.info_divider-12-self.TITLE_X)
-        self.sections=[('Today · Tokens' if self.mode=='daily' else CATEGORY_LABELS[self.mode],0)]
+        self.sections=[] if self.mode=='daily' else [(CATEGORY_LABELS[self.mode],0)]
         self.row_positions=[];y=24.;previous=None
         for task in self.rows:
             section=CATEGORY_LABELS[task_category(task)]
@@ -738,7 +748,7 @@ class TaskListPopup(TaskPopup):
                 if previous is not None:y+=8
                 self.sections.append((section,y));y+=22;previous=section
             self.row_positions.append(y);y+=self.ROW_HEIGHT
-        self.full_height=max(self.ROW_HEIGHT,y)
+        self.full_height=max(24+self.ROW_HEIGHT,y)
         height=min(round(self.full_height+16),500,max(100,self.owner.y()-16))
         screen=self.owner.screen().availableGeometry()
         left=max(screen.left(),min(self.owner.x(),screen.right()-width+1))
@@ -748,6 +758,7 @@ class TaskListPopup(TaskPopup):
         self.update()
 
     def task_at(self,point):
+        if self.mode=='daily' and point.y()<32:return None
         if not QRectF(10,8,self.width()-20,max(0,self.height()-16)).contains(point):return None
         local_y=point.y()-8+self.scroll
         return next((task for task,y in zip(self.rows,self.row_positions) if y<=local_y<y+self.ROW_HEIGHT),None)
@@ -762,7 +773,8 @@ class TaskListPopup(TaskPopup):
         p=panel_painter(self)
         def right_label(value,right,y,font,color=MUTED):
             text(p,right-QFontMetricsF(font).horizontalAdvance(value),y,value,font,color)
-        p.save();p.setClipRect(QRectF(10,8,self.width()-20,max(0,self.height()-16)))
+        top=32 if self.mode=='daily' else 8
+        p.save();p.setClipRect(QRectF(10,top,self.width()-20,max(0,self.height()-top-8)))
         if not self.rows:text(p,18,50,'No tasks',face(8),MUTED)
         for label,position in self.sections:
             text(p,18,8+position+10-self.scroll,label,face(8),'#8795a5')
@@ -791,10 +803,17 @@ class TaskListPopup(TaskPopup):
             text(p,self.TITLE_X-shift,y,title,face());p.restore()
             pen(p,'#4a5566',.6);p.drawLine(QPointF(self.info_divider,y-5),QPointF(self.info_divider,y+5))
             right_label(self.values[task['id']],self.value_right,y,face(8),'#8eb1d4' if self.mode=='daily' else '#afa2c5')
-        p.restore();p.end()
+        p.restore()
+        if self.mode=='daily':
+            total=(self.data.get('totals') or {}).get('total_tokens')
+            self.usage_header(p,f'{datetime.now():%m.%d} 00:00–24:00',total)
+        p.end()
 
     def mousePressEvent(self,event):
         if event.button()!=Qt.MouseButton.LeftButton:return
+        self.pressed_task=None
+        if self.mode=='daily' and any(rect.contains(event.position()) for rect in self.unit_rects().values()):
+            super().mousePressEvent(event);return
         task=self.task_at(event.position())
         self.pressed_task=task['id'] if task else None
 
@@ -806,6 +825,8 @@ class TaskListPopup(TaskPopup):
 
     def mouseMoveEvent(self,event):
         self.track_hover(event.position());self.update()
+        if self.mode=='daily' and any(rect.contains(event.position()) for rect in self.unit_rects().values()):
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
 
     def leaveEvent(self,event):
         self.hovered=None;self.update()

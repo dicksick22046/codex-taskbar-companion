@@ -10,24 +10,35 @@ from preferences import write_json
 from usage import quota_windows
 
 
-def latest_credit(credits, now=None):
+def available_credits(credits, now=None):
     now = time.time() if now is None else now
-    if not isinstance(credits, dict):return None
+    if not isinstance(credits, dict):return []
     rows = credits.get('credits')
-    count = credits.get('availableCount')
-    if not isinstance(rows, list) or not isinstance(count, int) or count <= 0 or len(rows) < count:return None
-    available = [c for c in rows if c.get('status') == 'available']
-    if len(available) < count:return None
-    if any(not isinstance(c.get('grantedAt'), (int, float)) for c in available):return None
-    valid = [c for c in available if c.get('id') and c.get('resetType')=='codexRateLimits' and math.isfinite(c['grantedAt'])
+    if not isinstance(rows, list):return []
+    valid = [c for c in rows if isinstance(c,dict) and c.get('status')=='available'
+             and c.get('id') and c.get('resetType')=='codexRateLimits'
+             and isinstance(c.get('grantedAt'),(int,float)) and math.isfinite(c['grantedAt'])
              and (c.get('expiresAt') is None or isinstance(c['expiresAt'], (int, float))
                   and math.isfinite(c['expiresAt']) and c['expiresAt'] > now)]
-    return dict(max(valid, key=lambda c: (c['grantedAt'], c['id']))) if valid else None
+    return [dict(c) for c in sorted({c['id']:c for c in valid}.values(),key=lambda c:(c['grantedAt'],c['id']),reverse=True)]
 
 
-def changed_windows(before, after):
+def latest_credit(credits, now=None):
+    rows=available_credits(credits,now)
+    count=credits.get('availableCount') if isinstance(credits,dict) else None
+    return rows[0] if isinstance(count,int) and count>0 and len(rows)==count else None
+
+
+def scheduled_rollover(old,new,at):
+    return (old.get('resets_at') is not None and old['resets_at']<=at
+            and new.get('starts_at') is not None and new['starts_at']>=old['resets_at']
+            and new['resets_at']>old['resets_at'])
+
+
+def changed_windows(before, after, at=None):
+    at=time.time() if at is None else at
     return [key for key, value in after.items() if key in before and
-            (value['resets_at'] != before[key]['resets_at'] or value['remaining'] > before[key]['remaining'])]
+            (value['remaining'] > before[key]['remaining'] or scheduled_rollover(before[key],value,at))]
 
 
 class ResetLedger:
@@ -49,14 +60,14 @@ class ResetLedger:
 
     def _observed_events(self, before, after, at):
         groups = {}
-        for key in changed_windows(before, after):
+        for key in changed_windows(before, after, at):
             old, new = before[key], after[key]
-            scheduled = (old.get('resets_at') is not None and old['resets_at'] <= at
-                         and new.get('starts_at') is not None and new['starts_at'] >= old['resets_at']
-                         and new['resets_at'] != old['resets_at'])
+            scheduled = scheduled_rollover(old,new,at)
             groups.setdefault('scheduled' if scheduled else 'unknown', []).append(key)
         for kind, windows in groups.items():
-            self.record['events'].append({'id': str(uuid4()), 'at': at, 'kind': kind, 'windows': windows})
+            self.record['events'].append({'id': str(uuid4()), 'at': at, 'kind': kind, 'windows': windows,
+                                         'before':{k:dict(before[k]) for k in windows},
+                                         'after':{k:dict(after[k]) for k in windows}})
 
     def observe(self, raw, at=None):
         at = time.time() if at is None else at
@@ -128,6 +139,7 @@ class ResetLedger:
         pending = self.record.get('pending') if self.record else None
         selected = dict(pending['credit']) if pending else latest_credit(self.credits)
         return {'reset_account': self.account, 'reset_selected': selected,
+                'reset_credits':available_credits(self.credits),
                 'reset_available': self.credits.get('availableCount') if isinstance(self.credits, dict) else None,
                 'reset_events': [dict(e) for e in reversed(self.record['events'])] if self.record else [],
                 'session_history': [dict(s) for s in self.record.get('session_samples', [])] if self.record else [],

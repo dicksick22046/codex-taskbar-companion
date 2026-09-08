@@ -55,6 +55,22 @@ class ResetTests(unittest.TestCase):
         self.ledger.observe(changed)
         self.assertEqual(self.ledger.view()['reset_events'],[])
 
+    def test_deadline_jitter_and_zero_balance_settling_are_not_resets(self):
+        deadline=time.time()+604800
+        for used in (10,0):
+            ledger=ResetLedger(Path(self.folder.name)/f'jitter-{used}.json')
+            for shift in (0,1,0,4,30):
+                ledger.observe(response(used=used,reset=deadline+shift))
+            self.assertEqual(ledger.view()['reset_events'],[])
+
+    def test_unused_natural_window_rollover_is_still_recorded(self):
+        self.ledger.observe(response(used=0,reset=1000),900)
+        self.ledger.record['events']=[]
+        self.ledger.observe(response(used=0,reset=605800),1001)
+        events=self.ledger.view()['reset_events']
+        self.assertEqual([e['kind'] for e in events],['scheduled'])
+        self.assertEqual(events[0]['before']['10080']['resets_at'],1000)
+
     def test_scheduled_and_unknown_changes_are_distinct(self):
         first=response(reset=1000)
         self.ledger.observe(first,100)
