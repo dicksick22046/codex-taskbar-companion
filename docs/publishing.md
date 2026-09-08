@@ -1,5 +1,15 @@
 # 发布流程
 
+## 发布节奏
+
+日常开发提交代码并维护CHANGELOG的Unreleased区，不因一次文案、颜色、单位或小交互调整就升级版本、打标签或发布安装包。常规push和PR只运行测试。
+
+完整功能或一批相关修复通过回归、实际窗口和安装验证后，再统一调整版本号、创建标签与发布说明。仅启动失败、数据损坏或关键能力不可用等严重故障单独发热修复版。
+
+安装器构建由正式版本标签或手动workflow_dispatch触发；工作流仍不自动公开Release。本地体验包和CI产物不等于正式更新，不上传到已有正式版本中。发布前核对测试包与正式版本的升级关系，避免已安装的测试版本阻止后续更新。
+
+发布资产准备完整后再发布草稿，保持GitHub的[草稿与正式Release分离](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)。不增加按日定时发布或自动凑版本机制。
+
 ## 版本来源
 
 唯一版本号为 `codex_taskbar/build_info.py` 的 `VERSION`。正式版本使用 `X.Y.Z`，Git标签为 `vX.Y.Z`。不要修改已发布版本的安装包；修正后递增补丁号。

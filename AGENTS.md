@@ -14,3 +14,4 @@
 - 单元测试、受控数据、实际窗口、安装升级卸载和其他机器验收分别报告，不互相替代。
 - 版本号唯一来源codex_taskbar/build_info.py；发布信息见CHANGELOG和docs/publishing.md。
 - 提交、推送、发布遵循用户授权；发布目标仅GitHub dicksick22046/codex-taskbar-companion，禁止改用内网GitLab。
+- 小修只提交代码并记入CHANGELOG的Unreleased，不逐项升版本、打标签或发Release。攒成完整稳定的一批再统一发布；严重故障才单独热修复。版本号、安装包和标签在正式发布时一起准备，常规CI只测试。

@@ -22,7 +22,6 @@ except ImportError:
 from .provider import Provider
 from .usage import reset_countdown_text, remaining_time_fraction, visible_metrics, quota_window, chart_window, countdown_window
 from .tasks import thread_url, panel_rows, task_category, category_counts, CATEGORY_LABELS, duration_text
-from .usage import human_tokens
 from . import windows
 from . import startup
 from .settings_ui import SettingsDialog, app_icon
@@ -701,14 +700,14 @@ class ResetPopup(TaskPopup):
         text(p,18,23,'Next reset',face(8),'#94a2b3')
         value=datetime.fromtimestamp(window['resets_at']).strftime('%m.%d %H:%M') if window and window.get('resets_at') else '—'
         right_label(value,23,BLUE);divider(44)
-        text(p,18,64,'History',face(8),'#94a2b3')
+        text(p,18,64,'History · 100M',face(8),'#94a2b3')
         p.save();p.setClipRect(QRectF(18,76,324,self.history_height))
         labels={'scheduled':'Scheduled','manual':'Manual','official':'Official'}
         if not self.rows:text(p,18,89,'No records yet',face(8),'#94a2b3')
         for i,row in enumerate(self.rows):
             y=89+i*26-self.scroll
             text(p,18,y,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),face(8),MUTED)
-            total=human_tokens(row.get('tokens'))
+            total=chart_number(row.get('tokens'),'100M')
             text(p,240-QFontMetricsF(face(8)).horizontalAdvance(total),y,total,face(8),MUTED)
             label=labels.get(row['kind'],'')
             if len(self.data.get('quota',[]))>1:
