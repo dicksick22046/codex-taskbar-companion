@@ -1,4 +1,4 @@
-"""Read-only Codex app-server client; does not start or resume agent turns."""
+"""Codex app-server client; does not start or resume agent turns."""
 import json
 import os
 from pathlib import Path

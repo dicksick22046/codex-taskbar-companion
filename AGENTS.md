@@ -3,6 +3,7 @@
 这是独立的Codex Taskbar Companion，遥控器在另一个仓库，不在这里改动。
 
 - 先读docs/HANDOFF.md、docs/status-bar.md和docs/release-v0.1.md，以当前工作区为准。
+- v0.2交互以docs/interaction-v0.2.md为准。真实重置只能由用户在界面二次确认；自动验证必须使用模拟API，严禁消耗用户真实重置机会。
 - 保持Codex、Windows11、左侧单行的首版范围；不重新展开用户取消的完整实时错误检测。
 - 右键只保留设置与退出，设置内管理显示、启动和更新；主栏不添加外部大边框或反复提示。
 - 程序数据位于USERPROFILE/.codex-taskbar-companion；运行目录与数据分离，不能提交账号、日志、历史记录或个人截图。

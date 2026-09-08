@@ -9,6 +9,7 @@ from codex_api import CodexApi, project_name
 from usage import UsageCursor, FIELDS, quota_windows
 from unread import UnreadState
 from preferences import write_json
+from resets import ResetLedger
 
 
 class Provider:
@@ -26,6 +27,8 @@ class Provider:
         self.snapshot = {"tasks": [], "quota": [], "totals": None, "loading": True}
         self.unread_state = UnreadState()
         self.api = None
+        self.reset_busy = False
+        self.reset_request = None
         ctypes.windll.kernel32.GetTickCount64.restype = ctypes.c_ulonglong
         self.boot_time = time.time() - ctypes.windll.kernel32.GetTickCount64() / 1000
         self.thread = threading.Thread(target=self._run, daemon=True)
@@ -37,6 +40,43 @@ class Provider:
 
     def refresh(self):
         self.refresh_event.set()
+
+    def request_reset(self, account, credit_id):
+        with self.lock:
+            if self.reset_busy or not account or not credit_id:return False
+            self.reset_busy = True
+            self.reset_request = (account, credit_id)
+            self.snapshot = {**self.snapshot, 'reset_busy': True}
+        self.refresh_event.set()
+        return True
+
+    def _process_reset(self, api):
+        with self.lock:
+            request = self.reset_request
+            self.reset_request = None
+        if not request:return
+        try:
+            raw=api.call('account/rateLimits/read')
+            if not quota_windows(raw):raise ValueError('Quota unavailable before reset')
+            self.resets.observe(raw)
+            params = self.resets.begin(*request)
+            self._record_quota(quota_windows(raw))
+            outcome = api.call('account/rateLimitResetCredit/consume', params).get('outcome')
+            self.resets.finish(outcome)
+        except Exception as exc:
+            self.resets.failed()
+            print(f'Reset: {type(exc).__name__}: {exc}', flush=True)
+        finally:
+            with self.lock:self.reset_busy = False
+            self.refresh_event.set()
+
+    def _record_quota(self,quota):
+        week=next((w for w in quota if w['minutes']==10080),None)
+        if week:
+            self.quota_history.append({'at':time.time(),'used':100-week['remaining'],'reset':week['resets_at']})
+            self.quota_history=[s for s in self.quota_history if s['at']>=time.time()-8*86400]
+            try:write_json(self.quota_history_path,self.quota_history)
+            except OSError:pass
 
     def _publish(self, threads, projects, cursors, quota, quota_at, error, last_turns=None, quota_error=None):
         totals = {key: 0 for key in FIELDS}
@@ -63,15 +103,21 @@ class Provider:
             status='failed' if failed else 'running' if running else 'stopped' if cursor.completion_kind=='turn_aborted' else 'idle'
             if failed:running=False
             daily_seconds=cursor.elapsed_today(include_running=running)
+            ended_at = cursor.ended_at
             if failed and cursor.running:
                 end=turn.get('completedAt')
                 daily_seconds=cursor.elapsed_today(datetime.fromtimestamp(end).astimezone()) if end is not None else None
+                ended_at=datetime.fromtimestamp(end).astimezone().isoformat() if end is not None else None
+            round_seconds=None
+            if cursor.duration_known and cursor.started_at and (running or ended_at):
+                end_time=datetime.now().astimezone() if running else datetime.fromisoformat(ended_at)
+                round_seconds=max(0, int((end_time-datetime.fromisoformat(cursor.started_at)).total_seconds()))
             task = {"id": thread["id"], "title": thread.get("name") or "未命名任务",
                               "project": project_name(thread, projects), "tokens": cursor.daily["total_tokens"],
                               "started_at": cursor.started_at, "usage_at": cursor.usage_at,
-                              "ended_at": cursor.ended_at, "activity_at": cursor.activity_at,
+                              "ended_at": ended_at, "activity_at": cursor.activity_at,
                               "run_tokens": cursor.run_tokens, "running": running, "status": status,
-                              "daily_seconds": daily_seconds,
+                              "daily_seconds": daily_seconds, "round_seconds": round_seconds,
                               "unread": (cursor.completion_kind == 'task_complete' and not running and not failed
                                          and thread['id'] in unread_ids) if unread_ids is not None else None}
             if running:
@@ -88,6 +134,8 @@ class Provider:
                     "updated_at": datetime.now().astimezone().isoformat(), "error": error, "quota_error": quota_error,
                     "source": "本机 Codex 日志；Token 包含缓存输入，按模型步骤上报"}
         with self.lock:
+            if hasattr(self,'resets'):snapshot.update(self.resets.view())
+            snapshot['reset_busy']=getattr(self,'reset_busy',False)
             self.snapshot = snapshot
         temporary = self.runtime_dir / "snapshot.tmp"
         try:
@@ -97,6 +145,9 @@ class Provider:
             pass  # A diagnostic file reader must not interrupt the live display.
 
     def _run(self):
+        self.resets=ResetLedger(self.runtime_dir/'reset_history.json')
+        self.reset_request=getattr(self,'reset_request',None)
+        self.reset_busy=getattr(self,'reset_busy',False)
         api = None
         projects, threads, cursors, quota = [], [], {}, []
         last_turns,turn_signatures,last_turn_errors={},{},{}
@@ -110,13 +161,15 @@ class Provider:
                         stage='connection'
                         api = CodexApi()
                         self.api = api
+                    if self.reset_request:self._process_reset(api)
                     now = time.monotonic()
                     refresh = self.refresh_event.is_set()
                     self.refresh_event.clear()
                     if refresh or now - quota_at_mono >= 30:
                         stage='quota';quota_at_mono=time.monotonic()
                         try:
-                            received=quota_windows(api.call("account/rateLimits/read"))
+                            raw=api.call("account/rateLimits/read")
+                            received=quota_windows(raw)
                             if not received:raise ValueError('No quota windows returned')
                         except (RuntimeError,ValueError,TimeoutError) as exc:
                             message=f'{type(exc).__name__}: {exc}'
@@ -124,13 +177,10 @@ class Provider:
                             quota_error=message
                         else:
                             quota=received;quota_error=None
+                            try:self.resets.observe(raw)
+                            except (OSError,ValueError,TypeError) as exc:print(f'Reset history: {exc}',flush=True)
                             quota_at=datetime.now().astimezone().isoformat()
-                            week=next((w for w in quota if w["label"]=="周"),None)
-                            if week:
-                                self.quota_history.append({"at":time.time(),"used":100-week["remaining"],"reset":week["resets_at"]})
-                                self.quota_history=[s for s in self.quota_history if s["at"]>=time.time()-8*86400]
-                                try:write_json(self.quota_history_path,self.quota_history)
-                                except OSError:pass
+                            self._record_quota(quota)
                     catalog_due=refresh or now - catalog_at >= 5
                     if catalog_due:
                         stage='catalog';catalog_at=now

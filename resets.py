@@ -1,0 +1,134 @@
+"""Account-scoped reset observations and durable, user-confirmed reset attempts."""
+import copy
+import json
+import math
+import time
+from pathlib import Path
+from uuid import uuid4
+
+from preferences import write_json
+from usage import quota_windows
+
+
+def latest_credit(credits, now=None):
+    now = time.time() if now is None else now
+    if not isinstance(credits, dict):return None
+    rows = credits.get('credits')
+    count = credits.get('availableCount')
+    if not isinstance(rows, list) or not isinstance(count, int) or count <= 0 or len(rows) < count:return None
+    available = [c for c in rows if c.get('status') == 'available']
+    if len(available) < count:return None
+    if any(not isinstance(c.get('grantedAt'), (int, float)) for c in available):return None
+    valid = [c for c in available if c.get('id') and c.get('resetType')=='codexRateLimits' and math.isfinite(c['grantedAt'])
+             and (c.get('expiresAt') is None or isinstance(c['expiresAt'], (int, float))
+                  and math.isfinite(c['expiresAt']) and c['expiresAt'] > now)]
+    return dict(max(valid, key=lambda c: (c['grantedAt'], c['id']))) if valid else None
+
+
+def changed_windows(before, after):
+    return [key for key, value in after.items() if key in before and
+            (value['resets_at'] != before[key]['resets_at'] or value['remaining'] > before[key]['remaining'])]
+
+
+class ResetLedger:
+    def __init__(self, path):
+        self.path = Path(path)
+        try:self.accounts = json.loads(self.path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):self.accounts = {}
+        if not isinstance(self.accounts,dict):self.accounts={}
+        self.account = None
+        self.credits = None
+        self.state = 'idle'
+
+    @property
+    def record(self):
+        if not self.account:return None
+        return self.accounts.setdefault(self.account, {'windows': {}, 'events': [], 'pending': None})
+
+    def save(self):write_json(self.path, self.accounts)
+
+    def _observed_events(self, before, after, at):
+        groups = {}
+        for key in changed_windows(before, after):
+            old, new = before[key], after[key]
+            scheduled = (old.get('resets_at') is not None and old['resets_at'] <= at
+                         and new.get('starts_at') is not None and new['starts_at'] >= old['resets_at']
+                         and new['resets_at'] != old['resets_at'])
+            groups.setdefault('scheduled' if scheduled else 'unknown', []).append(key)
+        for kind, windows in groups.items():
+            self.record['events'].append({'id': str(uuid4()), 'at': at, 'kind': kind, 'windows': windows})
+
+    def observe(self, raw, at=None):
+        at = time.time() if at is None else at
+        previous_credits=self.credits
+        account = raw.get('accountId')
+        account = account if isinstance(account, str) and account else None
+        if account != self.account:self.state = 'idle'
+        self.account = account
+        self.credits = raw.get('rateLimitResetCredits')
+        if not account:return
+        record = self.record
+        current = {str(q['minutes']): q for q in quota_windows(raw)}
+        if self.state in ('noCredit','nothingToReset','unavailable') and (previous_credits!=self.credits or record['windows']!=current):self.state='idle'
+        followup = record.pop('followup', None)
+        if followup:
+            event = next((e for e in record['events'] if e['id'] == followup['id']), None)
+            if event:event['windows'] = changed_windows(followup['before'], current)
+        elif not record.get('pending'):
+            self._observed_events(record['windows'], current, at)
+        record['windows'] = current
+        session = current.get('300')
+        if session:
+            samples = [s for s in record.get('session_samples', []) if s['reset'] == session['resets_at']
+                       and s['at'] >= (session['starts_at'] or 0)]
+            samples.append({'at': at, 'reset': session['resets_at'], 'remaining': session['remaining']})
+            record['session_samples'] = samples[-720:]
+        record['events'] = record['events'][-100:]
+        if record.get('pending'):self.state = 'uncertain'
+        self.save()
+
+    def begin(self, account, credit_id):
+        if account != self.account or not self.record:raise ValueError('Reset account changed')
+        pending = self.record.get('pending')
+        if pending:
+            if pending['credit']['id'] != credit_id:raise ValueError('Another reset is unresolved')
+        else:
+            credit = latest_credit(self.credits)
+            if not credit or credit['id'] != credit_id:raise ValueError('Selected reset credit changed or expired')
+            pending = {'key': str(uuid4()), 'credit': credit, 'at': time.time(), 'before': self.record['windows']}
+            self.record['pending'] = pending
+        self.save()  # Persist before sending anything that could consume a credit, including retries.
+        self.state = 'pending'
+        return {'idempotencyKey': pending['key'], 'creditId': pending['credit']['id']}
+
+    def finish(self, outcome):
+        pending = self.record.get('pending') if self.record else None
+        if not pending:raise ValueError('No reset attempt to finish')
+        if outcome not in ('reset', 'alreadyRedeemed', 'noCredit', 'nothingToReset'):
+            self.state = 'uncertain';raise ValueError('Unknown reset outcome')
+        previous=copy.deepcopy(self.record)
+        if outcome in ('reset', 'alreadyRedeemed'):
+            if not any(e['id'] == pending['key'] for e in self.record['events']):
+                self.record['events'].append({'id': pending['key'], 'at': time.time(), 'kind': 'manual',
+                                             'windows': changed_windows(pending['before'], self.record['windows'])})
+            self.record['followup'] = {'id': pending['key'], 'before': pending['before']}
+        else:self._observed_events(pending['before'], self.record['windows'], time.time())
+        self.record['pending'] = None
+        self.state = outcome
+        try:self.save()
+        except Exception:
+            self.accounts[self.account]=previous
+            self.state='uncertain'
+            raise
+
+    def failed(self):
+        self.state = 'uncertain' if self.record and self.record.get('pending') else 'unavailable'
+
+    def view(self):
+        pending = self.record.get('pending') if self.record else None
+        selected = dict(pending['credit']) if pending else latest_credit(self.credits)
+        return {'reset_account': self.account, 'reset_selected': selected,
+                'reset_available': self.credits.get('availableCount') if isinstance(self.credits, dict) else None,
+                'reset_events': [dict(e) for e in reversed(self.record['events'])] if self.record else [],
+                'session_history': [dict(s) for s in self.record.get('session_samples', [])] if self.record else [],
+                'reset_state': self.state, 'reset_retry': bool(pending)}

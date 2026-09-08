@@ -16,13 +16,14 @@ sys.path.insert(0, str(BASE / ".deps"))
 try:
     from PySide6.QtCore import Qt, QTimer, QRectF, QPointF, QVariantAnimation, QEasingCurve
     from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPen, QCursor, QLinearGradient, QBrush
-    from PySide6.QtWidgets import QApplication, QWidget, QMenu, QSystemTrayIcon
+    from PySide6.QtWidgets import QApplication, QWidget, QMenu, QSystemTrayIcon, QPushButton, QMessageBox
 except ImportError:
     if '--smoke-test' in sys.argv:raise SystemExit(1)
     raise
 from provider import Provider
-from usage import reset_countdown_text, remaining_time_fraction, visible_metrics, quota_window, chart_window
-from tasks import task_rows, task_metrics, thread_url
+from usage import reset_countdown_text, remaining_time_fraction, visible_metrics, quota_window, chart_window, countdown_window
+from tasks import thread_url, panel_rows, task_category, category_counts, CATEGORY_LABELS, duration_text
+from usage import human_tokens
 import windows
 import startup
 from settings_ui import SettingsDialog, app_icon
@@ -132,7 +133,7 @@ def activity_count(p,x,y,count,color=ACCENT,pulse=True):
     if pulse:icon(p,'task',x+8,y)
     else:
         p.setBrush(QColor(color));p.drawEllipse(QPointF(x+8,y),2.5,2.5)
-    text(p,x+17,y,label,font,'#b0ddca' if pulse else '#f0c98b')
+    text(p,x+17,y,label,font,'#b0ddca' if pulse else QColor(color).lighter(115))
     return width
 
 
@@ -195,7 +196,8 @@ class StatusBar(QWidget):
         self.data=provider.get();self.task=None;self.position=None;self.font=face()
         self.task_rect=QRectF();self.task_hover=False;self.title_hover_started=time.monotonic()
         self.task_area=QRectF()
-        self.usage_area=QRectF();self.metrics=[];self.settings_dialog=None;self.placement_unavailable=False
+        self.hit_regions=[];self.pressed=None;self.confirming_reset=False
+        self.metrics=[];self.settings_dialog=None;self.placement_unavailable=False
         self.settings=read_settings(RUNTIME/'ui_settings.json')
         self.chart_unit=self.settings['chart_unit']
         self.updater=UpdateController(RUNTIME,self);self.updater.changed.connect(self.update_status)
@@ -229,6 +231,15 @@ class StatusBar(QWidget):
         return super().nativeEvent(event_type,message)
 
     def desktop_click(self,x,y,button="left"):
+        if self.confirming_reset:return False
+        if button=='left_up':
+            pressed=self.pressed;self.pressed=None
+            if not pressed:return False
+            mode,rect,payload=pressed
+            if self.isVisible() and rect.contains(QPointF(x,y)):
+                if mode=='task':QTimer.singleShot(0,lambda t=payload:self.open_task(t))
+                else:QTimer.singleShot(0,lambda m=mode:self.toggle_popup(m))
+            return True
         def inside(widget):
             if not widget or not widget.isVisible():return False
             box=windows.rect(int(widget.winId()))
@@ -236,10 +247,11 @@ class StatusBar(QWidget):
         if inside(self):
             box=windows.rect(int(self.winId()));ratio=windows.user32.GetDpiForWindow(int(self.winId()))/96
             point=QPointF((x-box[0])/ratio,(y-box[1])/ratio)
-            mode='tasks' if self.task_area.contains(point) else 'usage' if self.usage_area.contains(point) else None
-            if mode:
+            hit=next((h for h in self.hit_regions if h[1].contains(point)),None)
+            if hit:
+                mode,rect,payload=hit
                 if button=='right':QTimer.singleShot(0,self.open_menu)
-                else:QTimer.singleShot(0,lambda:self.toggle_popup(mode))
+                else:self.pressed=(mode,QRectF(box[0]+rect.x()*ratio,box[1]+rect.y()*ratio,rect.width()*ratio,rect.height()*ratio),payload)
                 return True  # Transparent pixels must not forward a second action to the taskbar.
         if self.popup and not inside(self.popup):QTimer.singleShot(0,self.hide_popup)
         return False
@@ -249,7 +261,10 @@ class StatusBar(QWidget):
             self.popup.reveal_to(0. if self.popup.reveal_target==1. else 1.)
         else:
             self.hide_popup(immediate=True)
-            self.popup=TaskListPopup(self) if mode=='tasks' else TaskPopup(self)
+            if mode=='usage':self.popup=TaskPopup(self)
+            elif mode=='session':self.popup=SessionPopup(self)
+            elif mode=='resets':self.popup=ResetPopup(self)
+            else:self.popup=TaskListPopup(self,mode)
             self.popup.refresh(self.data)
             windows.popup_glass(int(self.popup.winId()))
             self.popup.show()
@@ -257,7 +272,6 @@ class StatusBar(QWidget):
     def animate(self):
         if self.isVisible() and self.task:
             self.update()
-            if self.popup:self.popup.update()
 
     def set_task_blend(self,value):
         self.task_blend=float(value);self.update()
@@ -316,6 +330,28 @@ class StatusBar(QWidget):
             return
         self.hide_popup(immediate=True)
 
+    def confirm_reset(self):
+        data=self.provider.get();credit=data.get('reset_selected');account=data.get('reset_account')
+        if self.confirming_reset or data.get('reset_busy') or not credit or not account:return
+        if not data.get('reset_retry') and credit.get('expiresAt') is not None and credit['expiresAt']<=time.time():return
+        self.confirming_reset=True;self.hide_popup(immediate=True)
+        try:
+            message='继续上次未确认结果的重置请求？' if data.get('reset_retry') else '使用最新授予的一次额度重置机会？'
+            expiry=datetime.fromtimestamp(credit['expiresAt']).strftime('%m.%d %H:%M') if credit.get('expiresAt') is not None else '未提供'
+            dialog=QMessageBox(self);dialog.setWindowTitle('重置额度');dialog.setFont(self.font)
+            dialog.setText(message);dialog.setInformativeText('机会到期时间：'+expiry)
+            cancel=dialog.addButton('取消',QMessageBox.ButtonRole.RejectRole)
+            confirm=dialog.addButton('确认重置',QMessageBox.ButtonRole.AcceptRole)
+            dialog.setDefaultButton(cancel)
+            dialog.adjustSize()
+            dialog.move(self.screen().availableGeometry().center()-dialog.rect().center())
+            dialog.show();windows.user32.ShowWindow(int(dialog.winId()),1)
+            dialog.exec()
+            if dialog.clickedButton() is confirm:self.provider.request_reset(account,credit['id'])
+            dialog.deleteLater()
+        finally:self.confirming_reset=False
+        if self.isVisible():self.toggle_popup('resets')
+
     def set_ring(self,kind,value):
         self.ring_values[kind]=float(value);self.update()
 
@@ -336,7 +372,7 @@ class StatusBar(QWidget):
         ids=[t["id"] for t in tasks]
         if self.current_id not in ids:
             self.current_id,self.rotated_at=ids[0],time.monotonic()
-        elif self.popup is None and not getattr(self,'task_hover',False) and time.monotonic()-self.rotated_at>=ROTATE_SECONDS:
+        elif self.popup is None and not getattr(self,'task_hover',False) and not getattr(self,'pressed',None) and not getattr(self,'confirming_reset',False) and time.monotonic()-self.rotated_at>=ROTATE_SECONDS:
             self.current_id=ids[(ids.index(self.current_id)+1)%len(ids)];self.rotated_at=time.monotonic()
         return tasks[ids.index(self.current_id)]
 
@@ -347,7 +383,9 @@ class StatusBar(QWidget):
             self.hide();self.hide_popup(immediate=True);return
         metrics=visible_metrics(self.data,self.settings)
         minimum=12+sum(29+QFontMetricsF(face(8)).horizontalAdvance(value) for kind,value,fraction in metrics)
-        if self.settings['show_tasks']:minimum+=80
+        if self.settings['show_tasks']:
+            counts=category_counts(self.data)
+            minimum+=60+sum(30+QFontMetricsF(face(8)).horizontalAdvance(str(counts[k])) for k in ('running','unread','failed','stopped') if counts[k])
         if not metrics and not self.settings['show_tasks']:
             self.hide();self.hide_popup(immediate=True);return
         placed=windows.placement(minimum_width=minimum)
@@ -365,7 +403,9 @@ class StatusBar(QWidget):
         if not self.isVisible():
             self.show();windows.hide_border(int(self.winId()))
         windows.follow_taskbar(int(self.winId()))
-        hovering=self.task_rect.contains(self.mapFromGlobal(QCursor.pos()))
+        pointer=self.mapFromGlobal(QCursor.pos())
+        hovering=self.task_area.contains(pointer)
+        self.setCursor(Qt.CursorShape.PointingHandCursor if any(r.contains(pointer) for m,r,t in self.hit_regions) else Qt.CursorShape.ArrowCursor)
         if hovering!=self.task_hover:
             self.task_hover=hovering;self.title_hover_started=time.monotonic();self.rotated_at=time.monotonic()
         self.data=self.provider.get()
@@ -385,34 +425,36 @@ class StatusBar(QWidget):
 
     def paintEvent(self,event):
         p=painter(self);data=self.data
+        self.hit_regions=[]
         x,y=12.,self.height()/2
         def field(kind,value,fraction):
             nonlocal x
+            left=x-7
             color={"quota":"#45ba91","session":"#51adb4","clock":"#5d9dd7","spent":"#a088d1"}[kind]
             icon(p,kind,x,y,color,fraction=None if fraction is None else self.ring_values.get(kind,fraction))
             x+=12
             ink=QColor(TITLE_MUTED)
             if kind=='spent' and value=='—':ink.setAlpha(90);value='–'
             x+=text(p,x,y,value,face(8),ink)+17
+            mode={'quota':'usage','session':'session','spent':'daily','clock':'resets'}[kind]
+            self.hit_regions.append((mode,QRectF(left,0,x-left-8,self.height()),None))
         def separator():
             nonlocal x
             pen(p,"#53606d",.7)
             p.drawLine(QPointF(x-6,y-5),QPointF(x-6,y+5));x+=7
         for kind,value,fraction in visible_metrics(data,self.settings):field(kind,value,fraction)
-        self.usage_area=QRectF(0,0,max(0,x-6) if x>12 else 0,self.height())
         self.task_area=QRectF();self.task_rect=QRectF()
         if not self.settings['show_tasks']:p.end();return
-        self.task_area=QRectF(x-6,0,0,self.height())
         if x>12:separator()
         badge_x=x-6
+        counts=category_counts(data)
+        for mode,color in [('running',ACCENT),('unread',AMBER),('failed',FAILED),('stopped','#8795a5')]:
+            if counts[mode]:
+                width=activity_count(p,badge_x,y,counts[mode],color,pulse=mode=='running')
+                self.hit_regions.append((mode,QRectF(badge_x-2,0,width+4,self.height()),None));badge_x+=width+6
+        if any(counts[k] for k in ('running','unread','failed','stopped')):x=badge_x+4
         if self.task:
-            count=len({task['id'] for task in data.get('tasks',[])})
-            badge_x+=activity_count(p,badge_x,y,count)+6
-        unread_count=data.get('unread_count')
-        if unread_count:
-            badge_x+=activity_count(p,badge_x,y,unread_count,AMBER,pulse=False)+6
-        if self.task or unread_count:x=badge_x+4
-        if self.task:
+            self.task_area=QRectF(x-2,0,0,self.height())
             p.save();p.setClipRect(QRectF(x-2,0,max(0,self.width()-x+2),self.height()))
             def task_label(task,opacity,offset,current=False):
                 p.save();p.setOpacity(opacity);p.translate(0,offset)
@@ -440,12 +482,13 @@ class StatusBar(QWidget):
             if self.previous_task and self.task_blend<1:
                 task_label(self.previous_task,1-self.task_blend,-22*self.task_blend)
             task_label(self.task,self.task_blend,22*(1-self.task_blend),current=True);p.restore()
+            shown=self.previous_task if self.previous_task and self.task_blend<.5 else self.task
+            self.hit_regions.append(('task',QRectF(self.task_area),dict(shown)))
         else:
             self.task_rect=QRectF()
-            if unread_count:end=x+text(p,x,y,'Tasks',self.font,TITLE_MUTED)
-            else:
-                icon(p,'chart',x,y,MUTED);end=x+12+text(p,x+12,y,'Tasks',self.font)
-            self.task_area.setRight(min(self.width(),end+6))
+            end=x+text(p,x,y,'Tasks',self.font,TITLE_MUTED)
+            self.task_area=QRectF(x-2,0,min(self.width(),end+6)-x+2,self.height())
+            self.hit_regions.append(('daily',QRectF(self.task_area),None))
         p.end()
 
     def hide_popup(self,immediate=False):
@@ -572,14 +615,98 @@ class TaskPopup(QWidget):
         self.scroll=max(0,min(max(0,self.full_height-self.height()),self.scroll-event.angleDelta().y()/120*26));self.update()
 
 
+class SessionPopup(TaskPopup):
+    mode='session'
+
+    def refresh(self,data):
+        self.data=data;self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-174),360,174)
+        self.update()
+
+    def paintEvent(self,event):
+        p=panel_painter(self);window=quota_window(self.data,300)
+        text(p,18,21,'5h',face(8),'#51adb4')
+        value=f"{window['remaining']:g}% remaining" if window else '—'
+        text(p,49,21,value,face(8),MUTED)
+        reset=datetime.fromtimestamp(window['resets_at']).strftime('%H:%M') if window and window.get('resets_at') else '—'
+        text(p,258,21,'Reset '+reset,face(7),'#8797aa')
+        left,top,width,height=32.,51.,306.,87.
+        for fraction,label in ((1,'100'),(0,'0')):
+            y=top+(1-fraction)*height;pen(p,'#46515d',.5)
+            p.drawLine(QPointF(left,y),QPointF(left+width,y));text(p,9,y,label,face(6),'#8797aa')
+        if window and window.get('starts_at') is not None and window.get('resets_at'):
+            start,end=window['starts_at'],window['resets_at']
+            rows=[s for s in self.data.get('session_history',[]) if s['reset']==end and start<=s['at']<=end]
+            points=[QPointF(left+(s['at']-start)/(end-start)*width,top+(1-s['remaining']/100)*height) for s in rows] if end>start else []
+            if points:
+                path=QPainterPath(points[0])
+                for point in points[1:]:path.lineTo(point)
+                pen(p,'#51adb4',1.5);p.drawPath(path)
+                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('#51adb4'));p.drawEllipse(points[-1],2.5,2.5)
+            text(p,left,153,datetime.fromtimestamp(start).strftime('%H:%M'),face(7),'#8797aa')
+            label=datetime.fromtimestamp(end).strftime('%H:%M')
+            text(p,left+width-QFontMetricsF(face(7)).horizontalAdvance(label),153,label,face(7),'#8797aa')
+        p.end()
+
+
+class ResetPopup(TaskPopup):
+    mode='resets'
+
+    def __init__(self,owner):
+        super().__init__(owner)
+        self.button=QPushButton('使用一次重置',self);self.button.setFont(face(8))
+        self.button.setStyleSheet('QPushButton{color:#bac5d2;background:#35444e;border:0;border-radius:5px;} QPushButton:hover{background:#425663;} QPushButton:disabled{color:#77838e;background:#28323a;}')
+        self.button.clicked.connect(owner.confirm_reset)
+
+    def refresh(self,data):
+        self.data=data;self.rows=data.get('reset_events',[])
+        height=120+28*max(1,min(6,len(self.rows)))
+        self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-height),360,height)
+        self.button.setGeometry(222,height-42,120,30)
+        credit=data.get('reset_selected')
+        eligible=bool(credit and data.get('reset_account'))
+        if credit and not data.get('reset_retry') and credit.get('expiresAt') is not None:eligible=eligible and credit['expiresAt']>time.time()
+        self.button.setEnabled(eligible and not data.get('reset_busy') and (not data.get('quota_error') or data.get('reset_retry',False)))
+        label='处理中…' if data.get('reset_busy') else '重试' if data.get('reset_retry') or data.get('reset_state')=='unavailable' else '暂不可重置' if data.get('reset_state')=='nothingToReset' else '使用一次重置'
+        self.button.setText(label)
+        self.scroll=min(self.scroll,max(0,len(self.rows)*28-(height-120)))
+        self.update()
+
+    def paintEvent(self,event):
+        p=panel_painter(self);window=countdown_window(self.data,self.owner.settings)
+        text(p,18,21,'Next reset',face(8),MUTED)
+        value=datetime.fromtimestamp(window['resets_at']).strftime('%m.%d %H:%M') if window and window.get('resets_at') else '—'
+        text(p,238,21,value,face(8),BLUE)
+        text(p,18,47,'History',face(8),'#8797aa')
+        p.save();p.setClipRect(QRectF(12,60,336,self.height()-120))
+        labels={'scheduled':'Scheduled','manual':'Manual','official':'Official','unknown':'Unknown'}
+        colors={'scheduled':BLUE,'manual':LILAC,'official':ACCENT,'unknown':'#8797aa'}
+        if not self.rows:text(p,18,74,'No reset records',face(8),'#8797aa')
+        for i,row in enumerate(self.rows):
+            y=74+i*28-self.scroll
+            text(p,18,y,labels.get(row['kind'],'Unknown'),face(8),colors.get(row['kind'],'#8797aa'))
+            text(p,112,y,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),face(8),MUTED)
+            windows_text=' + '.join({'300':'5h','10080':'7d'}.get(k,k+'m') for k in row.get('windows',[])) or 'Codex'
+            text(p,342-QFontMetricsF(face(7)).horizontalAdvance(windows_text),y,windows_text,face(7),'#8797aa')
+        p.restore()
+        count=self.data.get('reset_available');credit=self.data.get('reset_selected')
+        text(p,18,self.height()-37,f'{count} 次可用' if count is not None else '—',face(8),MUTED)
+        expiry=datetime.fromtimestamp(credit['expiresAt']).strftime('%m.%d %H:%M')+' 到期' if credit and credit.get('expiresAt') is not None else '有效期未提供' if credit else '—'
+        text(p,18,self.height()-20,expiry,face(7),'#8797aa')
+        p.end()
+
+    def wheelEvent(self,event):
+        self.scroll=max(0,min(max(0,len(self.rows)*28-(self.height()-120)),self.scroll-event.angleDelta().y()/120*28));self.update()
+
+
 class TaskListPopup(TaskPopup):
-    mode='tasks'
+    mode='daily'
     ROW_HEIGHT=34
     TITLE_X=88
     TITLE_WIDTH=150
 
-    def __init__(self,owner):
+    def __init__(self,owner,mode='daily'):
         super().__init__(owner)
+        self.mode=mode
         self.setWindowTitle('Codex 任务列表')
         self.hovered=None;self.rows=[];self.hover_started=time.monotonic()
         self.animation=QTimer(self);self.animation.timeout.connect(self.animate);self.animation.start(33)
@@ -588,24 +715,23 @@ class TaskListPopup(TaskPopup):
         if self.hovered or any(t.get('running') for t in self.rows):self.update()
 
     def refresh(self,data):
-        self.data=data;self.rows=task_rows(data)
+        self.data=data;self.rows=panel_rows(data,self.mode)
         metrics=QFontMetricsF(face(8))
         self.project_width=min(80,max([metrics.horizontalAdvance(t['project'])+12 for t in self.rows]+[44]))
         self.TITLE_X=33+self.project_width+10
         title_metrics=QFontMetricsF(face())
         longest=max([title_metrics.horizontalAdvance(task['title']) for task in self.rows]+[0])
-        values=[task_metrics(task) for task in self.rows]
-        duration_width=max([metrics.horizontalAdvance(duration) for duration,tokens in values]+[20])
-        token_width=max([metrics.horizontalAdvance(tokens) for duration,tokens in values]+[24])
-        info_width=duration_width+12+token_width
+        self.values={t['id']:human_tokens(t.get('tokens')) if self.mode=='daily' else duration_text(t.get('round_seconds')) for t in self.rows}
+        info_width=max([metrics.horizontalAdvance(value) for value in self.values.values()]+[24])
         width=min(self.owner.width(),max(260,math.ceil(self.TITLE_X+longest+24+info_width+18)))
-        self.token_right=width-18;self.time_right=self.token_right-token_width-12
-        self.info_divider=self.time_right-duration_width-12
+        self.value_right=width-18
+        self.info_divider=self.value_right-info_width-12
         self.TITLE_WIDTH=max(0,self.info_divider-12-self.TITLE_X)
-        self.sections=[];self.row_positions=[];y=0.;previous=None
+        self.sections=[('Today · Tokens' if self.mode=='daily' else CATEGORY_LABELS[self.mode],0)]
+        self.row_positions=[];y=24.;previous=None
         for task in self.rows:
-            section='Running' if task.get('running') else 'Recent'
-            if section!=previous:
+            section=CATEGORY_LABELS[task_category(task)]
+            if self.mode=='daily' and section!=previous:
                 if previous is not None:y+=8
                 self.sections.append((section,y));y+=22;previous=section
             self.row_positions.append(y);y+=self.ROW_HEIGHT
@@ -634,7 +760,7 @@ class TaskListPopup(TaskPopup):
         def right_label(value,right,y,font,color=MUTED):
             text(p,right-QFontMetricsF(font).horizontalAdvance(value),y,value,font,color)
         p.save();p.setClipRect(QRectF(10,8,self.width()-20,max(0,self.height()-16)))
-        if not self.rows:text(p,18,25,'No recent tasks',face(8),MUTED)
+        if not self.rows:text(p,18,50,'No tasks',face(8),MUTED)
         for label,position in self.sections:
             text(p,18,8+position+10-self.scroll,label,face(8),'#8795a5')
         for task,position in zip(self.rows,self.row_positions):
@@ -660,10 +786,8 @@ class TaskListPopup(TaskPopup):
             else:title=metrics.elidedText(title,Qt.TextElideMode.ElideRight,self.TITLE_WIDTH)
             p.save();p.setClipRect(QRectF(self.TITLE_X,yy,self.TITLE_WIDTH,self.ROW_HEIGHT),Qt.ClipOperation.IntersectClip)
             text(p,self.TITLE_X-shift,y,title,face());p.restore()
-            duration,tokens=task_metrics(task)
             pen(p,'#4a5566',.6);p.drawLine(QPointF(self.info_divider,y-5),QPointF(self.info_divider,y+5))
-            right_label(duration,self.time_right,y,face(8),'#afa2c5')
-            right_label(tokens,self.token_right,y,face(8),'#8eb1d4')
+            right_label(self.values[task['id']],self.value_right,y,face(8),'#8eb1d4' if self.mode=='daily' else '#afa2c5')
         p.restore();p.end()
 
     def mousePressEvent(self,event):

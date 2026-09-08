@@ -2,6 +2,35 @@
 from uuid import UUID
 from usage import human_tokens
 
+CATEGORIES = ('running', 'unread', 'failed', 'stopped', 'recent')
+CATEGORY_LABELS = dict(zip(CATEGORIES, ('Running', 'Unread', 'Failed', 'Stopped', 'Recent')))
+
+
+def task_category(task):
+    if task.get('running'):return 'running'
+    if task.get('status') in ('failed', 'stopped'):return task['status']
+    if task.get('unread'):return 'unread'
+    return 'recent'
+
+
+def panel_rows(data, mode='daily'):
+    rows = task_rows(data)
+    if mode != 'daily':return [t for t in rows if task_category(t) == mode]
+    return sorted(rows, key=lambda t: (CATEGORIES.index(task_category(t)), -(t.get('tokens') or 0)))
+
+
+def category_counts(data):
+    rows = task_rows(data)
+    return {kind: sum(task_category(t) == kind for t in rows) for kind in CATEGORIES}
+
+
+def duration_text(elapsed):
+    if elapsed is None:return '—'
+    elapsed = max(0, int(elapsed))
+    if elapsed < 60:return f'{elapsed}s'
+    if elapsed < 3600:return f'{elapsed // 60}m'
+    return f'{elapsed // 3600}h {elapsed % 3600 // 60}m'
+
 
 def task_rows(data):
     tasks = []
@@ -16,16 +45,7 @@ def task_rows(data):
 
 
 def task_metrics(task):
-    elapsed = task.get('daily_seconds')
-    if elapsed is None:
-        duration = "—"
-    elif elapsed < 60:
-        duration = f"{elapsed}s"
-    elif elapsed < 3600:
-        duration = f"{elapsed // 60}m"
-    else:
-        duration = f"{elapsed // 3600}h {elapsed % 3600 // 60}m"
-    return duration, human_tokens(task.get('tokens'))
+    return duration_text(task.get('daily_seconds')), human_tokens(task.get('tokens'))
 
 
 def thread_url(thread_id):

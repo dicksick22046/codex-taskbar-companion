@@ -59,10 +59,10 @@ class UsageCursor:
         if kind == "task_started":
             if not self.running or self.turn != event["turn"] or self.duration_start is None:
                 self.duration_start = event["at"] if original else None
+                self.started_at = event["at"].isoformat()
             if original:self.duration_known = True
             self.running = True
             self.turn = event["turn"]
-            self.started_at = event["at"].isoformat()
             self.ended_at = None
             self.completion_kind = None
             self.run_tokens = 0
@@ -216,7 +216,7 @@ def daily_quota_text(samples, window, now=None):
     total = 0
     first = last = after[0]
     for sample in after[1:]:
-        if abs(sample["reset"]-last["reset"]) > 2:
+        if abs(sample["reset"]-last["reset"]) > 2 or sample['used'] < last['used']:
             total += max(0,last["used"]-first["used"])
             first = sample
         last = sample
@@ -230,6 +230,13 @@ def quota_window(data, minutes):
 
 def chart_window(data):
     return quota_window(data, 10080) or quota_window(data, 300)
+
+
+def countdown_window(data, settings):
+    week,session=quota_window(data,10080),quota_window(data,300)
+    if settings.get('show_week',True) and week:return week
+    if settings.get('show_session',True) and session:return session
+    return week or session
 
 
 def visible_metrics(data, settings):
@@ -251,8 +258,8 @@ def visible_metrics(data, settings):
         result.append(('session', f"5h {session['remaining']:g}%", session['remaining']/100))
     if settings.get('show_daily', True) and (week is not None or not data.get('quota')):
         value = data.get('daily_quota', '—')
-        result.append(('spent', value, float(value.rstrip('%'))/100 if value != '—' else None))
+        result.append(('spent', value, min(1.,max(0.,float(value.rstrip('%'))/100)) if value != '—' else None))
     if settings.get('show_countdown', True):
-        window = week if show_week and week else session if show_session else week or session
+        window = countdown_window(data,settings)
         result.append(('clock', reset_countdown_text(window), remaining_time_fraction(window)))
     return result

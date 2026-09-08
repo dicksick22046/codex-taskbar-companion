@@ -34,10 +34,11 @@ class ClickHook:
         user32.CallNextHookEx.argtypes=[w.HHOOK,ctypes.c_int,w.WPARAM,w.LPARAM]
         user32.CallNextHookEx.restype=ctypes.c_ssize_t
         def dispatch(code,message,pointer):
-            if code>=0 and message in (0x0201,0x0204):
+            if code>=0 and message in (0x0201,0x0202,0x0204):
                 point=ctypes.cast(pointer,ctypes.POINTER(MouseInfo)).contents.point
                 try:
-                    if callback(point.x,point.y,'right' if message==0x0204 else 'left'):return 1
+                    button={0x0201:'left',0x0202:'left_up',0x0204:'right'}[message]
+                    if callback(point.x,point.y,button):return 1
                 except Exception:
                     pass
             return user32.CallNextHookEx(None,code,message,pointer)

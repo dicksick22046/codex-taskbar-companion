@@ -1,5 +1,5 @@
 import unittest
-from app import QApplication,QWidget,TaskPopup,TaskListPopup,StatusBar
+from app import QApplication,QWidget,TaskPopup,TaskListPopup,StatusBar,SessionPopup,ResetPopup,DISPLAY_DEFAULTS
 from unittest.mock import patch
 
 
@@ -27,7 +27,7 @@ class PopupInitialFrameTests(unittest.TestCase):
               'recent_tasks':[{'id':'b','title':'Earlier','project':'Project','running':False}]}
         panel.refresh(data)
         self.assertLess(panel.width(),owner.width())
-        self.assertEqual([label for label,y in panel.sections],['Running','Recent'])
+        self.assertEqual([label for label,y in panel.sections],['Today · Tokens','Running','Recent'])
         data['tasks'][0]['title']='A very long task title '*30
         panel.refresh(data)
         self.assertEqual(panel.width(),owner.width())
@@ -42,16 +42,17 @@ class PopupInitialFrameTests(unittest.TestCase):
         from app import QFontMetricsF,face
         metrics=QFontMetricsF(face(8))
         self.assertAlmostEqual(panel.info_divider-(panel.TITLE_X+panel.TITLE_WIDTH),12)
-        self.assertAlmostEqual(panel.token_right-metrics.horizontalAdvance('142.7M')-panel.time_right,12)
-        self.assertGreaterEqual(panel.time_right-metrics.horizontalAdvance('4h 59m')-panel.info_divider,12)
+        self.assertEqual(panel.values['a'],'142.7M')
+        self.assertAlmostEqual(panel.value_right-metrics.horizontalAdvance('142.7M')-panel.info_divider,12)
         panel.close();panel.deleteLater();owner.close();owner.deleteLater()
 
     def test_both_panels_leave_space_above_taskbar_not_inside_it(self):
         owner=QWidget();owner.setGeometry(20,610,540,30);owner.popup=None
+        owner.settings=DISPLAY_DEFAULTS;owner.confirm_reset=lambda:None
         with patch('app.windows.user32.FindWindowW',return_value=1), \
              patch('app.windows.rect',return_value=(0,900,1600,972)), \
              patch.object(owner,'devicePixelRatioF',return_value=1.5):
-            for kind in (TaskPopup,TaskListPopup):
+            for kind in (TaskPopup,TaskListPopup,SessionPopup,ResetPopup):
                 panel=kind(owner)
                 panel.refresh({'tasks':[]})
                 self.assertEqual(panel.y()+panel.height(),600-8)
@@ -74,6 +75,8 @@ class PopupInitialFrameTests(unittest.TestCase):
             self.assertFalse(bar.desktop_click(800,15))
             dispatch.assert_not_called()
             self.assertTrue(bar.desktop_click(round(bar.task_area.center().x()),15))
+            dispatch.assert_not_called()
+            self.assertTrue(bar.desktop_click(round(bar.task_area.center().x()),15,'left_up'))
             dispatch.assert_called_once()
         task['title']='A long task title '*40
         bar.grab()

@@ -35,6 +35,17 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(reset_countdown_text(window,100001),'0m')
         self.assertEqual(reset_countdown_text(None,1250),'—')
 
+    def test_same_window_reset_preserves_pre_reset_daily_consumption(self):
+        now=datetime.now().astimezone();start=now.replace(hour=0,minute=0,second=0,microsecond=0).timestamp()
+        reset=now.timestamp()+604800
+        rows=[{'at':start+i,'used':used,'reset':reset} for i,used in enumerate([20,40,0,5])]
+        self.assertEqual(daily_quota_text(rows,{'remaining':95,'resets_at':reset},now),'25%')
+
+    def test_daily_percentage_can_exceed_one_cycle_without_wrapping_the_ring(self):
+        from usage import visible_metrics
+        fields=visible_metrics({'quota':[],'daily_quota':'125%'},{'show_week':False,'show_countdown':False})
+        self.assertEqual(fields,[('spent','125%',1.)])
+
     def setUp(self):
         self.folder=tempfile.TemporaryDirectory();self.path=Path(self.folder.name)/'thread.jsonl'
         self.now=datetime.now().astimezone();self.old=self.now-timedelta(days=1)
@@ -92,6 +103,13 @@ class UsageTests(unittest.TestCase):
         self.path.write_bytes(record('task_started',self.now)+record('token_count',self.now,90)+record('token_count',self.now,20)+record('turn_aborted',self.now))
         c=UsageCursor(self.path);c.update()
         self.assertEqual(c.daily['total_tokens'],110);self.assertFalse(c.running)
+
+    def test_duplicate_start_does_not_restart_the_same_round_clock(self):
+        self.path.write_bytes(record('task_started',self.now)+record('task_started',self.now+timedelta(seconds=3))
+                              +record('task_complete',self.now+timedelta(seconds=10)))
+        cursor=UsageCursor(self.path);cursor.update()
+        self.assertEqual(datetime.fromisoformat(cursor.started_at),self.now)
+        self.assertEqual(cursor.elapsed_today(),10)
 
     def test_long_tail_recovers_day_baseline_before_large_tool_output(self):
         filler=(json.dumps({'type':'response_item','payload':'x'*1_100_000})+'\n').encode()

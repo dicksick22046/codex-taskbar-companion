@@ -29,11 +29,11 @@ class ReleaseTests(unittest.TestCase):
     def test_update_version_and_asset_origin(self):
         repo='owner/repo';tag='v0.2.0';name='CodexTaskbarCompanion-0.2.0-Setup-x64.exe'
         release={'tag_name':tag,'assets':[{'name':n,'browser_download_url':f'https://github.com/{repo}/releases/download/{tag}/{n}'} for n in [name,name+'.sha256']]}
-        self.assertEqual(release_candidate(release,repo)['version'],'0.2.0')
-        self.assertIsNone(release_candidate({**release,'prerelease':True},repo))
-        self.assertIsNone(release_candidate({**release,'tag_name':'v0.0.9'},repo))
+        self.assertEqual(release_candidate(release,repo,current='0.1.0')['version'],'0.2.0')
+        self.assertIsNone(release_candidate({**release,'prerelease':True},repo,current='0.1.0'))
+        self.assertIsNone(release_candidate({**release,'tag_name':'v0.0.9'},repo,current='0.1.0'))
         release['assets'][0]['browser_download_url']='https://example.com/install.exe'
-        with self.assertRaises(ValueError):release_candidate(release,repo)
+        with self.assertRaises(ValueError):release_candidate(release,repo,current='0.1.0')
     def test_download_rejects_corruption(self):
         with tempfile.TemporaryDirectory() as d:
             release={'name':'test.exe','checksum_url':'checksum','url':'installer'}
