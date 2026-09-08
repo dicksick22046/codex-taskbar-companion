@@ -92,6 +92,8 @@ app.py          启动入口
 
 开发前可先看[架构说明](docs/architecture.md)和[交互规范](docs/specs/interaction.md)。本地环境、日志、截图和构建产物均不进入 Git。
 
+账号没有5小时额度时，也可以单独预览对应按钮和面板：运行 `./scripts/preview-session.ps1`，在标有“模拟数据”的独立窗口里点击5h按钮。它复用正式控件，不读取账号、不修改设置，也不替换正在运行的状态条。需要测试悬停时，用 `.venv/Scripts/pythonw.exe scripts/preview_session.py --hover` 启动。
+
 发现问题，欢迎提 [Issue](https://github.com/dicksick22046/codex-taskbar-companion/issues)。带上工具版本、Windows 版本、复现步骤；界面问题附一张处理过隐私信息的截图，会更容易定位。
 
 源代码采用 [MIT 许可](LICENSE)，字体与第三方库保留各自许可，见 [第三方说明](THIRD_PARTY.md)。这是独立社区工具，与 OpenAI 没有隶属关系。
