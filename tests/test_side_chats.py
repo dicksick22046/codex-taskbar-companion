@@ -2,6 +2,8 @@ from datetime import datetime,timezone
 from contextlib import closing
 from pathlib import Path
 import sqlite3
+import os
+import time
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -52,3 +54,35 @@ class SideChatTests(unittest.TestCase):
             self.assertTrue(self.reader.update([{'id':'main'}])[0]['running'])
             with self.log.open('a',encoding='utf-8') as f:f.write('\n')
             self.assertFalse(self.reader.update([{'id':'main'}])[0]['running'])
+
+    def test_restart_retains_confirmed_link_after_core_logs_are_pruned(self):
+        cache=self.root/'links.json'
+        reader=SideChats(self.root,self.core,self.state,cache)
+        with patch('codex_taskbar.side_chats.process_alive',return_value=True):
+            self.assertTrue(reader.update([{'id':'main'}])[0]['running'])
+            with closing(sqlite3.connect(self.core)) as c:c.execute('delete from logs');c.commit()
+            restored=SideChats(self.root,self.core,self.state,cache)
+            self.assertEqual(restored.update([{'id':'main'}])[0]['parent_id'],'main')
+            with self.log.open('a',encoding='utf-8') as f:
+                f.write('1970-01-01T00:02:00+00:00 info [electron-message-handler] [desktop-notifications] show turn-complete conversationId=side turnId=turn\n')
+            restarted=SideChats(self.root,self.core,self.state,cache)
+            self.assertFalse(restarted.update([{'id':'main'}])[0]['running'])
+            self.assertNotIn('running',cache.read_text())
+
+    def test_new_desktop_session_does_not_reuse_cached_links(self):
+        cache=self.root/'links.json';reader=SideChats(self.root,self.core,self.state,cache)
+        with patch('codex_taskbar.side_chats.process_alive',return_value=True):
+            reader.update([{'id':'main'}])
+            other=self.root/'codex-desktop-new-124-t0-i1-000000-0.log'
+            other.write_text(self.response(140,'side','turn/start','other-start'),encoding='utf-8')
+            os.utime(other,(time.time()+1,time.time()+1))
+            self.assertEqual(SideChats(self.root,self.core,self.state,cache).update([{'id':'main'}]),[])
+
+    def test_cache_write_failure_keeps_live_state_and_retries_later(self):
+        cache=self.root/'links.json';reader=SideChats(self.root,self.core,self.state,cache)
+        with patch('codex_taskbar.side_chats.process_alive',return_value=True):
+            with patch('codex_taskbar.side_chats.write_json',side_effect=OSError('busy')):
+                self.assertTrue(reader.update([{'id':'main'}])[0]['running'])
+            self.assertFalse(cache.exists())
+            self.assertTrue(reader.update([{'id':'main'}])[0]['running'])
+            self.assertTrue(cache.exists())

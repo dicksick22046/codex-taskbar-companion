@@ -28,7 +28,7 @@ class Provider:
             self.quota_history = []
         self.snapshot = {"tasks": [], "quota": [], "totals": None, "loading": True}
         self.unread_state = UnreadState()
-        self.side_reader=SideChats();self.side_rows=[]
+        self.side_reader=SideChats(cache_path=self.runtime_dir/'side_chat_links.json');self.side_rows=[]
         self.api = None
         self.reset_busy = False
         self.reset_request = None

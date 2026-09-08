@@ -4,8 +4,10 @@ from contextlib import closing
 from ctypes import wintypes as w
 from datetime import datetime
 from pathlib import Path
+import json
 import re
 import sqlite3
+from .preferences import write_json
 
 
 def process_alive(pid):
@@ -22,13 +24,25 @@ def process_alive(pid):
 
 
 class SideChats:
-    def __init__(self,logs=None,core_db=None,state_db=None):
+    def __init__(self,logs=None,core_db=None,state_db=None,cache_path=None):
         home=Path.home()
         self.log_roots=[Path(logs)] if logs else [home/'AppData/Local/Codex/Logs',
             *(home/'AppData/Local/Packages').glob('OpenAI.Codex_*/LocalCache/Local/Codex/Logs')]
         self.core_db=Path(core_db or home/'.codex/logs_2.sqlite')
         self.state_db=Path(state_db or home/'.codex/state_5.sqlite')
+        self.cache_path=Path(cache_path) if cache_path else None
+        self.saved_parents={}
         self.session=None;self.offsets={};self.pending={};self.forks={};self.parents={};self.states={}
+
+    def restore_parents(self):
+        if not self.cache_path:return
+        try:cached=json.loads(self.cache_path.read_text(encoding='utf-8'))
+        except (OSError,ValueError):return
+        if not isinstance(cached,dict) or cached.get('session')!=self.session:return
+        parents=cached.get('parents')
+        if isinstance(parents,dict):
+            self.parents={child:parent for child,parent in parents.items() if isinstance(child,str) and isinstance(parent,str) and child and parent and child!=parent}
+            self.saved_parents=dict(self.parents)
 
     def update(self,threads):
         groups=[list(root.rglob('codex-desktop-*-t0-*.log')) for root in self.log_roots]
@@ -40,7 +54,9 @@ class SideChats:
         pid=int(session.rsplit('-',1)[1])
         if session!=self.session or not process_alive(pid):
             self.session=session;self.offsets.clear();self.pending.clear();self.forks.clear();self.parents.clear();self.states.clear()
+            self.saved_parents={}
             if not process_alive(pid):return []
+            self.restore_parents()
         events=[]
         for path in sorted((p for p in files if p.name.startswith(session+'-t0-')),key=lambda p:p.stat().st_mtime):
             size=path.stat().st_size;offset=self.offsets.get(path,0)
@@ -81,4 +97,8 @@ class SideChats:
                     child=children.pop()
                     if not state.execute('select 1 from threads where id=?',(child,)).fetchone():self.parents[child]=fork['parent']
                     del self.forks[request]
+        if self.cache_path and self.parents!=self.saved_parents:
+            try:write_json(self.cache_path,{'session':self.session,'parents':self.parents})
+            except OSError:pass
+            else:self.saved_parents=dict(self.parents)
         return [{**self.states[child],'parent_id':parent} for child,parent in self.parents.items() if child in self.states]
