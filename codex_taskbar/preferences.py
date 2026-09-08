@@ -57,6 +57,7 @@ def read_settings(path):
     for key, default in DISPLAY_DEFAULTS.items():
         result[key] = data[key] if isinstance(data.get(key), bool) else default
     result['chart_unit'] = data.get('chart_unit') if data.get('chart_unit') in ('M', '100M') else 'M'
+    result['hover_panels'] = data.get('hover_panels') is True
     return result
 
 

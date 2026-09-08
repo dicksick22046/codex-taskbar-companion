@@ -20,7 +20,7 @@ class InteractionTests(unittest.TestCase):
                      {'minutes':300,'remaining':60,'starts_at':now-3600,'resets_at':now+4*3600}],
             'daily_quota':'12%','reset_account':'fixture-account','reset_selected':credit(),'reset_available':3}
         self.provider=Mock();self.provider.get.side_effect=lambda:self.data
-        with patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.RELEASE_REPOSITORY',''):
+        with patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.RELEASE_REPOSITORY',''),patch('codex_taskbar.app.QSystemTrayIcon'):
             self.bar=app.StatusBar(self.provider)
         self.bar.timer.stop();self.bar.animation.stop();self.bar.update_timer.stop();self.bar.tray.hide()
         self.bar.resize(1200,30);self.bar.data=self.data;self.bar.task=self.data['tasks'][0]
@@ -199,3 +199,75 @@ class InteractionTests(unittest.TestCase):
                 for dy in (3,rect.height()-3):
                     self.assertGreater(img.pixelColor(round((rect.left()+dx)*ratio),round(dy*ratio)).alpha(),0,mode)
         self.assertEqual(img.pixelColor(img.width()-3,3).alpha(),0)
+
+    def hover_point(self,mode):
+        rect=next(r for m,r,t in self.bar.hit_regions if m==mode)
+        return self.bar.mapToGlobal(rect.center().toPoint())
+
+    def test_hover_debounce_switches_panels_but_never_navigates_tasks(self):
+        self.bar.settings['hover_panels']=True
+        with patch.object(self.bar,'isVisible',return_value=True),patch.object(self.bar,'toggle_popup') as show,patch.object(self.bar,'open_task') as navigate:
+            self.bar.update_hover_popup(self.hover_point('usage'),0)
+            self.bar.update_hover_popup(self.hover_point('usage'),.3);show.assert_not_called()
+            self.bar.update_hover_popup(self.hover_point('daily'),.31)
+            self.bar.update_hover_popup(self.hover_point('daily'),.7);show.assert_called_once_with('daily')
+            show.reset_mock()
+            self.bar.update_hover_popup(self.hover_point('task'),1)
+            self.bar.update_hover_popup(self.hover_point('task'),2)
+            show.assert_not_called();navigate.assert_not_called()
+            self.bar.settings['hover_panels']=False
+            self.bar.update_hover_popup(self.hover_point('usage'),3)
+            self.bar.update_hover_popup(self.hover_point('usage'),4);show.assert_not_called()
+        self.provider.request_reset.assert_not_called()
+
+    def test_hover_keeps_panel_accessible_across_gap_then_closes_on_leave(self):
+        self.bar.move(40,700);self.bar.settings['hover_panels']=True
+        panel=app.TaskPopup(self.bar);self.bar.popup=panel;panel.refresh(self.data)
+        inside=panel.geometry().center();outside=self.bar.mapToGlobal(app.QPointF(1100,-600).toPoint())
+        gap=panel.geometry().bottomLeft()+app.QPointF(20,4).toPoint()
+        with patch.object(self.bar,'isVisible',return_value=True),patch.object(panel,'isVisible',return_value=True):
+            self.bar.update_hover_popup(inside,0)
+            self.bar.update_hover_popup(gap,.1)
+            self.bar.update_hover_popup(inside,.3)
+            self.assertEqual(panel.reveal_target,1.)
+            self.bar.update_hover_popup(outside,1)
+            self.bar.update_hover_popup(outside,1.3);self.assertEqual(panel.reveal_target,1.)
+            self.bar.update_hover_popup(outside,1.5);self.assertEqual(panel.reveal_target,0.)
+
+    def test_click_close_suppresses_hover_until_pointer_leaves(self):
+        self.bar.move(40,700);self.bar.settings['hover_panels']=True
+        panel=app.TaskPopup(self.bar);self.bar.popup=panel;panel.refresh(self.data);panel.reveal_to(1.)
+        with patch.object(self.bar,'isVisible',return_value=True):
+            self.bar.toggle_popup('usage')
+            self.bar.update_hover_popup(self.hover_point('usage'),10)
+            self.assertEqual(panel.reveal_target,0.)
+            self.bar.hide_popup(immediate=True)
+            self.bar.leaveEvent(None)
+            self.assertIsNone(self.bar.hover_suppressed)
+            with patch.object(self.bar,'toggle_popup') as show:
+                self.bar.update_hover_popup(self.hover_point('usage'),12);show.assert_not_called()
+                self.bar.update_hover_popup(self.hover_point('usage'),12.4);show.assert_called_once_with('usage')
+
+    def test_hover_is_suspended_for_settings_and_reset_confirmation(self):
+        self.bar.settings['hover_panels']=True
+        with patch.object(self.bar,'isVisible',return_value=True),patch.object(self.bar,'toggle_popup') as show:
+            self.bar.confirming_reset=True
+            self.bar.update_hover_popup(self.hover_point('resets'),0)
+            self.bar.update_hover_popup(self.hover_point('resets'),1);show.assert_not_called()
+            self.bar.confirming_reset=False
+            self.bar.settings_dialog=Mock();self.bar.settings_dialog.isVisible.return_value=True
+            self.bar.update_hover_popup(self.hover_point('usage'),2)
+            self.bar.update_hover_popup(self.hover_point('usage'),3);show.assert_not_called()
+            self.bar.settings_dialog=None
+        self.provider.request_reset.assert_not_called()
+
+    def test_compact_reset_columns_fit_two_quota_windows(self):
+        self.data['reset_events']=[{'kind':'scheduled','at':datetime.now().timestamp(),'tokens':2036647183,'windows':['300','10080']}]
+        panel=app.ResetPopup(self.bar);panel.refresh(self.data)
+        self.assertEqual(panel.width(),300)
+        self.assertEqual(panel.button.geometry().width(),264)
+        metrics=app.QFontMetricsF(app.face(8))
+        number_left=panel.token_right-metrics.horizontalAdvance('20.37')
+        date_right=18+metrics.horizontalAdvance(datetime.now().strftime('%m.%d %H:%M'))
+        self.assertGreaterEqual(number_left-date_right,12)
+        panel.close();panel.deleteLater()

@@ -37,6 +37,8 @@ class SettingsDialog(QDialog):
             check = QCheckBox(label); check.setChecked(bar.settings[key]); layout.addWidget(check)
             check.toggled.connect(lambda checked, key=key: bar.set_display(key, checked)); self.checks[key] = check
         layout.addSpacing(8)
+        self.hover = QCheckBox('悬停打开面板');self.hover.setChecked(bar.settings.get('hover_panels',False))
+        self.hover.toggled.connect(bar.set_hover_panels);layout.addWidget(self.hover)
         self.login = QCheckBox('登录 Windows 后启动'); self.login.setChecked(startup.enabled())
         self.login.toggled.connect(bar.set_startup); layout.addWidget(self.login)
         self.connection = QLabel(); self.connection.setWordWrap(True)

@@ -193,6 +193,7 @@ class StatusBar(QWidget):
         self.task_rect=QRectF();self.task_hover=False;self.title_hover_started=time.monotonic()
         self.task_area=QRectF()
         self.hit_regions=[];self.pressed=None;self.confirming_reset=False
+        self.hover_target=None;self.hover_since=0.;self.hover_leave_since=None;self.hover_suppressed=None
         self.metrics=[];self.settings_dialog=None;self.placement_unavailable=False
         self.settings=read_settings(RUNTIME/'ui_settings.json')
         self.chart_unit=self.settings['chart_unit']
@@ -254,7 +255,9 @@ class StatusBar(QWidget):
 
     def toggle_popup(self,mode='usage'):
         if self.popup and self.popup.mode==mode:
-            self.popup.reveal_to(0. if self.popup.reveal_target==1. else 1.)
+            closing=self.popup.reveal_target==1.
+            self.hover_suppressed=mode if closing else None
+            self.popup.reveal_to(0. if closing else 1.)
         else:
             self.hide_popup(immediate=True)
             if mode=='usage':self.popup=TaskPopup(self)
@@ -264,6 +267,37 @@ class StatusBar(QWidget):
             self.popup.refresh(self.data)
             windows.popup_glass(int(self.popup.winId()))
             self.popup.show()
+
+    def update_hover_popup(self,point,now=None):
+        if (not self.settings.get('hover_panels') or not self.isVisible() or self.pressed or self.confirming_reset
+                or self.menu.isVisible() or self.settings_dialog and self.settings_dialog.isVisible()):
+            self.hover_target=None;self.hover_leave_since=None;return
+        now=time.monotonic() if now is None else now
+        local=self.mapFromGlobal(point)
+        mode=next((m for m,r,t in self.hit_regions if m!='task' and r.contains(local)),None)
+        inside=bool(self.popup and self.popup.isVisible() and self.popup.geometry().contains(point))
+        if inside:
+            self.hover_target=None;self.hover_leave_since=None
+            if self.hover_suppressed!=self.popup.mode:self.popup.reveal_to(1.)
+            return
+        if mode!=self.hover_suppressed:self.hover_suppressed=None
+        if mode:
+            self.hover_leave_since=None
+            if mode!=self.hover_target:self.hover_target=mode;self.hover_since=now
+            if mode==self.hover_suppressed:return
+            if self.popup and self.popup.mode==mode:
+                self.popup.reveal_to(1.);return
+            if now-self.hover_since>=.35:self.toggle_popup(mode)
+        else:
+            self.hover_target=None
+            if self.popup:
+                if self.hover_leave_since is None:self.hover_leave_since=now
+                elif now-self.hover_leave_since>=.45:self.hide_popup()
+
+    def set_hover_panels(self,value):
+        self.settings['hover_panels']=bool(value)
+        self.hover_target=None;self.hover_leave_since=None;self.hover_suppressed=None
+        self.save_settings()
 
     def animate(self):
         if self.isVisible() and self.task:
@@ -381,9 +415,13 @@ class StatusBar(QWidget):
             if self.task_hover:self.rotated_at+=now-self.title_hover_started
             self.task_hover=hovering;self.title_hover_started=now
 
-    def mouseMoveEvent(self,event):self.track_pointer(event.position())
+    def mouseMoveEvent(self,event):
+        self.track_pointer(event.position())
+        self.update_hover_popup(self.mapToGlobal(event.position().toPoint()))
 
-    def leaveEvent(self,event):self.track_pointer(QPointF(-1,-1))
+    def leaveEvent(self,event):
+        self.track_pointer(QPointF(-1,-1))
+        self.hover_target=None;self.hover_suppressed=None
 
     def tick(self):
         self.data=self.provider.get()
@@ -427,6 +465,7 @@ class StatusBar(QWidget):
                 else:self.animate_ring(kind,fraction)
         self.update()
         if self.popup:self.popup.refresh(self.data)
+        self.update_hover_popup(QCursor.pos())
 
     def paintEvent(self,event):
         p=painter(self);data=self.data
@@ -500,6 +539,7 @@ class StatusBar(QWidget):
     def hide_popup(self,immediate=False):
         if self.popup:
             if immediate:
+                self.hover_target=None;self.hover_leave_since=None
                 popup=self.popup;self.popup=None;popup.fade.stop();popup.close();popup.deleteLater()
             else:self.popup.reveal_to(0.)
 
@@ -665,6 +705,7 @@ class SessionPopup(TaskPopup):
 
 class ResetPopup(TaskPopup):
     mode='resets'
+    WIDTH=300
 
     def __init__(self,owner):
         super().__init__(owner)
@@ -677,10 +718,12 @@ class ResetPopup(TaskPopup):
         self.credits=data.get('reset_credits',[])
         self.history_height=26*max(1,min(6,len(self.rows)))
         self.credits_top=76+self.history_height+26
-        height=self.credits_top+24+26*max(1,len(self.credits))+54
+        height=self.credits_top+24+26*max(1,len(self.credits))+46
         self.full_height=height
-        self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-height),360,height)
-        self.button.setGeometry(18,height-48,324,32)
+        self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-height),self.WIDTH,height)
+        self.button.setGeometry(18,height-48,self.width()-36,32)
+        source_width=max([QFontMetricsF(face(7)).horizontalAdvance(self.history_label(row)) for row in self.rows]+[0])
+        self.token_right=self.width()-18-source_width-14
         credit=data.get('reset_selected')
         eligible=bool(credit and data.get('reset_account'))
         if credit and not data.get('reset_retry') and credit.get('expiresAt') is not None:eligible=eligible and credit['expiresAt']>time.time()
@@ -690,29 +733,33 @@ class ResetPopup(TaskPopup):
         self.scroll=min(self.scroll,max(0,len(self.rows)*26-self.history_height))
         self.update()
 
+    def history_label(self,row):
+        label={'scheduled':'Scheduled','manual':'Manual','official':'Official'}.get(row['kind'],'')
+        if len(self.data.get('quota',[]))>1:
+            windows_text=' + '.join({'300':'5h','10080':'7d'}.get(k,k+'m') for k in row.get('windows',[]))
+            label=' · '.join(part for part in (label,windows_text) if part)
+        return label
+
     def paintEvent(self,event):
         p=panel_painter(self);window=countdown_window(self.data,self.owner.settings)
+        right=self.width()-18
         def right_label(value,y,color=MUTED,font=None):
             font=font or face(8)
-            text(p,342-QFontMetricsF(font).horizontalAdvance(value),y,value,font,color)
+            text(p,right-QFontMetricsF(font).horizontalAdvance(value),y,value,font,color)
         def divider(y):
-            pen(p,'#3d4652',.6);p.drawLine(QPointF(18,y),QPointF(342,y))
+            pen(p,'#3d4652',.6);p.drawLine(QPointF(18,y),QPointF(right,y))
         text(p,18,23,'Next reset',face(8),'#94a2b3')
         value=datetime.fromtimestamp(window['resets_at']).strftime('%m.%d %H:%M') if window and window.get('resets_at') else '—'
         right_label(value,23,BLUE);divider(44)
         text(p,18,64,'History · 100M',face(8),'#94a2b3')
-        p.save();p.setClipRect(QRectF(18,76,324,self.history_height))
-        labels={'scheduled':'Scheduled','manual':'Manual','official':'Official'}
+        p.save();p.setClipRect(QRectF(18,76,self.width()-36,self.history_height))
         if not self.rows:text(p,18,89,'No records yet',face(8),'#94a2b3')
         for i,row in enumerate(self.rows):
             y=89+i*26-self.scroll
             text(p,18,y,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),face(8),MUTED)
             total=chart_number(row.get('tokens'),'100M')
-            text(p,240-QFontMetricsF(face(8)).horizontalAdvance(total),y,total,face(8),MUTED)
-            label=labels.get(row['kind'],'')
-            if len(self.data.get('quota',[]))>1:
-                windows_text=' + '.join({'300':'5h','10080':'7d'}.get(k,k+'m') for k in row.get('windows',[]))
-                label=' · '.join(part for part in (label,windows_text) if part)
+            text(p,self.token_right-QFontMetricsF(face(8)).horizontalAdvance(total),y,total,face(8),MUTED)
+            label=self.history_label(row)
             if label:right_label(label,y,'#94a2b3',face(7))
         p.restore()
         divider(self.credits_top-20)

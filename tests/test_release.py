@@ -26,6 +26,15 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual(settings['chart_unit'],'100M');self.assertFalse((new/'private.png').exists())
             settings['show_week']=True;write_settings(new/'ui_settings.json',settings);migrate_legacy(old,new)
             self.assertTrue(read_settings(new/'ui_settings.json')['show_week'])
+
+    def test_hover_setting_defaults_to_click_and_persists_independently(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'ui_settings.json'
+            settings=read_settings(path);self.assertFalse(settings['hover_panels'])
+            settings.update(dict.fromkeys(DISPLAY_DEFAULTS,False));settings['hover_panels']=True
+            write_settings(path,settings);loaded=read_settings(path)
+            self.assertTrue(loaded['hover_panels'])
+            self.assertFalse(any(loaded[k] for k in DISPLAY_DEFAULTS))
     def test_update_version_and_asset_origin(self):
         repo='owner/repo';tag='v0.2.0';name='CodexTaskbarCompanion-0.2.0-Setup-x64.exe'
         release={'tag_name':tag,'assets':[{'name':n,'browser_download_url':f'https://github.com/{repo}/releases/download/{tag}/{n}'} for n in [name,name+'.sha256']]}

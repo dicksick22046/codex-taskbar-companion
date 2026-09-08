@@ -62,7 +62,7 @@ class PopupInitialFrameTests(unittest.TestCase):
     def test_task_hit_area_follows_visible_content(self):
         data={'tasks':[]}
         provider=type('Provider',(),{'get':lambda self:data,'stop':lambda self:None})()
-        with patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None):
+        with patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.QSystemTrayIcon'):
             bar=StatusBar(provider)
         bar.timer.stop();bar.animation.stop();bar.resize(810,30)
         task={'id':'a','project':'Project','title':'Short'}
@@ -90,7 +90,7 @@ class PopupInitialFrameTests(unittest.TestCase):
     def test_native_strip_is_layered_even_before_it_is_shown(self):
         from codex_taskbar import app
         provider=type('Provider',(),{'get':lambda self:{},'stop':lambda self:None})()
-        with patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None):
+        with patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.QSystemTrayIcon'):
             bar=StatusBar(provider)
         try:
             self.assertTrue(app.windows.user32.GetWindowLongPtrW(int(bar.winId()),-20)&0x80000)

@@ -15,3 +15,4 @@
 - 版本号唯一来源codex_taskbar/build_info.py；发布信息见CHANGELOG和docs/publishing.md。
 - 提交、推送、发布遵循用户授权；发布目标仅GitHub dicksick22046/codex-taskbar-companion，禁止改用内网GitLab。
 - 小修只提交代码并记入CHANGELOG的Unreleased，不逐项升版本、打标签或发Release。攒成完整稳定的一批再统一发布；严重故障才单独热修复。版本号、安装包和标签在正式发布时一起准备，常规CI只测试。
+- 默认不得移动或点击用户真实鼠标，不抢焦点。交互验证优先使用隐藏控件、模拟事件和只读截图；需要真实指针复查时，先取得用户当次明确同意。不要在后台继续运行接管鼠标的验证脚本。
