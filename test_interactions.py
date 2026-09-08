@@ -99,3 +99,15 @@ class InteractionTests(unittest.TestCase):
         panel=app.ResetPopup(self.bar);panel.refresh(self.data)
         self.assertEqual(len(panel.findChildren(app.QPushButton)),1)
         self.assertTrue(panel.button.isEnabled());panel.close();panel.deleteLater()
+
+    def test_only_weekly_chart_handles_unit_controls(self):
+        event=Mock();event.button.return_value=app.Qt.MouseButton.LeftButton;event.position.return_value=app.QPointF(290,20)
+        with patch.object(self.bar,'set_chart_unit') as change:
+            for kind in (app.SessionPopup,app.ResetPopup):
+                panel=kind(self.bar);panel.refresh(self.data)
+                panel.mousePressEvent(event);panel.mouseMoveEvent(event)
+                change.assert_not_called()
+                self.assertEqual(panel.cursor().shape(),app.Qt.CursorShape.ArrowCursor)
+                panel.close();panel.deleteLater()
+            panel=app.TaskPopup(self.bar);panel.mousePressEvent(event)
+            change.assert_called_once_with('M');panel.close();panel.deleteLater()

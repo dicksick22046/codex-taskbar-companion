@@ -602,12 +602,15 @@ class TaskPopup(QWidget):
         p.end()
 
     def mousePressEvent(self,event):
+        if self.mode!='usage':return
         if event.button()==Qt.MouseButton.LeftButton:
             for unit,rect in self.UNIT_RECTS.items():
                 if rect.contains(event.position()):
                     self.owner.set_chart_unit(unit);event.accept();return
 
     def mouseMoveEvent(self,event):
+        if self.mode!='usage':
+            self.setCursor(Qt.CursorShape.ArrowCursor);return
         over=any(rect.contains(event.position()) for rect in self.UNIT_RECTS.values())
         self.setCursor(Qt.CursorShape.PointingHandCursor if over else Qt.CursorShape.ArrowCursor)
 
