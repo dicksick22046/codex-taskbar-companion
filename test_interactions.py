@@ -101,7 +101,7 @@ class InteractionTests(unittest.TestCase):
         self.assertTrue(panel.button.isEnabled());panel.close();panel.deleteLater()
 
     def test_only_weekly_chart_handles_unit_controls(self):
-        event=Mock();event.button.return_value=app.Qt.MouseButton.LeftButton;event.position.return_value=app.QPointF(290,20)
+        event=Mock();event.button.return_value=app.Qt.MouseButton.LeftButton;event.position.return_value=app.QPointF(290,43)
         with patch.object(self.bar,'set_chart_unit') as change:
             for kind in (app.SessionPopup,app.ResetPopup):
                 panel=kind(self.bar);panel.refresh(self.data)
@@ -127,14 +127,22 @@ class InteractionTests(unittest.TestCase):
 
     def test_all_credit_expiries_are_visible_but_only_one_reset_action(self):
         now=datetime.now().timestamp()
+        self.data['reset_events']=[{'kind':'unknown','at':now-100,'windows':['10080']},
+                                   {'kind':'scheduled','at':now-86400,'windows':['10080']}]
         self.data['reset_credits']=[credit(str(i),now-i*100,now+(i+1)*86400) for i in range(3)]
         self.data['reset_selected']=self.data['reset_credits'][0]
         panel=app.ResetPopup(self.bar);panel.refresh(self.data)
         with patch('app.text',wraps=app.text) as draw:panel.grab()
         labels=[c.args[3] for c in draw.call_args_list]
-        self.assertEqual(sum(label.endswith(' 到期') for label in labels),3)
-        self.assertEqual(labels.count('默认'),1)
-        self.assertGreater(panel.height(),panel.credits_top+24+2*20+8)
+        for item in self.data['reset_credits']:
+            self.assertIn(datetime.fromtimestamp(item['expiresAt']).strftime('%m.%d %H:%M'),labels)
+        self.assertEqual(labels.count('Default'),1)
+        self.assertIn('3 available',labels)
+        self.assertNotIn('Unknown',labels)
+        self.assertNotIn('来源未确认',labels)
+        self.assertIn(datetime.fromtimestamp(now-100).strftime('%m.%d %H:%M'),labels)
+        self.assertTrue(any(label.startswith('Scheduled') for label in labels))
+        self.assertGreater(panel.button.y(),panel.credits_top+26+2*26+8)
         self.assertEqual(len(panel.findChildren(app.QPushButton)),1)
         self.provider.request_reset.assert_not_called()
         panel.close();panel.deleteLater()

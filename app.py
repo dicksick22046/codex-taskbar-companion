@@ -30,7 +30,7 @@ from settings_ui import SettingsDialog, app_icon
 from updates import UpdateController, install_after_exit
 from build_info import VERSION, APP_NAME, RELEASE_REPOSITORY
 
-PANEL, MUTED, ACCENT, BLUE = "#1822272e", "#bac5d2", "#53d5a0", "#79b6f5"
+PANEL, MUTED, ACCENT, BLUE = "#262b33", "#bac5d2", "#53d5a0", "#79b6f5"
 TITLE_MUTED = "#8797aa"
 ROTATE_SECONDS = 8
 FONT_FAMILY = None
@@ -66,9 +66,6 @@ def painter(widget):
 def panel_painter(widget):
     p=painter(widget);p.setPen(Qt.PenStyle.NoPen)
     p.setBrush(QColor(PANEL));p.drawRoundedRect(QRectF(widget.rect()),9,9)
-    sheen=QLinearGradient(0,0,0,max(1,widget.height()))
-    sheen.setColorAt(0,QColor(255,255,255,12));sheen.setColorAt(.55,QColor(255,255,255,0))
-    p.setBrush(QBrush(sheen));p.drawRoundedRect(QRectF(widget.rect()),9,9)
     return p
 
 
@@ -504,6 +501,7 @@ class StatusBar(QWidget):
 class TaskPopup(QWidget):
     mode='usage'
     GAP=8
+    TITLE_HEIGHT=22
     UNIT_RECTS={'M':QRectF(277,9,28,24),'100M':QRectF(309,9,40,24)}
     def __init__(self,owner):
         super().__init__(None,FLAGS)
@@ -554,7 +552,7 @@ class TaskPopup(QWidget):
         while day<=self.end.date():self.days.append(day);day+=timedelta(days=1)
         self.window_summary=quota_window(data,300)
         self.extra=24 if self.window_summary else 0
-        self.full_height=158+self.extra
+        self.full_height=158+self.extra+self.TITLE_HEIGHT
         shown=min(round(self.full_height),max(180,self.owner.y()-16))
         self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-shown),360,shown)
         self.scroll=min(self.scroll,max(0,self.full_height-self.height()));self.update()
@@ -566,10 +564,10 @@ class TaskPopup(QWidget):
         self.usage_header(p,f"{self.start:%m.%d} — {self.end:%m.%d %H:%M}",chart_total(values))
         if self.window_summary:
             window=self.window_summary
-            text(p,18,43,f"5h  {window['remaining']:g}%   ·   {reset_countdown_text(window)}",face(8),'#51adb4')
+            text(p,18,43+self.TITLE_HEIGHT,f"5h  {window['remaining']:g}%   ·   {reset_countdown_text(window)}",face(8),'#51adb4')
         maximum=max([v for v in values if v is not None]+[1]);step=324/len(self.days)
         for i,(day,value) in enumerate(zip(self.days,values)):
-            x=18+(i+.5)*step;bottom=121.+self.extra;height=(value or 0)/maximum*64
+            x=18+(i+.5)*step;bottom=121.+self.extra+self.TITLE_HEIGHT;height=(value or 0)/maximum*64
             color=ACCENT if day==today else ("#687583" if value is None else (LILAC if day in extremes else BLUE))
             if value:
                 h=max(2,height);radius=min(2,h/2);left=x-4.5;top=bottom-h
@@ -588,12 +586,14 @@ class TaskPopup(QWidget):
         p.end()
 
     def unit_rects(self):
-        return {unit:rect.translated(self.width()-360,0) for unit,rect in self.UNIT_RECTS.items()}
+        return {unit:rect.translated(self.width()-360,self.TITLE_HEIGHT) for unit,rect in self.UNIT_RECTS.items()}
 
     def usage_header(self,p,period,total):
-        icon(p,'chart',23,21,LILAC)
-        date_width=text(p,39,21,period,face(8),BLUE)
-        text(p,39+date_width+12,21,'Σ '+chart_number(total,self.owner.chart_unit),face(8),LILAC)
+        text(p,18,17,'Today · Tokens' if self.mode=='daily' else 'This cycle · Tokens',face(8),'#8795a5')
+        y=21+self.TITLE_HEIGHT
+        icon(p,'chart',23,y,LILAC)
+        date_width=text(p,39,y,period,face(8),BLUE)
+        text(p,39+date_width+12,y,'Σ '+chart_number(total,self.owner.chart_unit),face(8),LILAC)
         for unit,rect in self.unit_rects().items():
             selected=unit==self.owner.chart_unit
             p.setFont(face(8));p.setPen(QColor(BLUE if selected else MUTED))
@@ -657,57 +657,67 @@ class ResetPopup(TaskPopup):
 
     def __init__(self,owner):
         super().__init__(owner)
-        self.button=QPushButton('使用一次重置',self);self.button.setFont(face(8))
-        self.button.setStyleSheet('QPushButton{color:#bac5d2;background:#35444e;border:0;border-radius:5px;} QPushButton:hover{background:#425663;} QPushButton:disabled{color:#77838e;background:#28323a;}')
+        self.button=QPushButton('Reset quota',self);self.button.setFont(face(8))
+        self.button.setStyleSheet('QPushButton{color:#d2dce7;background:#354a5c;border:0;border-radius:6px;} QPushButton:hover{background:#405a71;} QPushButton:disabled{color:#8795a5;background:#303740;}')
         self.button.clicked.connect(owner.confirm_reset)
 
     def refresh(self,data):
         self.data=data;self.rows=data.get('reset_events',[])
         self.credits=data.get('reset_credits',[])
-        self.history_height=28*max(1,min(6,len(self.rows)))
-        self.credits_top=60+self.history_height+12
-        height=self.credits_top+24+20*max(1,len(self.credits))+16
+        self.history_height=26*max(1,min(6,len(self.rows)))
+        self.credits_top=76+self.history_height+26
+        height=self.credits_top+24+26*max(1,len(self.credits))+54
         self.full_height=height
         self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-height),360,height)
-        self.button.setGeometry(222,height-42,120,30)
+        self.button.setGeometry(18,height-48,324,32)
         credit=data.get('reset_selected')
         eligible=bool(credit and data.get('reset_account'))
         if credit and not data.get('reset_retry') and credit.get('expiresAt') is not None:eligible=eligible and credit['expiresAt']>time.time()
         self.button.setEnabled(eligible and not data.get('reset_busy') and (not data.get('quota_error') or data.get('reset_retry',False)))
-        label='处理中…' if data.get('reset_busy') else '重试' if data.get('reset_retry') or data.get('reset_state')=='unavailable' else '暂不可重置' if data.get('reset_state')=='nothingToReset' else '使用一次重置'
+        label='Resetting…' if data.get('reset_busy') else 'Retry reset' if data.get('reset_retry') or data.get('reset_state')=='unavailable' else 'Nothing to reset' if data.get('reset_state')=='nothingToReset' else 'Reset quota'
         self.button.setText(label)
-        self.scroll=min(self.scroll,max(0,len(self.rows)*28-self.history_height))
+        self.scroll=min(self.scroll,max(0,len(self.rows)*26-self.history_height))
         self.update()
 
     def paintEvent(self,event):
         p=panel_painter(self);window=countdown_window(self.data,self.owner.settings)
-        text(p,18,21,'下次自然重置',face(8),MUTED)
+        def right_label(value,y,color=MUTED,font=None):
+            font=font or face(8)
+            text(p,342-QFontMetricsF(font).horizontalAdvance(value),y,value,font,color)
+        def divider(y):
+            pen(p,'#3d4652',.6);p.drawLine(QPointF(18,y),QPointF(342,y))
+        text(p,18,23,'Next reset',face(8),'#94a2b3')
         value=datetime.fromtimestamp(window['resets_at']).strftime('%m.%d %H:%M') if window and window.get('resets_at') else '—'
-        text(p,238,21,value,face(8),BLUE)
-        text(p,18,47,'重置记录',face(8),'#8797aa')
-        p.save();p.setClipRect(QRectF(12,60,336,self.history_height))
-        labels={'scheduled':'自然','manual':'手动','official':'官方','unknown':'来源未确认'}
-        colors={'scheduled':BLUE,'manual':LILAC,'official':ACCENT,'unknown':'#8797aa'}
-        if not self.rows:text(p,18,74,'暂无记录',face(8),'#8797aa')
+        right_label(value,23,BLUE);divider(44)
+        text(p,18,64,'History',face(8),'#94a2b3')
+        p.save();p.setClipRect(QRectF(18,76,324,self.history_height))
+        labels={'scheduled':'Scheduled','manual':'Manual','official':'Official'}
+        colors={'scheduled':BLUE,'manual':LILAC,'official':ACCENT}
+        if not self.rows:text(p,18,89,'No records yet',face(8),'#94a2b3')
         for i,row in enumerate(self.rows):
-            y=74+i*28-self.scroll
-            text(p,18,y,labels.get(row['kind'],'来源未确认'),face(8),colors.get(row['kind'],'#8797aa'))
-            text(p,112,y,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),face(8),MUTED)
-            windows_text=' + '.join({'300':'5h','10080':'7d'}.get(k,k+'m') for k in row.get('windows',[])) or 'Codex'
-            text(p,342-QFontMetricsF(face(7)).horizontalAdvance(windows_text),y,windows_text,face(7),'#8797aa')
+            y=89+i*26-self.scroll
+            text(p,18,y,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),face(8),MUTED)
+            label=labels.get(row['kind'],'')
+            if len(self.data.get('quota',[]))>1:
+                windows_text=' + '.join({'300':'5h','10080':'7d'}.get(k,k+'m') for k in row.get('windows',[]))
+                label=' · '.join(part for part in (label,windows_text) if part)
+            if label:right_label(label,y,colors.get(row['kind'],'#94a2b3'),face(7))
         p.restore()
+        divider(self.credits_top-20)
         count=self.data.get('reset_available');credit=self.data.get('reset_selected')
-        text(p,18,self.credits_top,f'{count} 次可用' if count is not None else '—',face(8),MUTED)
+        text(p,18,self.credits_top,'Expires',face(8),'#94a2b3')
+        right_label(f'{count} available' if count is not None else '—',self.credits_top,ACCENT)
         for i,item in enumerate(self.credits):
             selected=bool(credit and item['id']==credit['id'])
-            expiry=datetime.fromtimestamp(item['expiresAt']).strftime('%m.%d %H:%M')+' 到期' if item.get('expiresAt') is not None else '有效期未提供'
-            width=text(p,18,self.credits_top+24+i*20,expiry,face(7),MUTED if selected else '#8797aa')
-            if selected:text(p,18+width+10,self.credits_top+24+i*20,'默认',face(7),LILAC)
-        if not self.credits and count:text(p,18,self.credits_top+24,'有效期明细未提供',face(7),'#8797aa')
+            expiry=datetime.fromtimestamp(item['expiresAt']).strftime('%m.%d %H:%M') if item.get('expiresAt') is not None else '—'
+            y=self.credits_top+26+i*26
+            text(p,18,y,expiry,face(8),MUTED)
+            if selected:right_label('Default',y,LILAC,face(7))
+        if not self.credits:text(p,18,self.credits_top+26,'No credits' if count==0 else '—',face(8),'#94a2b3')
         p.end()
 
     def wheelEvent(self,event):
-        self.scroll=max(0,min(max(0,len(self.rows)*28-self.history_height),self.scroll-event.angleDelta().y()/120*28));self.update()
+        self.scroll=max(0,min(max(0,len(self.rows)*26-self.history_height),self.scroll-event.angleDelta().y()/120*26));self.update()
 
 
 class TaskListPopup(TaskPopup):
@@ -741,14 +751,15 @@ class TaskListPopup(TaskPopup):
         self.info_divider=self.value_right-info_width-12
         self.TITLE_WIDTH=max(0,self.info_divider-12-self.TITLE_X)
         self.sections=[] if self.mode=='daily' else [(CATEGORY_LABELS[self.mode],0)]
-        self.row_positions=[];y=24.;previous=None
+        self.header_extra=self.TITLE_HEIGHT if self.mode=='daily' else 0
+        self.row_positions=[];y=24.+self.header_extra;previous=None
         for task in self.rows:
             section=CATEGORY_LABELS[task_category(task)]
             if self.mode=='daily' and section!=previous:
                 if previous is not None:y+=8
                 self.sections.append((section,y));y+=22;previous=section
             self.row_positions.append(y);y+=self.ROW_HEIGHT
-        self.full_height=max(24+self.ROW_HEIGHT,y)
+        self.full_height=max(24+self.header_extra+self.ROW_HEIGHT,y)
         height=min(round(self.full_height+16),500,max(100,self.owner.y()-16))
         screen=self.owner.screen().availableGeometry()
         left=max(screen.left(),min(self.owner.x(),screen.right()-width+1))
@@ -758,7 +769,7 @@ class TaskListPopup(TaskPopup):
         self.update()
 
     def task_at(self,point):
-        if self.mode=='daily' and point.y()<32:return None
+        if self.mode=='daily' and point.y()<32+self.TITLE_HEIGHT:return None
         if not QRectF(10,8,self.width()-20,max(0,self.height()-16)).contains(point):return None
         local_y=point.y()-8+self.scroll
         return next((task for task,y in zip(self.rows,self.row_positions) if y<=local_y<y+self.ROW_HEIGHT),None)
@@ -773,9 +784,9 @@ class TaskListPopup(TaskPopup):
         p=panel_painter(self)
         def right_label(value,right,y,font,color=MUTED):
             text(p,right-QFontMetricsF(font).horizontalAdvance(value),y,value,font,color)
-        top=32 if self.mode=='daily' else 8
+        top=32+self.TITLE_HEIGHT if self.mode=='daily' else 8
         p.save();p.setClipRect(QRectF(10,top,self.width()-20,max(0,self.height()-top-8)))
-        if not self.rows:text(p,18,50,'No tasks',face(8),MUTED)
+        if not self.rows:text(p,18,50+self.header_extra,'No tasks',face(8),MUTED)
         for label,position in self.sections:
             text(p,18,8+position+10-self.scroll,label,face(8),'#8795a5')
         for task,position in zip(self.rows,self.row_positions):
