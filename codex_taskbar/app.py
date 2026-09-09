@@ -544,7 +544,7 @@ class StatusBar(QWidget):
         if not any(self.settings[key] for key in DISPLAY_DEFAULTS):
             self.hide();self.hide_popup(immediate=True);return
         metrics=self.displayed_metrics()
-        minimum=12+sum(29+self.metric_text_width(kind,value) for kind,value,fraction in metrics)
+        minimum=12+sum((22 if self.settings.get('rotate_quotas') else 29)+self.metric_text_width(kind,value) for kind,value,fraction in metrics)
         if self.settings['show_tasks']:
             counts=category_counts(self.data)
             minimum+=(60 if self.data.get('tasks') else 0)+sum(30+QFontMetricsF(face(8)).horizontalAdvance(str(counts[k])) for k in ('running','unread','failed','stopped') if counts[k])
@@ -614,7 +614,7 @@ class StatusBar(QWidget):
                 p.restore()
             else:text(p,x+12,y,value,face(8),TITLE_MUTED)
             icon(p,kind,x,y,color,fraction=current_fraction)
-            x+=12+width+17
+            x+=12+width+(10 if self.settings.get('rotate_quotas') else 17)
             mode={'quota':'usage','session':'session','spent':'daily','clock':'resets'}[hit_kind]
             self.hit_regions.append((mode,QRectF(left,0,x-left-8,self.height()),None))
         def separator():
