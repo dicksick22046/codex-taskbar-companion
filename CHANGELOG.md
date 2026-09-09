@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- Align rotating values to the right edge so the divider has equal spacing on both sides.
 - Reduce the gap before the taskbar divider in rotating mode while retaining the fixed indicator width.
 - Include the reset countdown in rotation. All enabled left-side indicators share one fixed-width slot.
 - Include completed side chats in their parent task's unread status, using Codex's child-session unread IDs.

@@ -497,10 +497,10 @@ class InteractionTests(unittest.TestCase):
             labels=[]
             draw_text=app.text
             def record(p,x,y,value,font,color=app.MUTED):
-                if value in ('Week 70%','Today 12%'):labels.append((value,p.opacity(),y))
+                if value in ('70%','12%'):labels.append((value,p.opacity(),y))
                 return draw_text(p,x,y,value,font,color)
             with patch('codex_taskbar.app.text',side_effect=record),patch('codex_taskbar.app.icon',wraps=app.icon) as icons:self.bar.grab()
-            self.assertEqual([row[0] for row in labels],['Week 70%','Today 12%'])
+            self.assertEqual([row[0] for row in labels],['70%','12%'])
             self.assertAlmostEqual(sum(row[1] for row in labels),1.)
             self.assertTrue(all(0<row[1]<1 for row in labels))
             ring=next(c for c in icons.call_args_list if c.args[1]=='spent')
@@ -524,6 +524,25 @@ class InteractionTests(unittest.TestCase):
                 rotated={key:value for key,value,fraction in self.bar.displayed_metrics()}
                 self.assertEqual(rotated[kind],parallel[kind])
                 self.assertEqual(len(rotated),1)
+
+    def test_rotating_values_align_to_equal_gaps_either_side_of_divider(self):
+        self.bar.settings['rotate_quotas']=True
+        for language in app.LANGUAGES:
+            self.bar.settings['language']=language
+            for kind,value,fraction in self.bar.quota_choices():
+                self.bar.quota_kind=kind
+                with patch('codex_taskbar.app.text',wraps=app.text) as draw:self.bar.grab()
+                label,_,number=value.partition(' ')
+                label_draw=next(c for c in draw.call_args_list if c.args[3]==label)
+                number_draw=next(c for c in draw.call_args_list if c.args[3]==number)
+                metric=self.bar.hit_regions[0][1]
+                pill=next(rect for mode,rect,task in self.bar.hit_regions if mode=='running')
+                divider_x=metric.right()+2
+                number_end=number_draw.args[1]+app.QFontMetricsF(number_draw.args[4]).horizontalAdvance(number)
+                self.assertAlmostEqual(divider_x-number_end,7)
+                self.assertAlmostEqual(pill.left()+2-divider_x,7)
+                label_end=label_draw.args[1]+app.QFontMetricsF(label_draw.args[4]).horizontalAdvance(label)
+                self.assertGreaterEqual(number_draw.args[1]-label_end,2)
 
     def test_press_during_transition_returns_smoothly_to_visible_item(self):
         self.bar.settings['rotate_quotas']=True

@@ -544,7 +544,7 @@ class StatusBar(QWidget):
         if not any(self.settings[key] for key in DISPLAY_DEFAULTS):
             self.hide();self.hide_popup(immediate=True);return
         metrics=self.displayed_metrics()
-        minimum=12+sum((22 if self.settings.get('rotate_quotas') else 29)+self.metric_text_width(kind,value) for kind,value,fraction in metrics)
+        minimum=12+sum((25 if self.settings.get('rotate_quotas') else 29)+self.metric_text_width(kind,value) for kind,value,fraction in metrics)
         if self.settings['show_tasks']:
             counts=category_counts(self.data)
             minimum+=(60 if self.data.get('tasks') else 0)+sum(30+QFontMetricsF(face(8)).horizontalAdvance(str(counts[k])) for k in ('running','unread','failed','stopped') if counts[k])
@@ -597,6 +597,13 @@ class StatusBar(QWidget):
             left=x-7
             colors={"quota":"#45ba91","session":"#51adb4","clock":"#5d9dd7","spent":"#a088d1"}
             color=QColor(colors[kind]);width=self.metric_text_width(kind,value)
+            def draw_value(value,line_y):
+                if self.settings.get('rotate_quotas'):
+                    label,_,number=value.partition(' ')
+                    text(p,x+12,line_y,label,face(8),TITLE_MUTED)
+                    number_x=x+12+width-QFontMetricsF(face(8)).horizontalAdvance(number)
+                    text(p,number_x,line_y,number,face(8),TITLE_MUTED)
+                else:text(p,x+12,line_y,value,face(8),TITLE_MUTED)
             current_fraction=None if fraction is None else self.ring_values.get(kind,fraction)
             previous=self.quota_previous if self.settings.get('rotate_quotas') else None
             hit_kind=kind
@@ -609,12 +616,12 @@ class StatusBar(QWidget):
                 elif progress<.5:current_fraction=old_fraction
                 if progress<.5:hit_kind=old_kind
                 p.save();p.setClipRect(QRectF(x+11,0,width+2,self.height()),Qt.ClipOperation.IntersectClip)
-                p.setOpacity(1-progress);text(p,x+12,y-14*progress,old_value,face(8),TITLE_MUTED)
-                p.setOpacity(progress);text(p,x+12,y+14*(1-progress),value,face(8),TITLE_MUTED)
+                p.setOpacity(1-progress);draw_value(old_value,y-14*progress)
+                p.setOpacity(progress);draw_value(value,y+14*(1-progress))
                 p.restore()
-            else:text(p,x+12,y,value,face(8),TITLE_MUTED)
+            else:draw_value(value,y)
             icon(p,kind,x,y,color,fraction=current_fraction)
-            x+=12+width+(10 if self.settings.get('rotate_quotas') else 17)
+            x+=12+width+(13 if self.settings.get('rotate_quotas') else 17)
             mode={'quota':'usage','session':'session','spent':'daily','clock':'resets'}[hit_kind]
             self.hit_regions.append((mode,QRectF(left,0,x-left-8,self.height()),None))
         def separator():
