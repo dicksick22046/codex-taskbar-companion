@@ -7,6 +7,7 @@ COPY = {
     'Weekly quota': '周额度', '5-hour quota': '5 小时额度',
     'Reset countdown': '重置倒计时', 'Daily quota usage': '今日额度消耗',
     'Task rotation and counts': '任务轮播与计数',
+    'Rotate quota display': '轮换显示额度', 'Week': '周', 'Today': '今日',
     'Open panels on hover': '悬停打开面板', 'Start at Windows sign-in': '登录 Windows 后启动',
     'Showing the last available quota.': '当前显示上次有效额度。',
     'Quota unavailable. Try again later.': '暂时无法读取额度，请稍后再试。',

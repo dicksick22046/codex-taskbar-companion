@@ -44,6 +44,8 @@ class SettingsDialog(QDialog):
             check = QCheckBox(); check.setChecked(bar.settings[key]); layout.addWidget(check)
             check.toggled.connect(lambda checked, key=key: bar.set_display(key, checked)); self.checks[key] = check
         layout.addSpacing(8)
+        self.rotation=QCheckBox();self.rotation.setChecked(bar.settings.get('rotate_quotas',False))
+        self.rotation.toggled.connect(bar.set_quota_rotation);layout.addWidget(self.rotation)
         self.hover = QCheckBox();self.hover.setChecked(bar.settings.get('hover_panels',False))
         self.hover.toggled.connect(bar.set_hover_panels);layout.addWidget(self.hover)
         self.login = QCheckBox(); self.login.setChecked(startup.enabled())
@@ -63,6 +65,7 @@ class SettingsDialog(QDialog):
         self.language.setCurrentIndex(self.language.findData(self.bar.settings.get('language','en')))
         self.language.blockSignals(False)
         for key,source in DISPLAY_LABELS.items():self.checks[key].setText(label(source))
+        self.rotation.setText(label('Rotate quota display'))
         self.hover.setText(label('Open panels on hover'));self.login.setText(label('Start at Windows sign-in'))
         self.login.blockSignals(True);self.login.setChecked(startup.enabled());self.login.blockSignals(False)
         data = self.bar.provider.get()

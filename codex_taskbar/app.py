@@ -205,6 +205,11 @@ class StatusBar(QWidget):
         self.data=provider.get();self.task=None;self.position=None;self.font=face()
         self.task_rect=QRectF();self.task_hover=False;self.title_hover_started=time.monotonic()
         self.task_area=QRectF()
+        self.quota_kind=None;self.quota_rotated_at=time.monotonic();self.quota_paused_at=None;self.quota_hover=False
+        self.quota_opacity=1.
+        self.quota_tween=QVariantAnimation(self);self.quota_tween.setDuration(220)
+        self.quota_tween.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.quota_tween.valueChanged.connect(self.set_quota_opacity)
         self.hit_regions=[];self.pressed=None;self.confirming_reset=False
         self.hover_target=None;self.hover_since=0.;self.hover_leave_since=None;self.hover_suppressed=None
         self.metrics=[];self.settings_dialog=None;self.placement_unavailable=False
@@ -329,6 +334,57 @@ class StatusBar(QWidget):
         self.hover_target=None;self.hover_leave_since=None;self.hover_suppressed=None
         self.save_settings()
 
+    def set_quota_rotation(self,value):
+        self.settings['rotate_quotas']=bool(value)
+        self.quota_kind=None;self.quota_paused_at=None;self.quota_rotated_at=time.monotonic()
+        self.quota_tween.stop();self.quota_opacity=1.
+        self.save_settings();self.hide_popup(immediate=True);self.tick()
+
+    def quota_choices(self):
+        metrics={kind:(value,fraction) for kind,value,fraction in visible_metrics(self.data,self.settings) if kind!='clock'}
+        result=[]
+        for kind,title in (('quota',self.label('Week')),('spent',self.label('Today')),('session','5h')):
+            if kind in metrics:
+                value,fraction=metrics[kind]
+                result.append((kind,title+' '+value.removeprefix('7d ').removeprefix('5h '),fraction))
+        return result
+
+    def displayed_metrics(self):
+        metrics=visible_metrics(self.data,self.settings)
+        if not self.settings.get('rotate_quotas'):return metrics
+        choices=self.quota_choices()
+        current=next((m for m in choices if m[0]==self.quota_kind),choices[0] if choices else None)
+        return ([current] if current else [])+[m for m in metrics if m[0]=='clock']
+
+    def metric_text_width(self,kind,value):
+        values=[v for k,v,f in self.quota_choices()] if self.settings.get('rotate_quotas') and kind!='clock' else [value]
+        return max(QFontMetricsF(face(8)).horizontalAdvance(v) for v in values)
+
+    def set_quota_opacity(self,value):
+        self.quota_opacity=float(value);self.update()
+
+    def advance_quota(self,now=None):
+        if not self.settings.get('rotate_quotas'):return
+        now=time.monotonic() if now is None else now
+        kinds=[kind for kind,value,fraction in self.quota_choices()]
+        if self.quota_kind not in kinds:
+            self.quota_kind=kinds[0] if kinds else None
+            self.quota_rotated_at=now;self.quota_paused_at=None
+            self.quota_tween.stop();self.quota_opacity=1.
+        if len(kinds)<2:
+            self.quota_rotated_at=now;self.quota_paused_at=None;return
+        paused=(self.quota_hover or self.pressed or self.confirming_reset or not self.isVisible()
+                or self.popup and self.popup.mode in ('usage','daily','session') or self.menu.isVisible()
+                or self.settings_dialog and self.settings_dialog.isVisible())
+        if paused:
+            if self.quota_paused_at is None:self.quota_paused_at=now
+            return
+        if self.quota_paused_at is not None:
+            self.quota_rotated_at+=now-self.quota_paused_at;self.quota_paused_at=None
+        if now-self.quota_rotated_at>=ROTATE_SECONDS:
+            self.quota_kind=kinds[(kinds.index(self.quota_kind)+1)%len(kinds)];self.quota_rotated_at=now
+            self.quota_tween.stop();self.quota_tween.setStartValue(0.);self.quota_tween.setEndValue(1.);self.quota_tween.start()
+
     def animate(self):
         if self.isVisible() and self.task:
             self.update()
@@ -438,6 +494,7 @@ class StatusBar(QWidget):
         return tasks[ids.index(self.current_id)]
 
     def track_pointer(self,point):
+        self.quota_hover=any(m in ('usage','daily','session') and r.contains(point) for m,r,t in self.hit_regions)
         hovering=self.task_area.contains(point)
         self.setCursor(Qt.CursorShape.PointingHandCursor if any(r.contains(point) for m,r,t in self.hit_regions) else Qt.CursorShape.ArrowCursor)
         if hovering!=self.task_hover:
@@ -458,8 +515,8 @@ class StatusBar(QWidget):
         if self.settings_dialog and self.settings_dialog.isVisible():self.settings_dialog.refresh()
         if not any(self.settings[key] for key in DISPLAY_DEFAULTS):
             self.hide();self.hide_popup(immediate=True);return
-        metrics=visible_metrics(self.data,self.settings)
-        minimum=12+sum(29+QFontMetricsF(face(8)).horizontalAdvance(value) for kind,value,fraction in metrics)
+        metrics=self.displayed_metrics()
+        minimum=12+sum(29+self.metric_text_width(kind,value) for kind,value,fraction in metrics)
         if self.settings['show_tasks']:
             counts=category_counts(self.data)
             minimum+=(60 if self.data.get('tasks') else 0)+sum(30+QFontMetricsF(face(8)).horizontalAdvance(str(counts[k])) for k in ('running','unread','failed','stopped') if counts[k])
@@ -482,6 +539,7 @@ class StatusBar(QWidget):
         windows.follow_taskbar(int(self.winId()))
         self.track_pointer(self.mapFromGlobal(QCursor.pos()))
         self.data=self.provider.get()
+        self.advance_quota()
         previous=self.task;self.task=self.selected_task(self.data.get("tasks",[]) if self.settings['show_tasks'] else [])
         if previous and self.task and previous['id']!=self.task['id']:
             self.previous_task=previous;self.task_tween.stop()
@@ -509,18 +567,21 @@ class StatusBar(QWidget):
         def field(kind,value,fraction):
             nonlocal x
             left=x-7
+            p.save()
+            if self.settings.get('rotate_quotas') and kind!='clock':p.setOpacity(self.quota_opacity)
             color={"quota":"#45ba91","session":"#51adb4","clock":"#5d9dd7","spent":"#a088d1"}[kind]
             icon(p,kind,x,y,color,fraction=None if fraction is None else self.ring_values.get(kind,fraction))
             x+=12
             ink=QColor(TITLE_MUTED)
-            x+=text(p,x,y,value,face(8),ink)+17
+            text(p,x,y,value,face(8),ink);x+=self.metric_text_width(kind,value)+17
+            p.restore()
             mode={'quota':'usage','session':'session','spent':'daily','clock':'resets'}[kind]
             self.hit_regions.append((mode,QRectF(left,0,x-left-8,self.height()),None))
         def separator():
             nonlocal x
             pen(p,"#53606d",.7)
             p.drawLine(QPointF(x-6,y-5),QPointF(x-6,y+5));x+=7
-        for kind,value,fraction in visible_metrics(data,self.settings):field(kind,value,fraction)
+        for kind,value,fraction in self.displayed_metrics():field(kind,value,fraction)
         self.task_area=QRectF();self.task_rect=QRectF()
         if not self.settings['show_tasks']:finish();return
         counts=category_counts(data)
@@ -574,6 +635,7 @@ class StatusBar(QWidget):
             else:self.popup.reveal_to(0.)
 
     def closeEvent(self,event):
+        self.quota_tween.stop()
         self.click_hook.close();self.timer.stop();self.animation.stop();self.update_timer.stop()
         self.tray.hide();self.hide_popup(immediate=True)
         if self.settings_dialog:self.settings_dialog.close()

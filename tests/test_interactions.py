@@ -335,3 +335,97 @@ class InteractionTests(unittest.TestCase):
                     expected=self.bar.label(self.bar.updater.message,version=(self.bar.updater.release or {}).get('version',''))
                     self.assertEqual(dialog.update_button.text(),expected)
                 self.assertIn('9.9.9',dialog.update_button.text())
+
+    def test_quota_rotation_order_and_countdown_and_task_positions_stay_fixed(self):
+        self.bar.settings['rotate_quotas']=True
+        with patch.object(self.bar,'isVisible',return_value=True):
+            positions=[]
+            for at,kind,mode,label in [(0,'quota','usage','Week 70%'),(8,'spent','daily','Today 12%'),(16,'session','session','5h 60%'),(24,'quota','usage','Week 70%')]:
+                self.bar.advance_quota(at);self.bar.grab()
+                self.assertEqual(self.bar.quota_kind,kind)
+                self.assertEqual(self.bar.displayed_metrics()[0][1],label)
+                modes=[m for m,r,t in self.bar.hit_regions]
+                self.assertEqual(modes[:2],[mode,'resets'])
+                positions.append([r.x() for m,r,t in self.bar.hit_regions if m in ('resets','running','task')])
+            self.assertTrue(all(p==positions[0] for p in positions))
+
+    def test_quota_hover_and_panel_pause_resume_without_restarting_or_catching_up(self):
+        self.bar.settings['rotate_quotas']=True
+        with patch.object(self.bar,'isVisible',return_value=True):
+            self.bar.advance_quota(0);self.bar.grab()
+            self.bar.track_pointer(self.bar.hit_regions[0][1].center());self.bar.advance_quota(6)
+            self.bar.advance_quota(100);self.assertEqual(self.bar.quota_kind,'quota')
+            self.bar.track_pointer(app.QPointF(-1,-1));self.bar.advance_quota(100)
+            self.bar.advance_quota(101);self.assertEqual(self.bar.quota_kind,'quota')
+            self.bar.advance_quota(102);self.assertEqual(self.bar.quota_kind,'spent')
+            self.bar.popup=app.TaskListPopup(self.bar,'daily');self.bar.advance_quota(108)
+            self.bar.advance_quota(200);self.assertEqual(self.bar.quota_kind,'spent')
+            self.bar.hide_popup(immediate=True);self.bar.advance_quota(200)
+            self.bar.advance_quota(202);self.assertEqual(self.bar.quota_kind,'session')
+
+    def test_rotating_slot_dispatches_visible_panel_and_press_prevents_switch(self):
+        self.bar.settings['rotate_quotas']=True
+        with patch.object(self.bar,'isVisible',return_value=True),patch('codex_taskbar.app.windows.rect',return_value=(0,0,1200,30)), \
+             patch('codex_taskbar.app.windows.user32.GetDpiForWindow',return_value=96),patch.object(self.bar,'toggle_popup') as opened, \
+             patch('codex_taskbar.app.QTimer.singleShot',side_effect=lambda ms,fn:fn()):
+            for kind,mode in [('quota','usage'),('spent','daily'),('session','session')]:
+                self.bar.quota_kind=kind;self.bar.quota_rotated_at=0;self.bar.quota_paused_at=None;self.bar.grab()
+                point=self.bar.hit_regions[0][1].center()
+                self.bar.desktop_click(point.x(),point.y())
+                self.bar.advance_quota(7.9);self.bar.advance_quota(20)
+                self.assertEqual(self.bar.quota_kind,kind)
+                self.bar.desktop_click(point.x(),point.y(),'left_up')
+                self.assertEqual(opened.call_args.args[0],mode)
+
+    def test_rotation_handles_missing_window_single_none_and_empty_values(self):
+        self.bar.settings['rotate_quotas']=True
+        self.data['quota']=self.data['quota'][:1]
+        self.assertEqual([k for k,v,f in self.bar.quota_choices()],['quota','spent'])
+        with patch.object(self.bar,'isVisible',return_value=True):
+            self.bar.settings['show_daily']=False
+            self.bar.advance_quota(0);self.bar.advance_quota(100)
+            self.assertEqual(self.bar.quota_kind,'quota')
+            self.bar.settings['show_week']=False;self.bar.advance_quota(101)
+            self.assertIsNone(self.bar.quota_kind)
+            self.assertEqual([k for k,v,f in self.bar.displayed_metrics()],['clock'])
+            self.bar.settings['show_countdown']=False
+            self.assertEqual(self.bar.displayed_metrics(),[])
+            self.bar.settings.update(show_week=True,show_daily=True);self.data['quota']=[];self.data['daily_quota']='—'
+            self.assertEqual(self.bar.quota_choices(),[('quota','Week —',None),('spent','Today —',None)])
+            self.bar.quota_kind='session';self.bar.advance_quota(102)
+            self.assertEqual(self.bar.quota_kind,'quota')
+
+    def test_rotation_setting_language_and_task_rotation_remain_independent(self):
+        from codex_taskbar.settings_ui import SettingsDialog
+        with patch('codex_taskbar.settings_ui.startup.enabled',return_value=False),patch('codex_taskbar.app.write_settings') as save,patch.object(self.bar,'tick'):
+            dialog=SettingsDialog(self.bar);self.bar.settings_dialog=dialog
+            dialog.rotation.setChecked(True)
+            self.assertTrue(save.call_args.args[1]['rotate_quotas'])
+            self.bar.quota_kind='spent';self.bar.quota_rotated_at=12
+            self.bar.set_language('zh-CN')
+            self.assertEqual(dialog.rotation.text(),'轮换显示额度')
+            self.assertEqual(self.bar.displayed_metrics()[0][1],'今日 12%')
+            self.assertEqual(self.bar.quota_rotated_at,12)
+            self.bar.current_id='a';self.bar.rotated_at=0;self.bar.quota_hover=True
+            with patch('codex_taskbar.app.time.monotonic',return_value=8):
+                self.assertEqual(self.bar.selected_task([{'id':'a'},{'id':'b'}])['id'],'b')
+            dialog.rotation.setChecked(False)
+            self.assertFalse(save.call_args.args[1]['rotate_quotas'])
+            self.assertEqual([k for k,v,f in self.bar.displayed_metrics()],['quota','session','spent','clock'])
+
+    def test_rotation_pauses_for_settings_menu_and_confirmation(self):
+        self.bar.settings['rotate_quotas']=True
+        with patch.object(self.bar,'isVisible',return_value=True):
+            self.bar.advance_quota(0)
+            with patch.object(self.bar.menu,'isVisible',return_value=True):
+                self.bar.advance_quota(6);self.bar.advance_quota(50)
+            self.bar.advance_quota(50);self.assertEqual(self.bar.quota_kind,'quota')
+            self.bar.advance_quota(52);self.assertEqual(self.bar.quota_kind,'spent')
+            self.bar.confirming_reset=True;self.bar.advance_quota(53);self.bar.advance_quota(90)
+            self.assertEqual(self.bar.quota_kind,'spent')
+            self.bar.confirming_reset=False;self.bar.advance_quota(90)
+            self.bar.settings_dialog=Mock();self.bar.settings_dialog.isVisible.return_value=True
+            self.bar.advance_quota(91);self.bar.advance_quota(200)
+            self.assertEqual(self.bar.quota_kind,'spent')
+            self.bar.settings_dialog=None;self.bar.advance_quota(200)
+            self.bar.advance_quota(206);self.assertEqual(self.bar.quota_kind,'session')

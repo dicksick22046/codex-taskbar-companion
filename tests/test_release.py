@@ -35,6 +35,15 @@ class ReleaseTests(unittest.TestCase):
             write_settings(path,settings);loaded=read_settings(path)
             self.assertTrue(loaded['hover_panels'])
             self.assertFalse(any(loaded[k] for k in DISPLAY_DEFAULTS))
+
+    def test_rotation_defaults_to_parallel_and_persists_without_other_changes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'ui_settings.json'
+            settings=read_settings(path);self.assertFalse(settings['rotate_quotas'])
+            settings.update(rotate_quotas=True,hover_panels=True,language='zh-CN',chart_unit='100M')
+            write_settings(path,settings);self.assertEqual(read_settings(path),settings)
+            settings['rotate_quotas']='true';write_settings(path,settings)
+            self.assertFalse(read_settings(path)['rotate_quotas'])
     def test_update_version_and_asset_origin(self):
         repo='owner/repo';tag='v0.2.0';name='CodexTaskbarCompanion-0.2.0-Setup-x64.exe'
         release={'tag_name':tag,'assets':[{'name':n,'browser_download_url':f'https://github.com/{repo}/releases/download/{tag}/{n}'} for n in [name,name+'.sha256']]}
