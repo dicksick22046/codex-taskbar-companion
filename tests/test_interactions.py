@@ -331,7 +331,7 @@ class InteractionTests(unittest.TestCase):
         self.data['reset_credits']=[credit()]
         for language in app.LANGUAGES:
             self.bar.settings['language']=language
-            for kind,key in ((app.TaskPopup,'This cycle · Tokens'),(app.SessionPopup,'Reset {time}'),(app.ResetPopup,'History')):
+            for kind,key in ((app.TaskPopup,'Cycle · Tokens'),(app.SessionPopup,'Reset {time}'),(app.ResetPopup,'History')):
                 panel=kind(self.bar);panel.refresh(self.data)
                 with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
                 labels=[c.args[3] for c in draw.call_args_list]

@@ -788,7 +788,7 @@ class TaskPopup(QWidget):
         return {unit:rect.translated(self.width()-360,self.TITLE_HEIGHT) for unit,rect in self.UNIT_RECTS.items()}
 
     def usage_header(self,p,period,total):
-        text(p,18,17,self.owner.label('Today · Tokens' if self.mode=='daily' else 'This cycle · Tokens'),face(8),'#8795a5')
+        text(p,18,17,self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens'),face(8),'#8795a5')
         y=21+self.TITLE_HEIGHT
         icon(p,'chart',23,y,LILAC)
         date_width=text(p,39,y,period,face(8),BLUE)

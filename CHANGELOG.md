@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- Shorten the cycle-usage heading to “Cycle · Tokens” and update the translations.
 - Tighten the rotating slot to the current countdown format, retaining the ring position and stable width between rotations.
 ## 0.3.2
 
