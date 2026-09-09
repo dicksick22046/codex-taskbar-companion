@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import math
+from .i18n import LANGUAGES
 
 DISPLAY_DEFAULTS = {
     'show_week': True, 'show_session': True, 'show_countdown': True,
@@ -58,6 +59,7 @@ def read_settings(path):
         result[key] = data[key] if isinstance(data.get(key), bool) else default
     result['chart_unit'] = data.get('chart_unit') if data.get('chart_unit') in ('M', '100M') else 'M'
     result['hover_panels'] = data.get('hover_panels') is True
+    result['language'] = data.get('language') if data.get('language') in LANGUAGES else 'en'
     return result
 
 

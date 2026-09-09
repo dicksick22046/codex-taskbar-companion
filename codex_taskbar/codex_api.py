@@ -105,4 +105,4 @@ def project_name(thread, projects):
             path = os.path.normcase(os.path.normpath(root["path"]))
             if cwd == path or cwd.startswith(path + os.sep):
                 matches.append((len(path), project["name"]))
-    return max(matches)[1] if matches else "无项目"
+    return max(matches)[1] if matches else ""

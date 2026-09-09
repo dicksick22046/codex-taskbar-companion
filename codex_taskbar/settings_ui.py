@@ -1,14 +1,14 @@
 """Native settings and tray entry; deliberately no general layout editor."""
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap, QColor, QPen
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QCheckBox, QPushButton
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox
 from .build_info import APP_NAME, VERSION
 from . import startup
 
 DISPLAY_LABELS = {
-    'show_week': '周额度', 'show_session': '5 小时额度',
-    'show_countdown': '重置倒计时', 'show_daily': '今日额度消耗',
-    'show_tasks': '任务轮播与计数',
+    'show_week': 'Weekly quota', 'show_session': '5-hour quota',
+    'show_countdown': 'Reset countdown', 'show_daily': 'Daily quota usage',
+    'show_tasks': 'Task rotation and counts',
 }
 
 
@@ -24,22 +24,29 @@ def app_icon():
 class SettingsDialog(QDialog):
     def __init__(self, bar):
         super().__init__()
-        self.bar = bar; self.setFont(bar.font); self.setWindowTitle(f'设置 · {APP_NAME}')
+        self.bar = bar; self.setFont(bar.font)
         self.setWindowIcon(app_icon()); self.setMinimumWidth(340)
         self.setStyleSheet('''QDialog {background:#242930;color:#bac5d2;}
             QLabel,QCheckBox {color:#bac5d2;} QCheckBox {spacing:10px;padding:7px 0;}
             QPushButton {background:#303843;color:#bac5d2;border:0;border-radius:6px;padding:9px;}
-            QPushButton:hover {background:#3b4552;}''')
+            QPushButton:hover {background:#3b4552;}
+            QComboBox {background:#303843;color:#bac5d2;border:0;border-radius:6px;padding:7px 12px;}
+            QComboBox QAbstractItemView {background:#303843;color:#bac5d2;selection-background-color:#3b4552;}''')
         layout = QVBoxLayout(self); layout.setContentsMargins(24, 20, 24, 20); layout.setSpacing(8)
-        title = QLabel('显示'); title.setStyleSheet('font-size:16px;color:#eef2f7;'); layout.addWidget(title)
+        language_row=QHBoxLayout();self.language_label=QLabel();language_row.addWidget(self.language_label)
+        self.language=QComboBox();self.language.addItem('English','en');self.language.addItem('简体中文','zh-CN')
+        self.language.setCurrentIndex(self.language.findData(bar.settings.get('language','en')))
+        self.language.currentIndexChanged.connect(lambda:bar.set_language(self.language.currentData()))
+        language_row.addStretch();language_row.addWidget(self.language);layout.addLayout(language_row)
+        self.title = QLabel(); self.title.setStyleSheet('font-size:16px;color:#eef2f7;'); layout.addWidget(self.title)
         self.checks = {}
         for key, label in DISPLAY_LABELS.items():
-            check = QCheckBox(label); check.setChecked(bar.settings[key]); layout.addWidget(check)
+            check = QCheckBox(); check.setChecked(bar.settings[key]); layout.addWidget(check)
             check.toggled.connect(lambda checked, key=key: bar.set_display(key, checked)); self.checks[key] = check
         layout.addSpacing(8)
-        self.hover = QCheckBox('悬停打开面板');self.hover.setChecked(bar.settings.get('hover_panels',False))
+        self.hover = QCheckBox();self.hover.setChecked(bar.settings.get('hover_panels',False))
         self.hover.toggled.connect(bar.set_hover_panels);layout.addWidget(self.hover)
-        self.login = QCheckBox('登录 Windows 后启动'); self.login.setChecked(startup.enabled())
+        self.login = QCheckBox(); self.login.setChecked(startup.enabled())
         self.login.toggled.connect(bar.set_startup); layout.addWidget(self.login)
         self.connection = QLabel(); self.connection.setWordWrap(True)
         self.connection.setStyleSheet('color:#8797aa;font-size:12px;'); layout.addWidget(self.connection)
@@ -49,12 +56,21 @@ class SettingsDialog(QDialog):
         self.refresh()
 
     def refresh(self):
+        label=self.bar.label
+        self.setWindowTitle(f'{label("Settings")} · {APP_NAME}')
+        self.language_label.setText(label('Language'));self.title.setText(label('Display'))
+        self.language.blockSignals(True)
+        self.language.setCurrentIndex(self.language.findData(self.bar.settings.get('language','en')))
+        self.language.blockSignals(False)
+        for key,source in DISPLAY_LABELS.items():self.checks[key].setText(label(source))
+        self.hover.setText(label('Open panels on hover'));self.login.setText(label('Start at Windows sign-in'))
         self.login.blockSignals(True);self.login.setChecked(startup.enabled());self.login.blockSignals(False)
         data = self.bar.provider.get()
-        if data.get('quota_error'): message = '额度暂未更新，当前显示上次有效记录。' if data.get('quota') else '暂时无法读取额度，请稍后再试。'
-        elif data.get('error'): message = '部分数据暂未更新，当前保留已读取的内容。'
-        elif data.get('loading'): message = '正在连接 Codex…'
-        elif self.bar.placement_unavailable: message = '任务栏左侧空间不足，已收起到系统托盘。'
-        else: message = '所有显示关闭后，仍可从系统托盘打开设置。'
-        self.connection.setText(message)
-        self.update_button.setText(self.bar.updater.message); self.update_button.setEnabled(not self.bar.updater.busy)
+        if data.get('quota_error'): message = 'Showing the last available quota.' if data.get('quota') else 'Quota unavailable. Try again later.'
+        elif data.get('error'): message = 'Some data is unavailable. Showing the last available records.'
+        elif data.get('loading'): message = 'Connecting to Codex…'
+        elif self.bar.placement_unavailable: message = 'Not enough taskbar space. Settings are available in the system tray.'
+        else: message = 'Settings remain available in the system tray when all displays are off.'
+        self.connection.setText(label(message))
+        self.update_button.setText(label(self.bar.updater.message,version=(self.bar.updater.release or {}).get('version','')))
+        self.update_button.setEnabled(not self.bar.updater.busy)

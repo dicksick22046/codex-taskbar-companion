@@ -71,13 +71,14 @@ class InteractionTests(unittest.TestCase):
                 self.assertEqual(toggle.call_args.args[0],mode)
 
     def dialog(self, confirm):
+        cancel_label=self.bar.label('Cancel');confirm_label=self.bar.label('Confirm reset')
         class AutoDialog(app.QMessageBox):
             def show(self):pass
             def exec(self):
-                assert self.defaultButton().text()=='取消'
+                assert self.defaultButton().text()==cancel_label
                 frame=self.frameGeometry();allowance=max(2,frame.height()-self.height())
                 assert abs(frame.center().y()-self.screen().availableGeometry().center().y())<=allowance
-                text='确认重置' if confirm else '取消'
+                text=confirm_label if confirm else cancel_label
                 next(b for b in self.buttons() if b.text()==text).click()
                 return 0
         with patch('codex_taskbar.app.QMessageBox',AutoDialog),patch('codex_taskbar.app.windows.user32.ShowWindow'):
@@ -271,3 +272,66 @@ class InteractionTests(unittest.TestCase):
         date_right=18+metrics.horizontalAdvance(datetime.now().strftime('%m.%d %H:%M'))
         self.assertGreaterEqual(number_left-date_right,12)
         panel.close();panel.deleteLater()
+
+    def test_language_switch_updates_open_settings_menu_and_panel_without_side_effects(self):
+        from codex_taskbar.settings_ui import SettingsDialog
+        self.data['tasks'][0].update(project='',side_chat=True,title='原任务标题')
+        panel=app.TaskListPopup(self.bar,'daily');self.bar.popup=panel;panel.refresh(self.data)
+        with patch('codex_taskbar.settings_ui.startup.enabled',return_value=True),patch('codex_taskbar.app.write_settings') as save:
+            dialog=SettingsDialog(self.bar);self.bar.settings_dialog=dialog
+            before={key:self.bar.settings.get(key) for key in app.DISPLAY_DEFAULTS}
+            rotated=self.bar.rotated_at
+            for language,settings,no_project,side,category in [('zh-CN','设置…','无项目','侧聊','进行中'),('en','Settings…','No project','Side','Running')]:
+                dialog.language.setCurrentIndex(dialog.language.findData(language))
+                self.assertEqual(self.bar.settings['language'],language)
+                self.assertEqual(self.bar.menu.actions()[0].text(),settings)
+                self.assertEqual(panel.sections[0][0],category)
+                self.assertEqual(dialog.checks['show_session'].text(),self.bar.label('5-hour quota'))
+                self.assertEqual(dialog.language_label.text(),self.bar.label('Language'))
+                with patch('codex_taskbar.app.text',wraps=app.text) as draw:
+                    self.bar.grab();panel.grab()
+                labels=[c.args[3] for c in draw.call_args_list]
+                self.assertIn(no_project,labels);self.assertIn(side,labels)
+                self.assertIn('原任务标题',labels)
+                self.assertEqual(before,{key:self.bar.settings.get(key) for key in app.DISPLAY_DEFAULTS})
+                self.assertEqual(self.bar.rotated_at,rotated)
+                self.assertEqual(save.call_args.args[1]['language'],language)
+            self.provider.request_reset.assert_not_called()
+            self.provider.refresh.assert_not_called()
+
+    def test_both_languages_render_all_panels_and_cancel_reset(self):
+        now=datetime.now().timestamp()
+        self.data['reset_events']=[{'kind':kind,'at':now-i*86400,'tokens':2036647183,'windows':['300','10080']}
+                                   for i,kind in enumerate(('scheduled','manual','official'))]
+        self.data['reset_credits']=[credit()]
+        for language in ('en','zh-CN'):
+            self.bar.settings['language']=language
+            for kind,key in ((app.TaskPopup,'This cycle · Tokens'),(app.SessionPopup,'Reset {time}'),(app.ResetPopup,'History · 100M')):
+                panel=kind(self.bar);panel.refresh(self.data)
+                with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
+                labels=[c.args[3] for c in draw.call_args_list]
+                if kind is app.SessionPopup:
+                    reset=datetime.fromtimestamp(self.data['quota'][1]['resets_at']).strftime('%H:%M')
+                    self.assertIn(self.bar.label(key,time=reset),labels)
+                else:self.assertIn(self.bar.label(key),labels)
+                if kind is app.ResetPopup:
+                    self.assertEqual(panel.button.text(),self.bar.label('Reset quota'))
+                    date_right=18+app.QFontMetricsF(app.face(8)).horizontalAdvance(datetime.now().strftime('%m.%d %H:%M'))
+                    self.assertGreaterEqual(panel.token_right-app.QFontMetricsF(app.face(8)).horizontalAdvance('20.37')-date_right,12)
+                panel.close();panel.deleteLater()
+            self.dialog(False)
+        self.provider.request_reset.assert_not_called()
+
+    def test_update_messages_follow_language_including_available_version(self):
+        from codex_taskbar.settings_ui import SettingsDialog
+        with patch('codex_taskbar.settings_ui.startup.enabled',return_value=False):
+            dialog=SettingsDialog(self.bar);self.bar.settings_dialog=dialog
+            for language in ('en','zh-CN'):
+                self.bar.settings['language']=language
+                for result in ({'release':None},{'unpublished':True},{'error':'fixture'}, {'release':{'version':'9.9.9'}}):
+                    with patch.object(self.bar.updater,'changed'),patch('builtins.print'):
+                        self.bar.updater.finish(result)
+                    dialog.refresh()
+                    expected=self.bar.label(self.bar.updater.message,version=(self.bar.updater.release or {}).get('version',''))
+                    self.assertEqual(dialog.update_button.text(),expected)
+                self.assertIn('9.9.9',dialog.update_button.text())

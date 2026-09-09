@@ -1,6 +1,13 @@
 import unittest
 from codex_taskbar.app import QApplication,QWidget,TaskPopup,TaskListPopup,StatusBar,SessionPopup,ResetPopup,DISPLAY_DEFAULTS
 from unittest.mock import patch
+from codex_taskbar.i18n import translate
+
+
+class Owner(QWidget):
+    language='en'
+
+    def label(self,key,**values):return translate(self.language,key,**values)
 
 
 class PopupInitialFrameTests(unittest.TestCase):
@@ -9,7 +16,7 @@ class PopupInitialFrameTests(unittest.TestCase):
         cls.application=QApplication.instance() or QApplication([])
 
     def test_both_panels_are_transparent_before_first_animation_tick(self):
-        owner=QWidget();owner.popup=None;owner.chart_unit="M"
+        owner=Owner();owner.popup=None;owner.chart_unit="M"
         for kind in (TaskPopup,TaskListPopup):
             with self.subTest(panel=kind.__name__):
                 panel=kind(owner)
@@ -21,7 +28,7 @@ class PopupInitialFrameTests(unittest.TestCase):
         owner.close();owner.deleteLater()
 
     def test_task_panel_adapts_to_names_and_caps_at_bar_width(self):
-        owner=QWidget();owner.setGeometry(20,600,540,30);owner.popup=None;owner.chart_unit="M"
+        owner=Owner();owner.setGeometry(20,600,540,30);owner.popup=None;owner.chart_unit="M"
         panel=TaskListPopup(owner)
         data={'tasks':[{'id':'a','title':'Task','project':'Project','running':True}],
               'recent_tasks':[{'id':'b','title':'Earlier','project':'Project','running':False}]}
@@ -35,7 +42,7 @@ class PopupInitialFrameTests(unittest.TestCase):
         panel.close();panel.deleteLater();owner.close();owner.deleteLater()
 
     def test_task_metrics_form_a_compact_group_separate_from_title(self):
-        owner=QWidget();owner.setGeometry(20,600,540,30);owner.popup=None;owner.chart_unit="M"
+        owner=Owner();owner.setGeometry(20,600,540,30);owner.popup=None;owner.chart_unit="M"
         panel=TaskListPopup(owner)
         panel.refresh({'tasks':[{'id':'a','title':'Task','project':'Project','running':True,
                                 'daily_seconds':17940,'tokens':142700000}]})
@@ -47,7 +54,7 @@ class PopupInitialFrameTests(unittest.TestCase):
         panel.close();panel.deleteLater();owner.close();owner.deleteLater()
 
     def test_both_panels_leave_space_above_taskbar_not_inside_it(self):
-        owner=QWidget();owner.setGeometry(20,610,540,30);owner.popup=None;owner.chart_unit="M"
+        owner=Owner();owner.setGeometry(20,610,540,30);owner.popup=None;owner.chart_unit="M"
         owner.settings=DISPLAY_DEFAULTS;owner.confirm_reset=lambda:None
         with patch('codex_taskbar.app.windows.user32.FindWindowW',return_value=1), \
              patch('codex_taskbar.app.windows.rect',return_value=(0,900,1600,972)), \

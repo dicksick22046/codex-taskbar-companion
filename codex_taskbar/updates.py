@@ -89,12 +89,12 @@ class UpdateController(QObject):
     def __init__(self, runtime, parent=None):
         super().__init__(parent)
         self.runtime = Path(runtime); self.release = None; self.busy = False
-        self.message = '检查更新' if RELEASE_REPOSITORY else '发布仓库尚未配置'
+        self.message = 'Check for updates' if RELEASE_REPOSITORY else 'Release repository not configured'
         self.result.connect(self.finish)
 
     def check(self):
         if self.busy: return
-        self.busy = True; self.message = '正在检查更新…'; self.changed.emit()
+        self.busy = True; self.message = 'Checking for updates…'; self.changed.emit()
         def work():
             try: self.result.emit({'release': fetch_release(RELEASE_REPOSITORY)})
             except urllib.error.HTTPError as exc:
@@ -104,7 +104,7 @@ class UpdateController(QObject):
 
     def install(self):
         if self.busy or not self.release: return
-        self.busy = True; self.message = '正在下载安装包…'; self.changed.emit()
+        self.busy = True; self.message = 'Downloading update…'; self.changed.emit()
         release = dict(self.release)
         def work():
             try: self.result.emit({'installer': str(download_installer(release, self.runtime/'updates'))})
@@ -114,15 +114,15 @@ class UpdateController(QObject):
     def finish(self, result):
         self.busy = False
         if 'installer' in result:
-            self.message = '安装包已就绪'; self.ready.emit(result['installer'])
+            self.message = 'Update ready'; self.ready.emit(result['installer'])
         elif result.get('unpublished'):
-            self.message = '尚未发布可更新版本'
+            self.message = 'No release available yet'
         elif 'error' in result:
-            self.message = '暂时无法检查更新' if RELEASE_REPOSITORY else '发布仓库尚未配置'
+            self.message = 'Unable to check for updates' if RELEASE_REPOSITORY else 'Release repository not configured'
             print('Update:', result['error'])
         else:
             self.release = result['release']
-            self.message = f'更新至 {self.release["version"]}' if self.release else '已是最新版本'
+            self.message = 'Update to {version}' if self.release else 'Up to date'
         self.changed.emit()
 
 

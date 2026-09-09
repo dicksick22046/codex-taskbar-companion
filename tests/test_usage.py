@@ -138,7 +138,7 @@ class UsageTests(unittest.TestCase):
     def test_project_uses_root_membership_not_similar_prefix(self):
         projects=[{'id':'1','name':'项目甲','roots':[{'path':str(Path(self.folder.name)/'repo')}]}]
         self.assertEqual(project_name({'cwd':str(Path(self.folder.name)/'repo'/'sub')},projects),'项目甲')
-        self.assertEqual(project_name({'cwd':str(Path(self.folder.name)/'repo-other')},projects),'无项目')
+        self.assertEqual(project_name({'cwd':str(Path(self.folder.name)/'repo-other')},projects),'')
 
     def test_rotation_allows_eight_seconds_and_pauses_on_hover(self):
         bar=StatusBar.__new__(StatusBar);bar.current_id=None;bar.rotated_at=0;bar.popup=None;bar.task_hover=False

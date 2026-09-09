@@ -7,6 +7,7 @@ Windows 11 x64 的单行 Codex 任务栏工具。现行交互见[交互规范](s
 | 模块 | 职责 |
 |---|---|
 | app.py、settings_ui.py | Qt 自绘状态条、各弹窗及设置 |
+| i18n.py | 应用中英文文案与无项目显示占位 |
 | provider.py | 单个后台线程，组合额度、任务和日志结果 |
 | codex_api.py | 本机 app-server 只读查询及已确认的重置请求 |
 | usage.py、tasks.py | 增量 Token、时长与任务分类 |
