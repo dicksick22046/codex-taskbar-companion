@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from string import Formatter
 
-from codex_taskbar.i18n import COPY, LANGUAGES, project_label, translate
+from codex_taskbar.i18n import COPY, LANGUAGES, TRANSLATIONS, project_label, translate
 from codex_taskbar.preferences import read_settings, write_settings
 
 
@@ -21,6 +21,9 @@ class LanguageTests(unittest.TestCase):
 
     def test_translations_preserve_all_format_fields(self):
         fields=lambda text:{name for _,name,_,_ in Formatter().parse(text) if name is not None}
+        for language,catalog in TRANSLATIONS.items():
+            self.assertEqual(set(catalog),set(COPY),language)
+            for key,value in catalog.items():self.assertEqual(fields(key),fields(value),(language,key))
         for english,chinese in COPY.items():
             with self.subTest(key=english):
                 self.assertEqual(fields(english),fields(chinese))

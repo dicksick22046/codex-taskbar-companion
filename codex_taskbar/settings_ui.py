@@ -1,8 +1,10 @@
 """Native settings and tray entry; deliberately no general layout editor."""
+from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap, QColor, QPen
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox, QListView
 from .build_info import APP_NAME, VERSION
+from .i18n import LANGUAGE_NAMES
 from . import startup
 
 DISPLAY_LABELS = {
@@ -30,11 +32,20 @@ class SettingsDialog(QDialog):
             QLabel,QCheckBox {color:#bac5d2;} QCheckBox {spacing:10px;padding:7px 0;}
             QPushButton {background:#303843;color:#bac5d2;border:0;border-radius:6px;padding:9px;}
             QPushButton:hover {background:#3b4552;}
-            QComboBox {background:#303843;color:#bac5d2;border:0;border-radius:6px;padding:7px 12px;}
-            QComboBox QAbstractItemView {background:#303843;color:#bac5d2;selection-background-color:#3b4552;}''')
+            QComboBox {background:#303843;color:#bac5d2;border:1px solid transparent;border-radius:6px;padding:6px 26px 6px 11px;}
+            QComboBox:hover {background:#35404c;}
+            QComboBox:focus {border-color:#708aa8;}
+            QComboBox::drop-down {subcontrol-origin:padding;subcontrol-position:top right;width:24px;border:0;background:transparent;}
+            QComboBox::down-arrow {image:url(__CHEVRON__);width:12px;height:8px;}
+            QComboBox QAbstractItemView {background:#303843;color:#bac5d2;border:1px solid #414b58;padding:4px;outline:0;}
+            QComboBox QAbstractItemView::item {min-height:28px;padding:2px 8px;border-radius:4px;}
+            QComboBox QAbstractItemView::item:selected {background:#405166;color:#dce5ef;}'''.replace(
+                '__CHEVRON__',(Path(__file__).resolve().parents[1]/'assets/icons/chevron-down.svg').as_posix()))
         layout = QVBoxLayout(self); layout.setContentsMargins(24, 20, 24, 20); layout.setSpacing(8)
         language_row=QHBoxLayout();self.language_label=QLabel();language_row.addWidget(self.language_label)
-        self.language=QComboBox();self.language.addItem('English','en');self.language.addItem('简体中文','zh-CN')
+        self.language=QComboBox()
+        for code,name in LANGUAGE_NAMES:self.language.addItem(name,code)
+        self.language.setView(QListView())
         self.language.setCurrentIndex(self.language.findData(bar.settings.get('language','en')))
         self.language.currentIndexChanged.connect(lambda:bar.set_language(self.language.currentData()))
         language_row.addStretch();language_row.addWidget(self.language);layout.addLayout(language_row)

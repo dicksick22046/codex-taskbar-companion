@@ -1,88 +1,89 @@
-# 更新记录
+# Changelog
+
+**English** · [简体中文](docs/i18n/CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
-- 修正额度切换的突兀断点：保留旧内容完成过渡，圆环颜色和弧长连续变化，点击途中也能回到当时看到的额度项。
-- 新增可选额度轮换：周剩余、今日消耗与5h共用一个位置，倒计时固定；悬停或查看额度面板时暂停，点击对应当前显示项。
-- 设置新增英文与简体中文切换，立即生效并记住选择；统一菜单、面板、确认与更新文案，英文无项目标签为 No project。
-- 精简设置中的5小时额度文案，移除重复说明。
-- 统一底栏指标缺少数据时的占位符样式，日占比不再单独缩短或淡化横杠。
-- 修复程序仍运行但被Windows任务栏盖住的问题；仅在层级异常时恢复显示，不抢焦点。
-- 保存侧边聊天的已确认关联，避免状态条重启、创建日志被清理后丢失Side状态。
-- 重置机会按到期时间排序，默认优先使用最早到期的一次，避免旧机会过期。
-- 侧边聊天使用独立的中性Side标签，替换文字前缀；底栏与任务列表保持一致。
-- 重置历史阶段的 Token 用量统一以 100M（亿）显示，单位集中标注在标题中。
-- 重置面板收窄到300 DIP，三列重新对齐，并收紧按钮上方间距。
-- 设置新增“悬停打开面板”：短暂扫过忽略，移入面板保持，移开延迟关闭；默认仍为点击模式。
+## 0.3.0
+
+- Sort reset history by event time, newest first, including records added out of order.
+- Add English, Simplified Chinese, Japanese, and Spanish UI selection, applied immediately and saved between launches.
+- Add optional quota rotation in a fixed slot. Keep the countdown separate, pause while reading or clicking, and use continuous text and ring transitions.
+- Restyle the language selector and use consistent short labels in parallel and rotating layouts.
+- Add optional hover-to-open panels with entry and exit delays.
+- Use a separate Side badge and retain confirmed side-chat links when the strip restarts.
+- Restore the strip if Windows places the taskbar above it, without activating the window.
+- Select the reset credit with the earliest expiry. Use 100M for historical token totals and a more compact reset panel.
+- Unify missing-value styles. Rewrite public documentation in English with translated READMEs and a Chinese changelog.
 
 ## 0.2.4
 
-- 按排除规则归类重置：自然到期为 Scheduled，确认手动成功为 Manual，其余已观察到的恢复归为 Official；有原始依据的旧记录同步回算。
-- 修复日面板单位按钮的手形光标被定时刷新改回箭头的问题；悬停不改变已选单位。
-- 底部组件按完整区域接收鼠标，修复透明字形间隙造成的光标抖动；悬停与关闭面板不再反复清零轮播进度。
-- 将正在运行的侧边聊天归入所属任务，显示 Side chat 标记，同一任务只计一次。
-- 重置历史增加各阶段本机已收录的 Token 用量，来源配色收敛，保留可用次数与默认项的强调色。
-- 源码整理为应用包，测试集中到 tests，删除过时过程文档并补充架构和审核说明。
+- Classify resets as Scheduled, confirmed Manual, or inferred Official; recalculate older records when supporting data exists.
+- Keep the pointer cursor over daily unit controls during refresh. Hovering does not change the selected unit.
+- Handle input across each full taskbar control, including transparent gaps. Preserve rotation progress after hover and panel closure.
+- Count an active side chat as activity in its parent task, with a Side chat label and no duplicate count.
+- Add locally recorded token totals to reset-history intervals and simplify their colors.
+- Move application code into a package and tests into tests/, remove outdated notes, and document architecture and review results.
 
 ## 0.2.3
 
-- 悬浮框改用不透明的深色背景，去掉毛玻璃与透色，保证浅色背景下的可读性。
-- 恢复日用量小标题，并为周期用量增加同级标题；日期、总量与单位单独排列。
-- 重排重置面板，统一英文和日期对齐，重置按钮独立放在底部；无法核实来源的历史只显示时间。
+- Use opaque dark panels instead of translucent backgrounds.
+- Restore daily and cycle usage headings, with dates, totals, and unit controls on a separate row.
+- Reorganize the reset panel with English labels, aligned dates, and a separate reset button. Show only the date when the source cannot be established.
 
 ## 0.2.2
 
-- 修复恢复时间微调被误记为重置的问题，历史来源无法确认时如实标明。
-- 重置面板直接列出所有可用机会的到期时间，保留一个默认重置按钮及二次确认。
-- 日面板增加当天周期、Token 总量和单位切换；空闲时移除底部 Tasks 占位。
-- 打开悬浮框不再阻止底部任务轮播，悬停任务仍可暂停阅读。
-- 加深共用毛玻璃底色，改善浅色背景下的文字可读性。
+- Avoid treating small reset-time adjustments as reset events; show when the source is not established.
+- List every available credit's expiry, with one default reset action and confirmation.
+- Add the daily period, token total, and unit controls. Remove the idle Tasks placeholder.
+- Keep task rotation running when a panel is open; hovering a task still pauses it.
+- Darken the shared translucent panel background for readability.
 
 ## 0.2.1
 
-- 修复 5h 与重置面板右上角时间区域误响应周图单位切换的问题。
+- Stop the time areas in the 5h and reset panels from activating weekly chart unit controls.
 
 ## 0.2.0
 
-- 周额度、日消耗、状态计数和倒计时分别打开对应面板，滚动任务可直接跳转。
-- 日列表按状态分组并显示今日 Token；状态列表只显示当前或最近一轮耗时。
-- 5h 额度提供独立的窗口走势，复用原有采样。
-- 新增按账号保存的重置记录，默认使用最新授予的有效机会，二次确认后才执行。
-- 重置请求防重复提交，结果不明时复用同一次操作重试；保留重置前已经观察到的今日消耗。
+- Open separate panels from weekly quota, daily usage, status counts, and the countdown. Task titles open the corresponding Codex task.
+- Group the daily list by status and show today's tokens; status lists show current or latest turn duration.
+- Add a 5h balance history using existing samples.
+- Store reset history per account. This version selects the newest valid credit and requires confirmation before use.
+- Prevent duplicate reset submissions, reuse the same request after uncertain results, and retain observed daily usage before a reset.
 
 ## 0.1.5
 
-- 从 Codex 等隔离宿主启动安装时，自动在系统环境中完成安装，避免自启动只在宿主内生效。
-- 两张悬浮卡与 Windows 任务栏上沿统一留出间距。
-- 补充当天 Token 跨零点及重启后增量计算的回归验证，用量口径不变。
+- Complete installation outside an isolated host when required, so startup registration works from Windows sign-in.
+- Add a consistent gap above the taskbar for both panels.
+- Add regression coverage for token increments across midnight and restarts; keep the existing measurement rules.
 
 ## 0.1.4
 
-- 首次公开发布，补充中文安装说明、界面预览和问题反馈入口。
-- 更新源迁移至 dicksick22046/codex-taskbar-companion。
+- First public release, with installation instructions, a preview, and an issue-reporting link.
+- Move updates to dicksick22046/codex-taskbar-companion.
 
 ## 0.1.3
 
-- 移除额度暂时读取失败时的调暗效果，保留原有显示。
+- Stop dimming metrics after a temporary quota read failure.
 
 ## 0.1.2
 
-- 修复短暂读取失败导致全部额度被清空的问题。
-- 额度与任务读取分别处理，暂时失败保留有效记录；过期窗口不沿用旧余额。
-- 增加读取失败来源记录，保持原有采集频率。
+- Avoid clearing all quotas after temporary read failures.
+- Handle quota and task reads separately. Retain valid records, but do not reuse a balance from an expired window.
+- Record which read failed without increasing polling frequency.
 
 ## 0.1.1
 
-- 修复从Codex启动与正常登录启动使用不同数据目录，导致当日额度消耗从零开始的问题。
-- 合并既有额度历史，统一持久化位置；重启保留当天基线。
-- 额度历史采用原子写入。
+- Fix different data directories being used when launched from Codex and from Windows sign-in.
+- Merge existing quota history into one persistent location and preserve the day's baseline after restarts.
+- Write quota history atomically.
 
-## 0.1.0 — 首版候选
+## 0.1.0 — Release candidate
 
-- Codex 额度与任务的单行状态条、独立用量和任务面板。
-- 自动识别周／5小时窗口，提供五项显示开关与托盘恢复入口。
-- 任务每日时长和Token、完成待读、明确停止／失败标记。
-- 每用户安装、开机启动、数据迁移与升级保留。
-- GitHub正式版本检查、下载校验和主动安装。
+- Add the single-row Codex taskbar strip and separate usage and task panels.
+- Detect weekly and 5-hour windows, with five display switches and access through the system tray.
+- Show daily task duration and tokens, unread results, and explicit stopped or failed states.
+- Add per-user installation, startup, data migration, and settings retention across updates.
+- Check GitHub releases, verify downloads, and install updates on request.
 
-完整实时错误捕获、macOS和多屏独立组件不在首版支持范围。
+Full real-time error capture, macOS, and independent widgets on multiple monitors are outside the initial support scope.

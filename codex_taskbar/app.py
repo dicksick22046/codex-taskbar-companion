@@ -357,8 +357,11 @@ class StatusBar(QWidget):
 
     def displayed_metrics(self):
         metrics=visible_metrics(self.data,self.settings)
-        if not self.settings.get('rotate_quotas'):return metrics
         choices=self.quota_choices()
+        labels={kind:value for kind,value,fraction in choices}
+        metrics=[(kind,self.label('Reset {time}',time=value) if kind=='clock' else labels[kind],fraction)
+                 for kind,value,fraction in metrics]
+        if not self.settings.get('rotate_quotas'):return metrics
         current=next((m for m in choices if m[0]==self.quota_kind),choices[0] if choices else None)
         return ([current] if current else [])+[m for m in metrics if m[0]=='clock']
 

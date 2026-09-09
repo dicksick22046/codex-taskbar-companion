@@ -281,7 +281,8 @@ class InteractionTests(unittest.TestCase):
             dialog=SettingsDialog(self.bar);self.bar.settings_dialog=dialog
             before={key:self.bar.settings.get(key) for key in app.DISPLAY_DEFAULTS}
             rotated=self.bar.rotated_at
-            for language,settings,no_project,side,category in [('zh-CN','设置…','无项目','侧聊','进行中'),('en','Settings…','No project','Side','Running')]:
+            for language,settings,no_project,side,category in [('zh-CN','设置…','无项目','侧聊','进行中'),('en','Settings…','No project','Side','Running'),
+                    ('ja','設定…','未所属','サイド','実行中'),('es','Ajustes…','Sin proyecto','Lateral','En curso')]:
                 dialog.language.setCurrentIndex(dialog.language.findData(language))
                 self.assertEqual(self.bar.settings['language'],language)
                 self.assertEqual(self.bar.menu.actions()[0].text(),settings)
@@ -304,7 +305,7 @@ class InteractionTests(unittest.TestCase):
         self.data['reset_events']=[{'kind':kind,'at':now-i*86400,'tokens':2036647183,'windows':['300','10080']}
                                    for i,kind in enumerate(('scheduled','manual','official'))]
         self.data['reset_credits']=[credit()]
-        for language in ('en','zh-CN'):
+        for language in app.LANGUAGES:
             self.bar.settings['language']=language
             for kind,key in ((app.TaskPopup,'This cycle · Tokens'),(app.SessionPopup,'Reset {time}'),(app.ResetPopup,'History · 100M')):
                 panel=kind(self.bar);panel.refresh(self.data)
@@ -326,7 +327,7 @@ class InteractionTests(unittest.TestCase):
         from codex_taskbar.settings_ui import SettingsDialog
         with patch('codex_taskbar.settings_ui.startup.enabled',return_value=False):
             dialog=SettingsDialog(self.bar);self.bar.settings_dialog=dialog
-            for language in ('en','zh-CN'):
+            for language in app.LANGUAGES:
                 self.bar.settings['language']=language
                 for result in ({'release':None},{'unpublished':True},{'error':'fixture'}, {'release':{'version':'9.9.9'}}):
                     with patch.object(self.bar.updater,'changed'),patch('builtins.print'):
@@ -454,6 +455,21 @@ class InteractionTests(unittest.TestCase):
             self.bar.quota_tween.setCurrentTime(460)
             self.assertIsNone(self.bar.quota_previous)
             self.assertEqual(self.bar.quota_kind,'spent')
+
+    def test_metric_labels_are_consistent_in_parallel_and_rotation_modes(self):
+        for language,week,today,reset in [('en','Week','Today','Reset'),('zh-CN','本周','今日','重置')]:
+            self.bar.settings.update(language=language,rotate_quotas=False)
+            parallel={kind:value for kind,value,fraction in self.bar.displayed_metrics()}
+            self.assertEqual(parallel['quota'],week+' 70%')
+            self.assertEqual(parallel['spent'],today+' 12%')
+            self.assertEqual(parallel['session'],'5h 60%')
+            self.assertTrue(parallel['clock'].startswith(reset+' '))
+            self.bar.settings['rotate_quotas']=True
+            for kind in ('quota','spent','session'):
+                self.bar.quota_kind=kind
+                rotated={key:value for key,value,fraction in self.bar.displayed_metrics()}
+                self.assertEqual(rotated[kind],parallel[kind])
+                self.assertEqual(rotated['clock'],parallel['clock'])
 
     def test_press_during_transition_returns_smoothly_to_visible_item(self):
         self.bar.settings['rotate_quotas']=True

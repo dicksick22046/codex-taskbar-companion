@@ -1,13 +1,14 @@
 """Application copy only; project names and task titles remain user content."""
 
-LANGUAGES = ('en', 'zh-CN')
+LANGUAGE_NAMES = (('en','English'),('zh-CN','简体中文'),('ja','日本語'),('es','Español'))
+LANGUAGES = tuple(code for code,name in LANGUAGE_NAMES)
 COPY = {
     'Settings': '设置', 'Settings…': '设置…', 'Quit': '退出',
     'Language': '语言', 'Display': '显示',
-    'Weekly quota': '周额度', '5-hour quota': '5 小时额度',
+    'Weekly quota': '本周额度', '5-hour quota': '5 小时额度',
     'Reset countdown': '重置倒计时', 'Daily quota usage': '今日额度消耗',
     'Task rotation and counts': '任务轮播与计数',
-    'Rotate quota display': '轮换显示额度', 'Week': '周', 'Today': '今日',
+    'Rotate quota display': '轮换显示额度', 'Week': '本周', 'Today': '今日',
     'Open panels on hover': '悬停打开面板', 'Start at Windows sign-in': '登录 Windows 后启动',
     'Showing the last available quota.': '当前显示上次有效额度。',
     'Quota unavailable. Try again later.': '暂时无法读取额度，请稍后再试。',
@@ -36,9 +37,77 @@ COPY = {
     'Version {version} is available. Update from Settings.': '新版本 {version} 可用，可从设置更新。',
 }
 
+TRANSLATIONS = {'zh-CN': COPY, 'ja': {
+    'Settings': '設定', 'Settings…': '設定…', 'Quit': '終了',
+    'Language': '言語', 'Display': '表示',
+    'Weekly quota': '週の利用枠', '5-hour quota': '5時間の利用枠',
+    'Reset countdown': 'リセットまでの時間', 'Daily quota usage': '今日の利用枠消費',
+    'Task rotation and counts': 'タスクの切り替えと件数',
+    'Rotate quota display': '利用枠を順番に表示', 'Week': '今週', 'Today': '今日',
+    'Open panels on hover': 'マウスを重ねてパネルを開く', 'Start at Windows sign-in': 'Windowsへのログイン時に起動',
+    'Showing the last available quota.': '最後に取得した利用枠を表示しています。',
+    'Quota unavailable. Try again later.': '利用枠を取得できません。しばらくしてからお試しください。',
+    'Some data is unavailable. Showing the last available records.': '一部のデータを取得できないため、前回の記録を表示しています。',
+    'Connecting to Codex…': 'Codexに接続中…',
+    'Not enough taskbar space. Settings are available in the system tray.': 'タスクバーの空きが不足しています。設定はシステムトレイから開けます。',
+    'Settings remain available in the system tray when all displays are off.': 'すべて非表示にしても、システムトレイから設定を開けます。',
+    'No project': '未所属', 'Side': 'サイド',
+    'Running': '実行中', 'Unread': '未読', 'Failed': '失敗', 'Stopped': '停止', 'Recent': 'その他',
+    'Usage': '使用量', 'Tasks': 'タスク一覧',
+    'Today · Tokens': '今日 · Token', 'This cycle · Tokens': '現在の期間 · Token',
+    '{value}% remaining': '残り {value}%', 'Reset {time}': 'リセット {time}',
+    'Reset quota': '利用枠をリセット', 'Resetting…': 'リセット中…', 'Retry reset': 'リセットを再試行',
+    'Nothing to reset': 'リセットは不要です', 'Scheduled': '定期', 'Manual': '手動', 'Official': '公式',
+    'Next reset': '次のリセット', 'History · 100M': '履歴 · 100M', 'No records yet': '記録はありません',
+    'Expires': '有効期限', '{count} available': '残り{count}回', 'Default': '既定', 'No credits': '利用可能な権利なし',
+    'Continue the reset request with an unconfirmed result?': '結果が未確認のリセットを再試行しますか？',
+    'Use one quota reset credit?': 'リセット権を1回使用しますか？',
+    'Not provided': '情報なし', 'Credit expires: {time}': '有効期限：{time}',
+    'Cancel': 'キャンセル', 'Confirm reset': 'リセットする',
+    'Check for updates': '更新を確認', 'Release repository not configured': '更新先が設定されていません',
+    'Checking for updates…': '更新を確認中…', 'Downloading update…': '更新をダウンロード中…',
+    'Update ready': '更新の準備ができました', 'No release available yet': '更新版はまだ公開されていません',
+    'Unable to check for updates': '更新を確認できません', 'Up to date': '最新版です',
+    'Update to {version}': '{version}に更新',
+    'Version {version} is available. Update from Settings.': 'バージョン{version}が公開されました。設定から更新できます。',
+}, 'es': {
+    'Settings': 'Ajustes', 'Settings…': 'Ajustes…', 'Quit': 'Salir',
+    'Language': 'Idioma', 'Display': 'Visualización',
+    'Weekly quota': 'Cuota semanal', '5-hour quota': 'Cuota de 5 horas',
+    'Reset countdown': 'Cuenta atrás del reinicio', 'Daily quota usage': 'Consumo de cuota de hoy',
+    'Task rotation and counts': 'Rotación y recuento de tareas',
+    'Rotate quota display': 'Alternar cuotas', 'Week': 'Semana', 'Today': 'Hoy',
+    'Open panels on hover': 'Abrir paneles al pasar el cursor', 'Start at Windows sign-in': 'Iniciar al entrar en Windows',
+    'Showing the last available quota.': 'Se muestra la última cuota disponible.',
+    'Quota unavailable. Try again later.': 'No se puede consultar la cuota. Inténtalo más tarde.',
+    'Some data is unavailable. Showing the last available records.': 'Faltan algunos datos. Se muestran los últimos registros disponibles.',
+    'Connecting to Codex…': 'Conectando con Codex…',
+    'Not enough taskbar space. Settings are available in the system tray.': 'No hay espacio en la barra. Abre los ajustes desde la bandeja del sistema.',
+    'Settings remain available in the system tray when all displays are off.': 'Puedes abrir los ajustes desde la bandeja aunque ocultes todos los indicadores.',
+    'No project': 'Sin proyecto', 'Side': 'Lateral',
+    'Running': 'En curso', 'Unread': 'Sin leer', 'Failed': 'Con errores', 'Stopped': 'Detenidas', 'Recent': 'Otras de hoy',
+    'Usage': 'Consumo', 'Tasks': 'Tareas',
+    'Today · Tokens': 'Hoy · Tokens', 'This cycle · Tokens': 'Ciclo actual · Tokens',
+    '{value}% remaining': '{value}% disponible', 'Reset {time}': 'Reinicio {time}',
+    'Reset quota': 'Restablecer cuota', 'Resetting…': 'Restableciendo…', 'Retry reset': 'Reintentar reinicio',
+    'Nothing to reset': 'No hace falta restablecer', 'Scheduled': 'Programado', 'Manual': 'Manual', 'Official': 'Oficial',
+    'Next reset': 'Próximo reinicio', 'History · 100M': 'Historial · 100M', 'No records yet': 'Sin registros',
+    'Expires': 'Caducidad', '{count} available': '{count} disponibles', 'Default': 'Por defecto', 'No credits': 'Sin créditos',
+    'Continue the reset request with an unconfirmed result?': '¿Reintentar el reinicio cuyo resultado no se ha confirmado?',
+    'Use one quota reset credit?': '¿Usar un crédito para restablecer la cuota?',
+    'Not provided': 'Sin información', 'Credit expires: {time}': 'El crédito caduca: {time}',
+    'Cancel': 'Cancelar', 'Confirm reset': 'Confirmar reinicio',
+    'Check for updates': 'Buscar actualizaciones', 'Release repository not configured': 'Repositorio de versiones sin configurar',
+    'Checking for updates…': 'Buscando actualizaciones…', 'Downloading update…': 'Descargando actualización…',
+    'Update ready': 'Actualización lista', 'No release available yet': 'Aún no hay una versión disponible',
+    'Unable to check for updates': 'No se pueden buscar actualizaciones', 'Up to date': 'Está actualizado',
+    'Update to {version}': 'Actualizar a {version}',
+    'Version {version} is available. Update from Settings.': 'La versión {version} está disponible. Actualiza desde Ajustes.',
+}}
+
 
 def translate(language, key, **values):
-    return (COPY[key] if language == 'zh-CN' else key).format(**values)
+    return (TRANSLATIONS[language][key] if language in TRANSLATIONS else key).format(**values)
 
 
 def project_label(value, language):

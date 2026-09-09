@@ -1,78 +1,58 @@
 # Codex Taskbar Companion
 
-把 Codex 的额度和任务，放到 Windows 任务栏的一角。
+**English** · [简体中文](docs/i18n/README.zh-CN.md) · [日本語](docs/i18n/README.ja.md) · [Español](docs/i18n/README.es.md)
 
-写着代码，瞄一眼：额度还剩多少，什么时候重置，另一个任务跑完了没。需要细看时点一下，平时就让它安静待着。
+Shows Codex quota, token usage, and task status in the Windows 11 taskbar.
 
-[下载安装](https://github.com/dicksick22046/codex-taskbar-companion/releases/latest) · [反馈问题](https://github.com/dicksick22046/codex-taskbar-companion/issues) · [更新记录](CHANGELOG.md)
+[Download](https://github.com/dicksick22046/codex-taskbar-companion/releases/latest) · [Report an issue](https://github.com/dicksick22046/codex-taskbar-companion/issues) · [Changelog](CHANGELOG.md)
 
-![状态条与任务面板预览](docs/images/preview.png)
+![Taskbar and task panel](docs/images/preview.png)
 
-*由真实界面代码绘制，图中任务和数值为演示数据。*
+*Preview with sample tasks and usage data.*
 
-## 一眼能看到什么
+## Install
 
-左边是额度：周剩余额度、今日消耗、距离重置还有多久。账户接口提供 5 小时额度时，会自动多显示一项，各项都能在设置里关闭。
+Requires **Windows 11 x64** and the **Codex desktop app**, installed and signed in.
 
-右边是任务：进行中的任务缓慢轮播，绿色圆点呼吸；完成但还没查看的任务，用橙色圆点提醒。长标题平时省略，鼠标移上去后滚动显示，同时暂停任务轮播。
+1. Download `CodexTaskbarCompanion-<version>-Setup-x64.exe` from [Releases](https://github.com/dicksick22046/codex-taskbar-companion/releases/latest).
+2. Run the installer, then start the app. Python, Qt, and fonts are included. Administrator access is not required.
+3. Right-click the strip to open Settings. Choose which items to show and whether to start at sign-in.
 
-侧边聊天在运行时，所属任务也会显示进行中，并带上 Side 小标签；同一任务只计一次。
+The strip sits on the left of the primary taskbar. If there is not enough space, open Settings from the system tray. Updates are checked on GitHub; installation starts only when you choose it.
 
-- **点周额度**，看本周期每天的 Token 用量和合计，支持百万与亿切换。
-- **点 5h 额度**，看短周期剩余、恢复时间和已记录的额度走势；没有采样的部分留空。
-- **点日额度**，看按状态分组的今日任务 Token 消耗。
-- **点状态圆点和数量**，只看这一类任务及本轮耗时；点列表中的任务即可跳转。
-- **点滚动任务标题**，直接回到当前显示的任务，按下时就固定目标。
-- **点剩余时间**，看重置记录、各历史阶段已收录的 Token 用量，以及全部可用机会的到期时间。默认用最早到期的一次，二次确认后才使用。
-- **右键**，打开设置或退出。开机启动、显示开关和检查更新都在设置里。
+## Use
 
-偏好少点几次鼠标，可以在设置里开启“悬停打开面板”。停留片刻打开，移入面板继续查看，移开后自动收起；滚动任务标题仍需点击才跳转。
+| Click | Opens |
+| --- | --- |
+| Weekly quota | Daily token usage for the current quota cycle |
+| Daily quota usage | Today's token usage by task and status |
+| 5h quota, when available | Remaining quota, reset time, and recorded balance history |
+| Reset countdown | Reset history and available reset credits |
+| Status dot and count | Tasks in that state, with the current or latest turn's duration |
+| Task title | That task in Codex |
 
-开发版支持英文与简体中文：右键 **Settings… → Language** 切换，立即生效并记住选择。默认英文；项目名和任务名保留原文。该功能随下一批正式版本发布。
+Running tasks rotate in the strip. Hovering pauses rotation and scrolls long titles. Unread results, stopped tasks, and failed tasks have separate indicators. An active side chat marks its parent task as running; the parent is counted once.
 
-开发版还可开启 **Rotate quota display / 轮换显示额度**：周剩余、今日消耗和5h共用一个位置，每8秒切换，倒计时固定。鼠标移入或打开额度面板时暂停，点击查看当前项；默认保持并排。
+Settings include English, Simplified Chinese, Japanese, and Spanish UI selection, optional hover-to-open panels, and optional quota rotation. With rotation enabled, weekly, daily, and 5h metrics share one position; the countdown stays visible.
 
-## 装上就能用
+## About the numbers
 
-目前面向 **Windows 11 x64 + 已安装并登录的 Codex 桌面版**，显示在底部主任务栏左侧。建议先打开一次 Codex，再启动本工具。
+- Quota percentages come from the account. Tokens come from task logs on this computer. Token totals cannot be converted into an exact quota percentage or subscription cost.
+- Daily quota usage starts at the day's first available reading. Restarting preserves it. Earlier usage is not reconstructed; a reset during the day is handled as a separate interval.
+- The daily task list includes today's turns. Status panels show the current or latest turn's duration, including time waiting for tools.
+- Historical token totals cover locally recorded tasks. Other devices and temporary side chats without saved usage are excluded.
 
-1. 到 [Releases](https://github.com/dicksick22046/codex-taskbar-companion/releases/latest) 下载 `CodexTaskbarCompanion-版本号-Setup-x64.exe`。
-2. 安装后启动。安装包带有 Python、Qt 和字体，不用自己配环境，也不需要管理员权限。
-3. 在设置里留下你想看的几项。开机启动也可以在这里关闭。
+Reset history uses **Scheduled** for an observed natural rollover, **Manual** for a reset confirmed through this tool, and **Official** for other observed recoveries. Official is an inferred category, not a verified statement from OpenAI. Using a reset credit requires confirmation and consumes a real credit.
 
-从 Codex 等隔离环境代为安装时，安装包会自动交给 Windows 完成系统登记，不需要你额外设置。这个处理只在安装期间运行，结束后清理临时任务。
+## Data and limitations
 
-如果左侧空间不足，或你把所有显示都关了，组件会收起到系统托盘。从托盘，或从开始菜单再次打开，都能找到设置。
+Settings, task names, and usage records are stored in `%USERPROFILE%/.codex-taskbar-companion`. Updates and uninstalling retain this directory. The app does not store conversation text or account credentials and has no telemetry. Remove private information from screenshots and logs before posting them.
 
-这是早期版本，目前在 Windows 11 上做过本机安装、升级和交互验证。Windows 10、macOS、多屏独立状态条、第三方任务栏暂未验证。安装包尚未代码签名，Windows 可能显示发布者未知。
+This is an early Windows 11 release. Windows 10, macOS, separate widgets on multiple monitors, and third-party taskbars have not been validated. The installer is not code-signed. Side-chat detection depends on Codex desktop logs, so changes to those logs may require an update. Temporary read failures retain valid data; not every transient Codex error can be detected.
 
-## 数字怎么算
+## Development
 
-**额度来自账户，Token 来自本机日志。** 两者口径不同，不能拿 Token 换算订阅额度，更不是美元账单。
-
-今日额度以当天第一条可用额度记录为起点。如果你下午才第一次打开，它从那一刻开始算，之前用掉的不会补猜。重启保留已有记录，跨日重新取当天基线；周额度在当天重置时，分段累计。
-
-日列表显示的是**今天累计**的 Token，包含今天的多轮运行。状态列表显示当前一轮已经运行多久，或最近一轮的实际耗时，包含工具等待。缺少开始或结束记录时保留未知。任务列表覆盖今天有活动记录的任务，单纯打开看过的任务不一定在里面。
-
-重置记录按账号保存。自然到期标为 Scheduled，确认手动成功标为 Manual；其余已观察到的额度恢复按排除规则归为 Official，这是工具的推定分类，不是官方公告认证。赠送一次机会不代表已经重置额度。
-
-历史阶段按已记录的重置时刻划分，统计本机已收录任务的 Token；不包含其他设备和没有持久化用量的临时会话。侧边聊天状态只读 Codex 桌面日志，关闭 Codex 后不保留临时运行态。
-
-短暂读取失败时，保留尚未过期的数据和原有显示，后台继续重试。停止、失败只按能读到的明确记录显示，无法捕获 Codex 的所有瞬时网络错误。Codex 的接口和本地日志格式变化，也可能需要本工具跟着更新。
-
-## 数据留在哪里
-
-设置、额度历史和本机状态记录保存在 `%USERPROFILE%/.codex-taskbar-companion`。升级和卸载默认保留，重新安装可以继续用。
-
-工具读取本机 Codex 接口与日志，不发送对话、不创建任务，不保存对话正文或账号凭据，也没有遥测。任务标题、项目名称、用量等状态会保存在本机；反馈问题时，请先检查日志或截图是否包含你不想公开的信息。
-
-额度重置是唯一需要你二次确认的账户操作，会真正消耗一次可用机会。请求结果不明时保留原操作标识，确认重试也不会换一张机会重新扣除；程序启动或后台刷新不会自动使用重置机会。
-
-更新检查访问本项目的 GitHub Releases。发现新版本会提醒，由你选择安装，更新前校验下载文件的 SHA-256。
-
-## 想自己改
-
-准备 Python 3.12 和 Inno Setup。下面用 `uv` 创建开发环境：
+Use Python 3.12. Packaging also requires Inno Setup.
 
 ```powershell
 uv venv --python 3.12 .venv
@@ -82,22 +62,12 @@ uv pip install --python .venv/Scripts/python.exe -r requirements-build.txt
 ./scripts/package.ps1 -Compiler 'C:/Path/To/Inno Setup/ISCC.exe'
 ```
 
-如果安装版已经在运行，先退出再启动源码版；重复启动会打开已有实例的设置。构建产物在 `dist/` 和 `release/`，版本号统一在 `codex_taskbar/build_info.py` 维护。
+Exit the installed app before running from source; a second launch opens the existing instance's settings. Build outputs go to `dist/` and `release/`. Version information is in `codex_taskbar/build_info.py`.
 
-```text
-codex_taskbar/   应用源码
-tests/          回归测试
-scripts/        构建脚本
-installer/      Windows 安装器
-assets/         字体与第三方许可
-docs/           架构、规范与发布说明
-app.py          启动入口
-```
+To preview the 5h panel without an eligible account, run `./scripts/preview-session.ps1`. It uses sample data in a separate window and does not change your account or settings.
 
-开发前可先看[架构说明](docs/architecture.md)和[交互规范](docs/specs/interaction.md)。本地环境、日志、截图和构建产物均不进入 Git。
+Implementation notes: [architecture](docs/architecture.md) and [interaction specification](docs/specs/interaction.md), currently in Chinese.
 
-账号没有5小时额度时，也可以单独预览对应按钮和面板：运行 `./scripts/preview-session.ps1`，在标有“模拟数据”的独立窗口里点击5h按钮。它复用正式控件，不读取账号、不修改设置，也不替换正在运行的状态条。需要测试悬停时，用 `.venv/Scripts/pythonw.exe scripts/preview_session.py --hover` 启动。
+## License
 
-发现问题，欢迎提 [Issue](https://github.com/dicksick22046/codex-taskbar-companion/issues)。带上工具版本、Windows 版本、复现步骤；界面问题附一张处理过隐私信息的截图，会更容易定位。
-
-源代码采用 [MIT 许可](LICENSE)，字体与第三方库保留各自许可，见 [第三方说明](THIRD_PARTY.md)。这是独立社区工具，与 OpenAI 没有隶属关系。
+[MIT](LICENSE). Fonts and dependencies retain their own licenses; see [Third-party components](THIRD_PARTY.md). This is an independent community project, not affiliated with OpenAI.

@@ -77,6 +77,14 @@ class ResetTests(unittest.TestCase):
         self.assertEqual([e['kind'] for e in events],['scheduled'])
         self.assertEqual(events[0]['before']['10080']['resets_at'],1000)
 
+    def test_history_is_newest_first_even_when_records_were_added_out_of_order(self):
+        self.ledger.observe(response(),100)
+        records=[{'id':str(at),'at':at,'kind':'scheduled','windows':['10080']} for at in (300,100,200)]
+        self.ledger.record['events']=records
+        self.assertEqual([e['at'] for e in self.ledger.view()['reset_events']],[300,200,100])
+        self.assertEqual([e['at'] for e in records],[300,100,200])
+        self.assertEqual(self.ledger.periods(),(('200',100,200),('300',200,300)))
+
     def test_scheduled_and_official_changes_are_distinct(self):
         first=response(reset=1000)
         self.ledger.observe(first,100)
