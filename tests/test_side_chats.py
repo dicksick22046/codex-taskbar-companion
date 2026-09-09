@@ -37,7 +37,8 @@ class SideChatTests(unittest.TestCase):
             self.assertEqual(self.reader.update([{'id':'main'}]),rows)
             with self.log.open('a',encoding='utf-8') as f:
                 f.write('1970-01-01T00:02:00+00:00 info [electron-message-handler] [desktop-notifications] show turn-complete conversationId=side turnId=turn\n')
-            self.assertFalse(self.reader.update([{'id':'main'}])[0]['running'])
+            completed=self.reader.update([{'id':'main'}])[0]
+            self.assertFalse(completed['running']);self.assertEqual(completed['completion_kind'],'task_complete')
             with self.log.open('a',encoding='utf-8') as f:f.write(self.response(130,'side','turn/start','again'))
             self.assertEqual(self.reader.update([{'id':'main'}])[0]['started_at'],130)
 
@@ -54,6 +55,7 @@ class SideChatTests(unittest.TestCase):
             self.assertTrue(self.reader.update([{'id':'main'}])[0]['running'])
             with self.log.open('a',encoding='utf-8') as f:f.write('\n')
             self.assertFalse(self.reader.update([{'id':'main'}])[0]['running'])
+            self.assertEqual(self.reader.update([{'id':'main'}])[0]['completion_kind'],'turn_aborted')
 
     def test_restart_retains_confirmed_link_after_core_logs_are_pruned(self):
         cache=self.root/'links.json'
@@ -67,6 +69,7 @@ class SideChatTests(unittest.TestCase):
                 f.write('1970-01-01T00:02:00+00:00 info [electron-message-handler] [desktop-notifications] show turn-complete conversationId=side turnId=turn\n')
             restarted=SideChats(self.root,self.core,self.state,cache)
             self.assertFalse(restarted.update([{'id':'main'}])[0]['running'])
+            self.assertEqual(restarted.update([{'id':'main'}])[0]['completion_kind'],'task_complete')
             self.assertNotIn('running',cache.read_text())
 
     def test_new_desktop_session_does_not_reuse_cached_links(self):

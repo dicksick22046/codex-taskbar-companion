@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Include completed side chats in their parent task's unread status, using Codex's child-session unread IDs.
+- Show each reset event's quota window even when the current account has only one window.
 - Put the usage label and unit on each reset-history row, separate it from the category, and use blue category text.
 ## 0.3.1
 

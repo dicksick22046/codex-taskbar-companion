@@ -83,6 +83,7 @@ class SideChats:
                 previous=self.states.get(thread)
                 if previous and previous['activity_at']>=at:continue
                 self.states[thread]={'id':thread,'running':kind=='turn/start',
+                    'completion_kind':'task_complete' if kind=='complete' else 'turn_aborted' if kind=='turn/interrupt' else None,
                     'started_at':at if kind=='turn/start' else (previous or {}).get('started_at'),
                     'ended_at':None if kind=='turn/start' else at,'activity_at':at}
         if self.forks and self.core_db.exists() and self.state_db.exists():

@@ -288,6 +288,15 @@ class InteractionTests(unittest.TestCase):
             self.assertGreater(panel.history_divider,panel.token_right)
             panel.close();panel.deleteLater()
 
+    def test_history_window_labels_depend_on_event_not_current_account_windows(self):
+        panel=app.ResetPopup(self.bar)
+        for quotas in ([],self.data['quota'][:1],self.data['quota']):
+            panel.refresh({**self.data,'quota':quotas})
+            self.assertEqual(panel.history_label({'kind':'official','windows':['10080']}),'Official · 7d')
+            self.assertEqual(panel.history_label({'kind':'scheduled','windows':['300','10080']}),'Scheduled · 5h + 7d')
+            self.assertEqual(panel.history_label({'kind':'manual','windows':[]}),'Manual')
+        panel.close();panel.deleteLater()
+
     def test_language_switch_updates_open_settings_menu_and_panel_without_side_effects(self):
         from codex_taskbar.settings_ui import SettingsDialog
         self.data['tasks'][0].update(project='',side_chat=True,title='原任务标题')

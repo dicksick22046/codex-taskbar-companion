@@ -883,9 +883,8 @@ class ResetPopup(TaskPopup):
     def history_label(self,row):
         label={'scheduled':'Scheduled','manual':'Manual','official':'Official'}.get(row['kind'],'')
         if label:label=self.owner.label(label)
-        if len(self.data.get('quota',[]))>1:
-            windows_text=' + '.join({'300':'5h','10080':'7d'}.get(k,k+'m') for k in row.get('windows',[]))
-            label=' · '.join(part for part in (label,windows_text) if part)
+        windows_text=' + '.join({'300':'5h','10080':'7d'}.get(k,k+'m') for k in row.get('windows',[]))
+        label=' · '.join(part for part in (label,windows_text) if part)
         return label
 
     def paintEvent(self,event):

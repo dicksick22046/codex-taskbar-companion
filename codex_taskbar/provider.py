@@ -125,6 +125,20 @@ class Provider:
                                          and thread['id'] in unread_ids) if unread_ids is not None else None}
             sides=[s for s in getattr(self,'side_rows',[]) if s['parent_id']==thread['id']]
             active=[s for s in sides if s['running']]
+            unread_sides=[s for s in sides if s.get('completion_kind')=='task_complete'
+                          and unread_ids is not None and s['id'] in unread_ids]
+            if unread_sides:
+                task['side_chat']=True
+                latest=max(unread_sides,key=lambda s:s['activity_at'])
+                primary_at=datetime.fromisoformat(task['activity_at']).timestamp() if task['activity_at'] else 0
+                if not running and (latest['activity_at']>=primary_at or status=='idle'):
+                    use_side_time=not task['unread'] or latest['activity_at']>=primary_at
+                    task.update(unread=True,status='idle')
+                    if use_side_time:
+                        start,end=latest.get('started_at'),latest.get('ended_at')
+                        task['started_at']=datetime.fromtimestamp(start).astimezone().isoformat() if start is not None else None
+                        task['ended_at']=datetime.fromtimestamp(end).astimezone().isoformat() if end is not None else None
+                        task['round_seconds']=max(0,int(end-start)) if start is not None and end is not None else None
             if sides:
                 task['activity_at']=max([task['activity_at'] or '']+[datetime.fromtimestamp(s['activity_at']).astimezone().isoformat() for s in sides])
             if active:
