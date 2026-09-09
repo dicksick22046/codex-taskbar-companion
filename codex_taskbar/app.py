@@ -852,10 +852,15 @@ class ResetPopup(TaskPopup):
         self.credits_top=76+self.history_height+26
         height=self.credits_top+24+26*max(1,len(self.credits))+46
         self.full_height=height
-        self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-height),self.WIDTH,height)
-        self.button.setGeometry(18,height-48,self.width()-36,32)
         source_width=max([QFontMetricsF(face(7)).horizontalAdvance(self.history_label(row)) for row in self.rows]+[0])
-        self.token_right=self.width()-18-source_width-14
+        metrics=QFontMetricsF(face(8))
+        date_width=max([metrics.horizontalAdvance(datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M')) for row in self.rows]+[0])
+        usage_width=max([metrics.horizontalAdvance(self.history_usage(row)) for row in self.rows]+[0])
+        width=max(self.WIDTH,math.ceil(18+date_width+16+usage_width+24+source_width+18))
+        self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-height),width,height)
+        self.button.setGeometry(18,height-48,self.width()-36,32)
+        self.history_divider=self.width()-18-source_width-12
+        self.token_right=self.history_divider-12
         credit=data.get('reset_selected')
         eligible=bool(credit and data.get('reset_account'))
         if credit and not data.get('reset_retry') and credit.get('expiresAt') is not None:eligible=eligible and credit['expiresAt']>time.time()
@@ -864,6 +869,16 @@ class ResetPopup(TaskPopup):
         self.button.setText(self.owner.label(label))
         self.scroll=min(self.scroll,max(0,len(self.rows)*26-self.history_height))
         self.update()
+
+    def history_usage(self,row):
+        tokens=row.get('tokens')
+        if tokens is None:value='—'
+        elif self.owner.language in ('zh-CN','ja'):
+            value=chart_number(tokens,'100M')+(' 亿' if self.owner.language=='zh-CN' else ' 億')
+        elif tokens>=1_000_000_000:
+            value=f'{tokens/1_000_000_000:.3f}'.rstrip('0').rstrip('.')+'B'
+        else:value=chart_number(tokens,'M')+'M'
+        return self.owner.label('Tokens')+' '+value
 
     def history_label(self,row):
         label={'scheduled':'Scheduled','manual':'Manual','official':'Official'}.get(row['kind'],'')
@@ -884,16 +899,18 @@ class ResetPopup(TaskPopup):
         text(p,18,23,self.owner.label('Next reset'),face(8),'#94a2b3')
         value=datetime.fromtimestamp(window['resets_at']).strftime('%m.%d %H:%M') if window and window.get('resets_at') else '—'
         right_label(value,23,BLUE);divider(44)
-        text(p,18,64,self.owner.label('History · 100M'),face(8),'#94a2b3')
+        text(p,18,64,self.owner.label('History'),face(8),'#94a2b3')
         p.save();p.setClipRect(QRectF(18,76,self.width()-36,self.history_height))
         if not self.rows:text(p,18,89,self.owner.label('No records yet'),face(8),'#94a2b3')
         for i,row in enumerate(self.rows):
             y=89+i*26-self.scroll
             text(p,18,y,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),face(8),MUTED)
-            total=chart_number(row.get('tokens'),'100M')
+            total=self.history_usage(row)
             text(p,self.token_right-QFontMetricsF(face(8)).horizontalAdvance(total),y,total,face(8),MUTED)
             label=self.history_label(row)
-            if label:right_label(label,y,'#94a2b3',face(7))
+            if label:
+                pen(p,'#53606d',.6);p.drawLine(QPointF(self.history_divider,y-5),QPointF(self.history_divider,y+5))
+                right_label(label,y,BLUE,face(7))
         p.restore()
         divider(self.credits_top-20)
         count=self.data.get('reset_available');credit=self.data.get('reset_selected')

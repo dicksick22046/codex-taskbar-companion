@@ -265,13 +265,28 @@ class InteractionTests(unittest.TestCase):
     def test_compact_reset_columns_fit_two_quota_windows(self):
         self.data['reset_events']=[{'kind':'scheduled','at':datetime.now().timestamp(),'tokens':2036647183,'windows':['300','10080']}]
         panel=app.ResetPopup(self.bar);panel.refresh(self.data)
-        self.assertEqual(panel.width(),300)
-        self.assertEqual(panel.button.geometry().width(),264)
+        self.assertGreaterEqual(panel.width(),300)
+        self.assertEqual(panel.button.geometry().width(),panel.width()-36)
         metrics=app.QFontMetricsF(app.face(8))
-        number_left=panel.token_right-metrics.horizontalAdvance('20.37')
+        number_left=panel.token_right-metrics.horizontalAdvance(panel.history_usage(self.data['reset_events'][0]))
         date_right=18+metrics.horizontalAdvance(datetime.now().strftime('%m.%d %H:%M'))
         self.assertGreaterEqual(number_left-date_right,12)
         panel.close();panel.deleteLater()
+
+    def test_history_rows_identify_usage_and_units_and_use_blue_categories(self):
+        self.data['reset_events']=[{'kind':'scheduled','at':datetime.now().timestamp(),'tokens':2036647183,'windows':['10080']}]
+        for language,expected in [('en','Tokens 2.037B'),('zh-CN','用量 20.37 亿'),('ja','使用量 20.37 億'),('es','Tokens 2.037B')]:
+            self.bar.settings['language']=language
+            panel=app.ResetPopup(self.bar);panel.refresh(self.data)
+            with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
+            labels=[call.args[3] for call in draw.call_args_list]
+            self.assertIn(expected,labels);self.assertIn(self.bar.label('History'),labels)
+            self.assertFalse(any('100M' in value for value in labels))
+            category=next(call for call in draw.call_args_list if call.args[3]==panel.history_label(self.data['reset_events'][0]))
+            self.assertEqual(category.args[5],app.BLUE)
+            self.assertEqual(panel.history_usage({'tokens':None}),self.bar.label('Tokens')+' —')
+            self.assertGreater(panel.history_divider,panel.token_right)
+            panel.close();panel.deleteLater()
 
     def test_language_switch_updates_open_settings_menu_and_panel_without_side_effects(self):
         from codex_taskbar.settings_ui import SettingsDialog
@@ -307,7 +322,7 @@ class InteractionTests(unittest.TestCase):
         self.data['reset_credits']=[credit()]
         for language in app.LANGUAGES:
             self.bar.settings['language']=language
-            for kind,key in ((app.TaskPopup,'This cycle · Tokens'),(app.SessionPopup,'Reset {time}'),(app.ResetPopup,'History · 100M')):
+            for kind,key in ((app.TaskPopup,'This cycle · Tokens'),(app.SessionPopup,'Reset {time}'),(app.ResetPopup,'History')):
                 panel=kind(self.bar);panel.refresh(self.data)
                 with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
                 labels=[c.args[3] for c in draw.call_args_list]
@@ -318,7 +333,7 @@ class InteractionTests(unittest.TestCase):
                 if kind is app.ResetPopup:
                     self.assertEqual(panel.button.text(),self.bar.label('Reset quota'))
                     date_right=18+app.QFontMetricsF(app.face(8)).horizontalAdvance(datetime.now().strftime('%m.%d %H:%M'))
-                    self.assertGreaterEqual(panel.token_right-app.QFontMetricsF(app.face(8)).horizontalAdvance('20.37')-date_right,12)
+                    self.assertGreaterEqual(panel.token_right-app.QFontMetricsF(app.face(8)).horizontalAdvance(panel.history_usage(self.data['reset_events'][0]))-date_right,12)
                 panel.close();panel.deleteLater()
             self.dialog(False)
         self.provider.request_reset.assert_not_called()

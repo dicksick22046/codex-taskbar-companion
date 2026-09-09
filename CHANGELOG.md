@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- Put the usage label and unit on each reset-history row, separate it from the category, and use blue category text.
 ## 0.3.1
 
 - Correct reset history to chronological order: older events first (September 7 above September 8).
