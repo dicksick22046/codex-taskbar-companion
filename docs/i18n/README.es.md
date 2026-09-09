@@ -33,7 +33,7 @@ Se coloca a la izquierda de la barra de tareas principal. Si no hay espacio, pue
 
 Las tareas en curso se alternan en la barra. Al pasar el ratón, la rotación se detiene y los nombres largos se desplazan. Los resultados sin leer, las tareas detenidas y los fallos tienen indicadores separados. Un chat lateral activo cuenta como actividad de su tarea principal, sin duplicarla.
 
-En los ajustes puedes elegir inglés, chino simplificado, japonés o español, abrir paneles al pasar el ratón y activar la rotación de cuotas. En este modo, los indicadores semanal, diario y de 5h comparten una posición; la cuenta atrás permanece visible.
+En los ajustes puedes elegir inglés, chino simplificado, japonés o español, abrir paneles al pasar el ratón y activar la rotación de cuotas. En este modo, todos los indicadores activados de la izquierda, incluida la cuenta atrás, comparten una posición de ancho fijo.
 
 ## Qué significan los datos
 

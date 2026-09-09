@@ -347,26 +347,26 @@ class StatusBar(QWidget):
         self.save_settings();self.hide_popup(immediate=True);self.tick()
 
     def quota_choices(self):
-        metrics={kind:(value,fraction) for kind,value,fraction in visible_metrics(self.data,self.settings) if kind!='clock'}
+        metrics={kind:(value,fraction) for kind,value,fraction in visible_metrics(self.data,self.settings)}
         result=[]
-        for kind,title in (('quota',self.label('Week')),('spent',self.label('Today')),('session','5h')):
+        for kind,title in (('quota',self.label('Week')),('spent',self.label('Today')),('session','5h'),('clock',None)):
             if kind in metrics:
                 value,fraction=metrics[kind]
-                result.append((kind,title+' '+value.removeprefix('7d ').removeprefix('5h '),fraction))
+                label=self.label('Reset {time}',time=value) if kind=='clock' else title+' '+value.removeprefix('7d ').removeprefix('5h ')
+                result.append((kind,label,fraction))
         return result
 
     def displayed_metrics(self):
         metrics=visible_metrics(self.data,self.settings)
         choices=self.quota_choices()
         labels={kind:value for kind,value,fraction in choices}
-        metrics=[(kind,self.label('Reset {time}',time=value) if kind=='clock' else labels[kind],fraction)
-                 for kind,value,fraction in metrics]
+        metrics=[(kind,labels[kind],fraction) for kind,value,fraction in metrics]
         if not self.settings.get('rotate_quotas'):return metrics
         current=next((m for m in choices if m[0]==self.quota_kind),choices[0] if choices else None)
-        return ([current] if current else [])+[m for m in metrics if m[0]=='clock']
+        return [current] if current else []
 
     def metric_text_width(self,kind,value):
-        values=[v for k,v,f in self.quota_choices()] if self.settings.get('rotate_quotas') and kind!='clock' else [value]
+        values=[self.label('Reset {time}',time=value) for value in ('6d 23h','23h 59m')] if self.settings.get('rotate_quotas') else [value]
         return max(QFontMetricsF(face(8)).horizontalAdvance(v) for v in values)
 
     def set_quota_progress(self,value):
@@ -384,8 +384,8 @@ class StatusBar(QWidget):
         self.quota_previous=None;self.quota_progress=1.;self.update()
 
     def settle_quota(self,mode):
-        if not self.quota_previous or mode not in ('usage','daily','session'):return
-        kind={'usage':'quota','daily':'spent','session':'session'}[mode]
+        if not self.quota_previous or mode not in ('usage','daily','session','resets'):return
+        kind={'usage':'quota','daily':'spent','session':'session','resets':'clock'}[mode]
         target=0. if kind==self.quota_previous[0] else 1.
         if target!=self.quota_target:self.animate_quota_to(target)
 
@@ -400,7 +400,7 @@ class StatusBar(QWidget):
         if len(kinds)<2:
             self.quota_rotated_at=now;self.quota_paused_at=None;return
         paused=(self.quota_hover or self.pressed or self.confirming_reset or not self.isVisible()
-                or self.popup and self.popup.mode in ('usage','daily','session') or self.menu.isVisible()
+                or self.popup and self.popup.mode in ('usage','daily','session','resets') or self.menu.isVisible()
                 or self.settings_dialog and self.settings_dialog.isVisible())
         if paused:
             if self.quota_paused_at is None:self.quota_paused_at=now
@@ -522,7 +522,7 @@ class StatusBar(QWidget):
         return tasks[ids.index(self.current_id)]
 
     def track_pointer(self,point):
-        self.quota_hover=any(m in ('usage','daily','session') and r.contains(point) for m,r,t in self.hit_regions)
+        self.quota_hover=any(m in ('usage','daily','session','resets') and r.contains(point) for m,r,t in self.hit_regions)
         hovering=self.task_area.contains(point)
         self.setCursor(Qt.CursorShape.PointingHandCursor if any(r.contains(point) for m,r,t in self.hit_regions) else Qt.CursorShape.ArrowCursor)
         if hovering!=self.task_hover:
@@ -598,7 +598,7 @@ class StatusBar(QWidget):
             colors={"quota":"#45ba91","session":"#51adb4","clock":"#5d9dd7","spent":"#a088d1"}
             color=QColor(colors[kind]);width=self.metric_text_width(kind,value)
             current_fraction=None if fraction is None else self.ring_values.get(kind,fraction)
-            previous=self.quota_previous if self.settings.get('rotate_quotas') and kind!='clock' else None
+            previous=self.quota_previous if self.settings.get('rotate_quotas') else None
             hit_kind=kind
             if previous:
                 old_kind,old_value,old_fraction=previous;progress=self.quota_progress

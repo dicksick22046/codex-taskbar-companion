@@ -33,7 +33,7 @@ The strip sits on the left of the primary taskbar. If there is not enough space,
 
 Running tasks rotate in the strip. Hovering pauses rotation and scrolls long titles. Unread results, stopped tasks, and failed tasks have separate indicators. An active side chat marks its parent task as running; the parent is counted once.
 
-Settings include English, Simplified Chinese, Japanese, and Spanish UI selection, optional hover-to-open panels, and optional quota rotation. With rotation enabled, weekly, daily, and 5h metrics share one position; the countdown stays visible.
+Settings include English, Simplified Chinese, Japanese, and Spanish UI selection, optional hover-to-open panels, and optional quota rotation. With rotation enabled, all enabled left-side indicators, including the reset countdown, share one fixed-width position.
 
 ## About the numbers
 

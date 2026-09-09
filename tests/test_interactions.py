@@ -361,18 +361,47 @@ class InteractionTests(unittest.TestCase):
                     self.assertEqual(dialog.update_button.text(),expected)
                 self.assertIn('9.9.9',dialog.update_button.text())
 
-    def test_quota_rotation_order_and_countdown_and_task_positions_stay_fixed(self):
+    def test_all_left_metrics_rotate_in_one_slot_and_task_positions_stay_fixed(self):
         self.bar.settings['rotate_quotas']=True
         with patch.object(self.bar,'isVisible',return_value=True):
             positions=[]
-            for at,kind,mode,label in [(0,'quota','usage','Week 70%'),(8,'spent','daily','Today 12%'),(16,'session','session','5h 60%'),(24,'quota','usage','Week 70%')]:
+            for at,kind,mode,label in [(0,'quota','usage','Week 70%'),(8,'spent','daily','Today 12%'),(16,'session','session','5h 60%'),(24,'clock','resets','Reset 6d'),(32,'quota','usage','Week 70%')]:
                 self.bar.advance_quota(at);self.bar.quota_tween.setCurrentTime(self.bar.quota_tween.duration());self.bar.grab()
                 self.assertEqual(self.bar.quota_kind,kind)
                 self.assertEqual(self.bar.displayed_metrics()[0][1],label)
                 modes=[m for m,r,t in self.bar.hit_regions]
-                self.assertEqual(modes[:2],[mode,'resets'])
-                positions.append([r.x() for m,r,t in self.bar.hit_regions if m in ('resets','running','task')])
+                self.assertEqual([m for m in modes if m in ('usage','daily','session','resets')],[mode])
+                positions.append([r.x() for m,r,t in self.bar.hit_regions if m in ('running','task')])
             self.assertTrue(all(p==positions[0] for p in positions))
+
+    def test_rotation_slot_width_does_not_shrink_with_shorter_countdown_or_values(self):
+        self.bar.settings['rotate_quotas']=True
+        for language in app.LANGUAGES:
+            self.bar.settings['language']=language
+            widths=set();positions=set()
+            for seconds in (6*86400+23*3600,23*3600+59*60,3590,60):
+                self.data['quota'][0]['resets_at']=datetime.now().timestamp()+seconds
+                for kind,value,fraction in self.bar.quota_choices():
+                    width=self.bar.metric_text_width(kind,value);widths.add(width)
+                    self.assertGreaterEqual(width,app.QFontMetricsF(app.face(8)).horizontalAdvance(value))
+                    self.bar.quota_kind=kind;self.bar.grab()
+                    positions.add(next(r.x() for m,r,t in self.bar.hit_regions if m=='task'))
+            self.assertEqual(len(widths),1);self.assertEqual(len(positions),1)
+
+    def test_reset_item_uses_same_pause_and_transition_rules(self):
+        self.bar.settings['rotate_quotas']=True;self.bar.quota_kind='clock';self.bar.quota_rotated_at=0;self.bar.grab()
+        with patch.object(self.bar,'isVisible',return_value=True):
+            self.bar.track_pointer(self.bar.hit_regions[0][1].center());self.bar.advance_quota(6)
+            self.bar.advance_quota(100);self.assertEqual(self.bar.quota_kind,'clock')
+            self.bar.track_pointer(app.QPointF(-1,-1))
+            self.bar.popup=app.ResetPopup(self.bar);self.bar.advance_quota(150)
+            self.assertEqual(self.bar.quota_kind,'clock')
+            self.bar.hide_popup(immediate=True);self.bar.advance_quota(150)
+            self.bar.advance_quota(152);self.assertEqual(self.bar.quota_kind,'quota')
+            self.bar.quota_tween.setCurrentTime(120);self.bar.grab()
+            self.assertEqual(self.bar.hit_regions[0][0],'resets')
+            self.bar.settle_quota('resets');self.bar.quota_tween.setCurrentTime(self.bar.quota_tween.duration())
+            self.assertEqual(self.bar.quota_kind,'clock')
 
     def test_quota_hover_and_panel_pause_resume_without_restarting_or_catching_up(self):
         self.bar.settings['rotate_quotas']=True
@@ -393,7 +422,7 @@ class InteractionTests(unittest.TestCase):
         with patch.object(self.bar,'isVisible',return_value=True),patch('codex_taskbar.app.windows.rect',return_value=(0,0,1200,30)), \
              patch('codex_taskbar.app.windows.user32.GetDpiForWindow',return_value=96),patch.object(self.bar,'toggle_popup') as opened, \
              patch('codex_taskbar.app.QTimer.singleShot',side_effect=lambda ms,fn:fn()):
-            for kind,mode in [('quota','usage'),('spent','daily'),('session','session')]:
+            for kind,mode in [('quota','usage'),('spent','daily'),('session','session'),('clock','resets')]:
                 self.bar.quota_kind=kind;self.bar.quota_rotated_at=0;self.bar.quota_paused_at=None;self.bar.grab()
                 point=self.bar.hit_regions[0][1].center()
                 self.bar.desktop_click(point.x(),point.y())
@@ -405,13 +434,14 @@ class InteractionTests(unittest.TestCase):
     def test_rotation_handles_missing_window_single_none_and_empty_values(self):
         self.bar.settings['rotate_quotas']=True
         self.data['quota']=self.data['quota'][:1]
-        self.assertEqual([k for k,v,f in self.bar.quota_choices()],['quota','spent'])
+        self.assertEqual([k for k,v,f in self.bar.quota_choices()],['quota','spent','clock'])
         with patch.object(self.bar,'isVisible',return_value=True):
-            self.bar.settings['show_daily']=False
+            self.bar.settings.update(show_daily=False,show_countdown=False)
             self.bar.advance_quota(0);self.bar.advance_quota(100)
             self.assertEqual(self.bar.quota_kind,'quota')
             self.bar.settings['show_week']=False;self.bar.advance_quota(101)
             self.assertIsNone(self.bar.quota_kind)
+            self.bar.settings['show_countdown']=True;self.bar.advance_quota(102)
             self.assertEqual([k for k,v,f in self.bar.displayed_metrics()],['clock'])
             self.bar.settings['show_countdown']=False
             self.assertEqual(self.bar.displayed_metrics(),[])
@@ -428,7 +458,7 @@ class InteractionTests(unittest.TestCase):
             self.assertTrue(save.call_args.args[1]['rotate_quotas'])
             self.bar.quota_kind='spent';self.bar.quota_rotated_at=12
             self.bar.set_language('zh-CN')
-            self.assertEqual(dialog.rotation.text(),'轮换显示额度')
+            self.assertEqual(dialog.rotation.text(),'轮换左侧指标')
             self.assertEqual(self.bar.displayed_metrics()[0][1],'今日 12%')
             self.assertEqual(self.bar.quota_rotated_at,12)
             self.bar.current_id='a';self.bar.rotated_at=0;self.bar.quota_hover=True
@@ -489,11 +519,11 @@ class InteractionTests(unittest.TestCase):
             self.assertEqual(parallel['session'],'5h 60%')
             self.assertTrue(parallel['clock'].startswith(reset+' '))
             self.bar.settings['rotate_quotas']=True
-            for kind in ('quota','spent','session'):
+            for kind in ('quota','spent','session','clock'):
                 self.bar.quota_kind=kind
                 rotated={key:value for key,value,fraction in self.bar.displayed_metrics()}
                 self.assertEqual(rotated[kind],parallel[kind])
-                self.assertEqual(rotated['clock'],parallel['clock'])
+                self.assertEqual(len(rotated),1)
 
     def test_press_during_transition_returns_smoothly_to_visible_item(self):
         self.bar.settings['rotate_quotas']=True

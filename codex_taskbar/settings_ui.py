@@ -76,7 +76,7 @@ class SettingsDialog(QDialog):
         self.language.setCurrentIndex(self.language.findData(self.bar.settings.get('language','en')))
         self.language.blockSignals(False)
         for key,source in DISPLAY_LABELS.items():self.checks[key].setText(label(source))
-        self.rotation.setText(label('Rotate quota display'))
+        self.rotation.setText(label('Rotate left-side indicators'))
         self.hover.setText(label('Open panels on hover'));self.login.setText(label('Start at Windows sign-in'))
         self.login.blockSignals(True);self.login.setChecked(startup.enabled());self.login.blockSignals(False)
         data = self.bar.provider.get()
