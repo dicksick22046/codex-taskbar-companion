@@ -77,11 +77,11 @@ class ResetTests(unittest.TestCase):
         self.assertEqual([e['kind'] for e in events],['scheduled'])
         self.assertEqual(events[0]['before']['10080']['resets_at'],1000)
 
-    def test_history_is_newest_first_even_when_records_were_added_out_of_order(self):
+    def test_history_is_oldest_first_even_when_records_were_added_out_of_order(self):
         self.ledger.observe(response(),100)
         records=[{'id':str(at),'at':at,'kind':'scheduled','windows':['10080']} for at in (300,100,200)]
         self.ledger.record['events']=records
-        self.assertEqual([e['at'] for e in self.ledger.view()['reset_events']],[300,200,100])
+        self.assertEqual([e['at'] for e in self.ledger.view()['reset_events']],[100,200,300])
         self.assertEqual([e['at'] for e in records],[300,100,200])
         self.assertEqual(self.ledger.periods(),(('200',100,200),('300',200,300)))
 
@@ -93,8 +93,9 @@ class ResetTests(unittest.TestCase):
         self.assertEqual(self.ledger.view()['reset_events'][0]['kind'],'scheduled')
         self.ledger.observe(response(used=20,reset=1000+604800),1100)
         self.ledger.observe(response(used=0,reset=1000+604800),1200)
-        self.assertEqual(self.ledger.view()['reset_events'][0]['kind'],'official')
-        self.assertEqual(self.ledger.view()['reset_events'][0]['classification'],'inferred')
+        events=self.ledger.view()['reset_events']
+        self.assertEqual([event['kind'] for event in events],['scheduled','official'])
+        self.assertEqual(events[-1]['classification'],'inferred')
 
     def test_success_is_one_manual_event_not_an_extra_official(self):
         params=self.ledger.begin('fixture-account','new')

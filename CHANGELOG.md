@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+## 0.3.1
+
+- Correct reset history to chronological order: older events first (September 7 above September 8).
+
 ## 0.3.0
 
 - Sort reset history by event time, newest first, including records added out of order.
