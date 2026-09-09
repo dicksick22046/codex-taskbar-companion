@@ -4,12 +4,14 @@
 
 ## Unreleased
 
+## 0.3.2
+
 - Align rotating values to the right edge so the divider has equal spacing on both sides.
-- Reduce the gap before the taskbar divider in rotating mode while retaining the fixed indicator width.
 - Include the reset countdown in rotation. All enabled left-side indicators share one fixed-width slot.
 - Include completed side chats in their parent task's unread status, using Codex's child-session unread IDs.
 - Show each reset event's quota window even when the current account has only one window.
 - Put the usage label and unit on each reset-history row, separate it from the category, and use blue category text.
+
 ## 0.3.1
 
 - Correct reset history to chronological order: older events first (September 7 above September 8).
