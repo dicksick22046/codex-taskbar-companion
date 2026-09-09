@@ -6,7 +6,7 @@ from .build_info import APP_NAME, VERSION
 from . import startup
 
 DISPLAY_LABELS = {
-    'show_week': '周额度', 'show_session': '5 小时额度（可用时显示）',
+    'show_week': '周额度', 'show_session': '5 小时额度',
     'show_countdown': '重置倒计时', 'show_daily': '今日额度消耗',
     'show_tasks': '任务轮播与计数',
 }

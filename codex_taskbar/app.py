@@ -495,7 +495,6 @@ class StatusBar(QWidget):
             icon(p,kind,x,y,color,fraction=None if fraction is None else self.ring_values.get(kind,fraction))
             x+=12
             ink=QColor(TITLE_MUTED)
-            if kind=='spent' and value=='—':ink.setAlpha(90);value='–'
             x+=text(p,x,y,value,face(8),ink)+17
             mode={'quota':'usage','session':'session','spent':'daily','clock':'resets'}[kind]
             self.hit_regions.append((mode,QRectF(left,0,x-left-8,self.height()),None))
