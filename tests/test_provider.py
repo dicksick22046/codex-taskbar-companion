@@ -82,6 +82,7 @@ class ProviderFailureTests(unittest.TestCase):
 class SideChatAggregationTests(unittest.TestCase):
     def test_side_only_activity_counts_parent_once_and_restores_parent_after_completion(self):
         from datetime import timedelta
+        from unittest.mock import patch
         now=datetime.now().astimezone()
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);path=root/'parent.jsonl'
@@ -91,10 +92,11 @@ class SideChatAggregationTests(unittest.TestCase):
             provider.quota_history=[];provider.unread_state=UnreadState(root/'missing.json');provider.boot_time=now.timestamp()-1000
             provider.side_rows=[{'id':str(i),'parent_id':'main','running':True,'started_at':now.timestamp()-20+i,'activity_at':now.timestamp()-20+i} for i in range(2)]
             threads=[{'id':'main','name':'Parent task'}]
-            provider._publish(threads,[],{'main':cursor},[],None,None)
+            with patch('codex_taskbar.provider.time.time',return_value=now.timestamp()):
+                provider._publish(threads,[],{'main':cursor},[],None,None)
             tasks=provider.snapshot['tasks']
             self.assertEqual(len(tasks),1);self.assertEqual(tasks[0]['id'],'main');self.assertTrue(tasks[0]['side_chat'])
-            self.assertEqual(tasks[0]['tokens'],100);self.assertIn(tasks[0]['round_seconds'],(20,21))
+            self.assertEqual(tasks[0]['tokens'],100);self.assertEqual(tasks[0]['round_seconds'],20)
             for side in provider.side_rows:side.update(running=False,ended_at=now.timestamp(),activity_at=now.timestamp())
             provider._publish(threads,[],{'main':cursor},[],None,None)
             self.assertEqual(provider.snapshot['tasks'],[])
