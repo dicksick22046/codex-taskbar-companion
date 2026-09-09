@@ -21,6 +21,8 @@ user32.IsWindow.argtypes = [w.HWND]
 user32.IsWindow.restype = w.BOOL
 user32.GetWindowLongPtrW.argtypes = [w.HWND, ctypes.c_int]
 user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
+user32.GetWindow.argtypes = [w.HWND, ctypes.c_uint]
+user32.GetWindow.restype = w.HWND
 user32.SetWindowLongPtrW.argtypes = [w.HWND, ctypes.c_int, ctypes.c_ssize_t]
 user32.SetWindowLongPtrW.restype = ctypes.c_ssize_t
 
@@ -106,6 +108,19 @@ def follow_taskbar(hwnd):
     if tray and user32.GetWindowLongPtrW(hwnd, -8) != tray:
         user32.SetWindowLongPtrW(hwnd, -8, tray)  # GWLP_HWNDPARENT: owner, not child parenting.
         topmost(hwnd)
+        return
+    if not tray:return
+    previous=user32.GetWindow(hwnd,3)  # GW_HWNDPREV walks toward the top of the Z order.
+    seen={hwnd}
+    while previous and previous not in seen:
+        if previous==tray:
+            insert_after=user32.GetWindow(tray,3)
+            if insert_after!=hwnd:
+                # Restore only our position above the taskbar; preserve focus and owner order.
+                user32.SetWindowPos(hwnd,insert_after or 0,0,0,0,0,0x0010|0x0001|0x0002|0x0200)
+            return
+        seen.add(previous)
+        previous=user32.GetWindow(previous,3)
 
 
 def hide_border(hwnd):
