@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- Tighten the rotating slot to the current countdown format, retaining the ring position and stable width between rotations.
 ## 0.3.2
 
 - Align rotating values to the right edge so the divider has equal spacing on both sides.

@@ -374,19 +374,34 @@ class InteractionTests(unittest.TestCase):
                 positions.append([r.x() for m,r,t in self.bar.hit_regions if m in ('running','task')])
             self.assertTrue(all(p==positions[0] for p in positions))
 
-    def test_rotation_slot_width_does_not_shrink_with_shorter_countdown_or_values(self):
+    def test_rotation_slot_stays_fixed_within_each_countdown_format(self):
         self.bar.settings['rotate_quotas']=True
         for language in app.LANGUAGES:
             self.bar.settings['language']=language
-            widths=set();positions=set()
-            for seconds in (6*86400+23*3600,23*3600+59*60,3590,60):
-                self.data['quota'][0]['resets_at']=datetime.now().timestamp()+seconds
-                for kind,value,fraction in self.bar.quota_choices():
-                    width=self.bar.metric_text_width(kind,value);widths.add(width)
-                    self.assertGreaterEqual(width,app.QFontMetricsF(app.face(8)).horizontalAdvance(value))
-                    self.bar.quota_kind=kind;self.bar.grab()
-                    positions.add(next(r.x() for m,r,t in self.bar.hit_regions if m=='task'))
-            self.assertEqual(len(widths),1);self.assertEqual(len(positions),1)
+            for times in ((6*86400+23*3600,86400+3600),(23*3600+59*60,3600+60),(3500,60)):
+                widths=set();positions=set()
+                for seconds in times:
+                    self.data['quota'][0]['resets_at']=datetime.now().timestamp()+seconds
+                    for kind,value,fraction in self.bar.quota_choices():
+                        width=self.bar.metric_text_width(kind,value);widths.add(width)
+                        self.assertGreaterEqual(width,app.QFontMetricsF(app.face(8)).horizontalAdvance(value))
+                        self.bar.quota_kind=kind;self.bar.grab()
+                        positions.add(next(r.x() for m,r,t in self.bar.hit_regions if m=='task'))
+                self.assertEqual(len(widths),1);self.assertEqual(len(positions),1)
+
+    def test_current_day_countdown_has_compact_text_gap_and_stationary_ring(self):
+        self.bar.settings.update(rotate_quotas=True,language='en')
+        self.data['quota'][0]['resets_at']=datetime.now().timestamp()+5*86400+16*3600
+        for kind,_,_ in self.bar.quota_choices():
+            self.bar.quota_kind=kind
+            with patch('codex_taskbar.app.text',wraps=app.text) as draw,patch('codex_taskbar.app.icon',wraps=app.icon) as icons:self.bar.grab()
+            metric_icon=next(c for c in icons.call_args_list if c.args[1]==kind)
+            self.assertEqual(metric_icon.args[2],12.)
+            if kind=='clock':
+                label=next(c for c in draw.call_args_list if c.args[3]=='Reset')
+                number=next(c for c in draw.call_args_list if c.args[3]=='5d 16h')
+                label_end=label.args[1]+app.QFontMetricsF(label.args[4]).horizontalAdvance('Reset')
+                self.assertAlmostEqual(number.args[1]-label_end,5.)
 
     def test_reset_item_uses_same_pause_and_transition_rules(self):
         self.bar.settings['rotate_quotas']=True;self.bar.quota_kind='clock';self.bar.quota_rotated_at=0;self.bar.grab()

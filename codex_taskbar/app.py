@@ -366,8 +366,17 @@ class StatusBar(QWidget):
         return [current] if current else []
 
     def metric_text_width(self,kind,value):
-        values=[self.label('Reset {time}',time=value) for value in ('6d 23h','23h 59m')] if self.settings.get('rotate_quotas') else [value]
-        return max(QFontMetricsF(face(8)).horizontalAdvance(v) for v in values)
+        metrics=QFontMetricsF(face(8))
+        if not self.settings.get('rotate_quotas'):return metrics.horizontalAdvance(value)
+        widths=[]
+        for item,labelled,fraction in self.quota_choices():
+            label,_,number=labelled.partition(' ')
+            if item=='clock':
+                template='6d 23h' if 'd' in number or number=='—' else '23h 59m' if 'h' in number else '59m'
+                number_width=metrics.horizontalAdvance(template)
+            else:number_width=max(metrics.horizontalAdvance('100%'),metrics.horizontalAdvance(number))
+            widths.append(metrics.horizontalAdvance(label)+5+number_width)
+        return max(widths)
 
     def set_quota_progress(self,value):
         self.quota_progress=float(value);self.update()
