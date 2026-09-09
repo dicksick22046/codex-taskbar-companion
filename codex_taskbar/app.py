@@ -370,13 +370,17 @@ class StatusBar(QWidget):
         if not self.settings.get('rotate_quotas'):return metrics.horizontalAdvance(value)
         widths=[]
         for item,labelled,fraction in self.quota_choices():
-            label,_,number=labelled.partition(' ')
+            number=labelled.partition(' ')[2]
             if item=='clock':
                 template='6d 23h' if 'd' in number or number=='—' else '23h 59m' if 'h' in number else '59m'
                 number_width=metrics.horizontalAdvance(template)
             else:number_width=max(metrics.horizontalAdvance('100%'),metrics.horizontalAdvance(number))
-            widths.append(metrics.horizontalAdvance(label)+5+number_width)
-        return max(widths)
+            widths.append(number_width)
+        return self.metric_label_width()+3+max(widths)
+
+    def metric_label_width(self):
+        metrics=QFontMetricsF(face(8))
+        return max(metrics.horizontalAdvance(value.partition(' ')[0]) for kind,value,fraction in self.quota_choices())
 
     def set_quota_progress(self,value):
         self.quota_progress=float(value);self.update()
@@ -610,7 +614,7 @@ class StatusBar(QWidget):
                 if self.settings.get('rotate_quotas'):
                     label,_,number=value.partition(' ')
                     text(p,x+12,line_y,label,face(8),TITLE_MUTED)
-                    number_x=x+12+width-QFontMetricsF(face(8)).horizontalAdvance(number)
+                    number_x=x+12+self.metric_label_width()+3
                     text(p,number_x,line_y,number,face(8),TITLE_MUTED)
                 else:text(p,x+12,line_y,value,face(8),TITLE_MUTED)
             current_fraction=None if fraction is None else self.ring_values.get(kind,fraction)
