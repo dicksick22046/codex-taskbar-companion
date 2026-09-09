@@ -341,7 +341,7 @@ class InteractionTests(unittest.TestCase):
         with patch.object(self.bar,'isVisible',return_value=True):
             positions=[]
             for at,kind,mode,label in [(0,'quota','usage','Week 70%'),(8,'spent','daily','Today 12%'),(16,'session','session','5h 60%'),(24,'quota','usage','Week 70%')]:
-                self.bar.advance_quota(at);self.bar.grab()
+                self.bar.advance_quota(at);self.bar.quota_tween.setCurrentTime(self.bar.quota_tween.duration());self.bar.grab()
                 self.assertEqual(self.bar.quota_kind,kind)
                 self.assertEqual(self.bar.displayed_metrics()[0][1],label)
                 modes=[m for m,r,t in self.bar.hit_regions]
@@ -429,3 +429,44 @@ class InteractionTests(unittest.TestCase):
             self.assertEqual(self.bar.quota_kind,'spent')
             self.bar.settings_dialog=None;self.bar.advance_quota(200)
             self.bar.advance_quota(206);self.assertEqual(self.bar.quota_kind,'session')
+
+    def test_quota_transition_keeps_old_frame_then_blends_text_and_ring(self):
+        self.bar.settings['rotate_quotas']=True
+        with patch.object(self.bar,'isVisible',return_value=True),patch('codex_taskbar.app.time.monotonic',return_value=0):
+            self.bar.advance_quota(0);self.bar.grab()
+            slot=self.bar.hit_regions[0][1].toRect()
+            before=self.bar.grab(slot).toImage()
+            self.bar.advance_quota(8);self.bar.quota_tween.setCurrentTime(0)
+            self.assertEqual(before,self.bar.grab(slot).toImage())
+            self.bar.quota_tween.setCurrentTime(230)
+            labels=[]
+            draw_text=app.text
+            def record(p,x,y,value,font,color=app.MUTED):
+                if value in ('Week 70%','Today 12%'):labels.append((value,p.opacity(),y))
+                return draw_text(p,x,y,value,font,color)
+            with patch('codex_taskbar.app.text',side_effect=record),patch('codex_taskbar.app.icon',wraps=app.icon) as icons:self.bar.grab()
+            self.assertEqual([row[0] for row in labels],['Week 70%','Today 12%'])
+            self.assertAlmostEqual(sum(row[1] for row in labels),1.)
+            self.assertTrue(all(0<row[1]<1 for row in labels))
+            ring=next(c for c in icons.call_args_list if c.args[1]=='spent')
+            self.assertAlmostEqual(ring.kwargs['fraction'],.41)
+            self.assertNotIn(ring.args[4].name(),('#45ba91','#a088d1'))
+            self.bar.quota_tween.setCurrentTime(460)
+            self.assertIsNone(self.bar.quota_previous)
+            self.assertEqual(self.bar.quota_kind,'spent')
+
+    def test_press_during_transition_returns_smoothly_to_visible_item(self):
+        self.bar.settings['rotate_quotas']=True
+        with patch.object(self.bar,'isVisible',return_value=True),patch('codex_taskbar.app.windows.rect',return_value=(0,0,1200,30)), \
+             patch('codex_taskbar.app.windows.user32.GetDpiForWindow',return_value=96),patch.object(self.bar,'toggle_popup') as opened, \
+             patch('codex_taskbar.app.QTimer.singleShot',side_effect=lambda ms,fn:fn()):
+            self.bar.advance_quota(0);self.bar.advance_quota(8);self.bar.quota_tween.setCurrentTime(160);self.bar.grab()
+            progress=self.bar.quota_progress
+            self.assertEqual(self.bar.hit_regions[0][0],'usage')
+            point=self.bar.hit_regions[0][1].center();self.bar.desktop_click(point.x(),point.y())
+            self.assertAlmostEqual(self.bar.quota_progress,progress)
+            self.assertEqual(self.bar.quota_target,0.)
+            self.bar.quota_tween.setCurrentTime(self.bar.quota_tween.duration())
+            self.assertEqual(self.bar.quota_kind,'quota')
+            self.bar.desktop_click(point.x(),point.y(),'left_up')
+            opened.assert_called_once_with('usage')

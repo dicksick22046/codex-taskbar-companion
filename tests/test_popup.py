@@ -71,7 +71,7 @@ class PopupInitialFrameTests(unittest.TestCase):
         provider=type('Provider',(),{'get':lambda self:data,'stop':lambda self:None})()
         with patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.QSystemTrayIcon'):
             bar=StatusBar(provider)
-        bar.timer.stop();bar.animation.stop();bar.resize(810,30)
+        bar.timer.stop();bar.animation.stop();bar.resize(810,30);bar.settings=dict(DISPLAY_DEFAULTS)
         task={'id':'a','project':'Project','title':'Short'}
         bar.task=task;bar.data={'tasks':[task]}
         bar.grab()

@@ -206,10 +206,11 @@ class StatusBar(QWidget):
         self.task_rect=QRectF();self.task_hover=False;self.title_hover_started=time.monotonic()
         self.task_area=QRectF()
         self.quota_kind=None;self.quota_rotated_at=time.monotonic();self.quota_paused_at=None;self.quota_hover=False
-        self.quota_opacity=1.
-        self.quota_tween=QVariantAnimation(self);self.quota_tween.setDuration(220)
-        self.quota_tween.setEasingCurve(QEasingCurve.Type.OutCubic)
-        self.quota_tween.valueChanged.connect(self.set_quota_opacity)
+        self.quota_progress=1.;self.quota_previous=None;self.quota_target=1.
+        self.quota_tween=QVariantAnimation(self)
+        self.quota_tween.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self.quota_tween.valueChanged.connect(self.set_quota_progress)
+        self.quota_tween.finished.connect(self.finish_quota_transition)
         self.hit_regions=[];self.pressed=None;self.confirming_reset=False
         self.hover_target=None;self.hover_since=0.;self.hover_leave_since=None;self.hover_suppressed=None
         self.metrics=[];self.settings_dialog=None;self.placement_unavailable=False
@@ -266,12 +267,15 @@ class StatusBar(QWidget):
             if hit:
                 mode,rect,payload=hit
                 if button=='right':QTimer.singleShot(0,self.open_menu)
-                else:self.pressed=(mode,QRectF(box[0]+rect.x()*ratio,box[1]+rect.y()*ratio,rect.width()*ratio,rect.height()*ratio),payload)
+                else:
+                    self.settle_quota(mode)
+                    self.pressed=(mode,QRectF(box[0]+rect.x()*ratio,box[1]+rect.y()*ratio,rect.width()*ratio,rect.height()*ratio),payload)
                 return True  # Transparent pixels must not forward a second action to the taskbar.
         if self.popup and not inside(self.popup):QTimer.singleShot(0,self.hide_popup)
         return False
 
     def toggle_popup(self,mode='usage'):
+        self.settle_quota(mode)
         if self.popup and self.popup.mode==mode:
             closing=self.popup.reveal_target==1.
             self.hover_suppressed=mode if closing else None
@@ -322,6 +326,8 @@ class StatusBar(QWidget):
     def set_language(self,value):
         if value not in LANGUAGES:return
         self.settings['language']=value;self.save_settings()
+        if self.quota_previous:
+            self.quota_previous=next((m for m in self.quota_choices() if m[0]==self.quota_previous[0]),None)
         self.settings_action.setText(self.label('Settings…'));self.quit_action.setText(self.label('Quit'))
         if self.settings_dialog:self.settings_dialog.refresh()
         if self.popup:
@@ -337,7 +343,7 @@ class StatusBar(QWidget):
     def set_quota_rotation(self,value):
         self.settings['rotate_quotas']=bool(value)
         self.quota_kind=None;self.quota_paused_at=None;self.quota_rotated_at=time.monotonic()
-        self.quota_tween.stop();self.quota_opacity=1.
+        self.quota_tween.stop();self.quota_progress=1.;self.quota_previous=None
         self.save_settings();self.hide_popup(immediate=True);self.tick()
 
     def quota_choices(self):
@@ -360,8 +366,25 @@ class StatusBar(QWidget):
         values=[v for k,v,f in self.quota_choices()] if self.settings.get('rotate_quotas') and kind!='clock' else [value]
         return max(QFontMetricsF(face(8)).horizontalAdvance(v) for v in values)
 
-    def set_quota_opacity(self,value):
-        self.quota_opacity=float(value);self.update()
+    def set_quota_progress(self,value):
+        self.quota_progress=float(value);self.update()
+
+    def animate_quota_to(self,target):
+        self.quota_tween.stop();self.quota_target=target
+        self.quota_tween.blockSignals(True)
+        self.quota_tween.setDuration(max(80,round(460*abs(target-self.quota_progress))))
+        self.quota_tween.setStartValue(self.quota_progress);self.quota_tween.setEndValue(target)
+        self.quota_tween.blockSignals(False);self.quota_tween.start()
+
+    def finish_quota_transition(self):
+        if self.quota_target==0. and self.quota_previous:self.quota_kind=self.quota_previous[0]
+        self.quota_previous=None;self.quota_progress=1.;self.update()
+
+    def settle_quota(self,mode):
+        if not self.quota_previous or mode not in ('usage','daily','session'):return
+        kind={'usage':'quota','daily':'spent','session':'session'}[mode]
+        target=0. if kind==self.quota_previous[0] else 1.
+        if target!=self.quota_target:self.animate_quota_to(target)
 
     def advance_quota(self,now=None):
         if not self.settings.get('rotate_quotas'):return
@@ -370,7 +393,7 @@ class StatusBar(QWidget):
         if self.quota_kind not in kinds:
             self.quota_kind=kinds[0] if kinds else None
             self.quota_rotated_at=now;self.quota_paused_at=None
-            self.quota_tween.stop();self.quota_opacity=1.
+            self.quota_tween.stop();self.quota_progress=1.;self.quota_previous=None
         if len(kinds)<2:
             self.quota_rotated_at=now;self.quota_paused_at=None;return
         paused=(self.quota_hover or self.pressed or self.confirming_reset or not self.isVisible()
@@ -382,8 +405,9 @@ class StatusBar(QWidget):
         if self.quota_paused_at is not None:
             self.quota_rotated_at+=now-self.quota_paused_at;self.quota_paused_at=None
         if now-self.quota_rotated_at>=ROTATE_SECONDS:
+            self.quota_previous=next(m for m in self.quota_choices() if m[0]==self.quota_kind)
             self.quota_kind=kinds[(kinds.index(self.quota_kind)+1)%len(kinds)];self.quota_rotated_at=now
-            self.quota_tween.stop();self.quota_tween.setStartValue(0.);self.quota_tween.setEndValue(1.);self.quota_tween.start()
+            self.quota_progress=0.;self.animate_quota_to(1.)
 
     def animate(self):
         if self.isVisible() and self.task:
@@ -405,6 +429,7 @@ class StatusBar(QWidget):
 
     def set_display(self,key,value):
         if key not in DISPLAY_DEFAULTS:return
+        self.quota_tween.stop();self.quota_previous=None;self.quota_progress=1.
         self.settings[key]=bool(value);self.save_settings();self.hide_popup(immediate=True);self.tick()
 
     def open_settings(self):
@@ -567,15 +592,27 @@ class StatusBar(QWidget):
         def field(kind,value,fraction):
             nonlocal x
             left=x-7
-            p.save()
-            if self.settings.get('rotate_quotas') and kind!='clock':p.setOpacity(self.quota_opacity)
-            color={"quota":"#45ba91","session":"#51adb4","clock":"#5d9dd7","spent":"#a088d1"}[kind]
-            icon(p,kind,x,y,color,fraction=None if fraction is None else self.ring_values.get(kind,fraction))
-            x+=12
-            ink=QColor(TITLE_MUTED)
-            text(p,x,y,value,face(8),ink);x+=self.metric_text_width(kind,value)+17
-            p.restore()
-            mode={'quota':'usage','session':'session','spent':'daily','clock':'resets'}[kind]
+            colors={"quota":"#45ba91","session":"#51adb4","clock":"#5d9dd7","spent":"#a088d1"}
+            color=QColor(colors[kind]);width=self.metric_text_width(kind,value)
+            current_fraction=None if fraction is None else self.ring_values.get(kind,fraction)
+            previous=self.quota_previous if self.settings.get('rotate_quotas') and kind!='clock' else None
+            hit_kind=kind
+            if previous:
+                old_kind,old_value,old_fraction=previous;progress=self.quota_progress
+                old_color=QColor(colors[old_kind])
+                color=QColor.fromRgbF(*[a+(b-a)*progress for a,b in zip(old_color.getRgbF()[:3],color.getRgbF()[:3])])
+                if old_fraction is not None and current_fraction is not None:
+                    current_fraction=old_fraction+(current_fraction-old_fraction)*progress
+                elif progress<.5:current_fraction=old_fraction
+                if progress<.5:hit_kind=old_kind
+                p.save();p.setClipRect(QRectF(x+11,0,width+2,self.height()),Qt.ClipOperation.IntersectClip)
+                p.setOpacity(1-progress);text(p,x+12,y-14*progress,old_value,face(8),TITLE_MUTED)
+                p.setOpacity(progress);text(p,x+12,y+14*(1-progress),value,face(8),TITLE_MUTED)
+                p.restore()
+            else:text(p,x+12,y,value,face(8),TITLE_MUTED)
+            icon(p,kind,x,y,color,fraction=current_fraction)
+            x+=12+width+17
+            mode={'quota':'usage','session':'session','spent':'daily','clock':'resets'}[hit_kind]
             self.hit_regions.append((mode,QRectF(left,0,x-left-8,self.height()),None))
         def separator():
             nonlocal x
