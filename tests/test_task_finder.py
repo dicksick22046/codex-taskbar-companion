@@ -124,3 +124,5 @@ class FinderInteractionTests(unittest.TestCase):
         self.finder.refresh(self.data)
         self.assertEqual(self.finder.view.currentIndex().data(Qt.ItemDataRole.UserRole)['id'],'3')
         self.assertEqual(self.finder.model.rows[3]['total_tokens'],100)
+        self.assertIn('<0.1M',self.finder.model.index(3,4).data(Qt.ItemDataRole.AccessibleTextRole))
+        self.assertEqual(self.finder.scope.text(),'All local history')

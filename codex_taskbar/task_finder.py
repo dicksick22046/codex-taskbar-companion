@@ -91,7 +91,9 @@ class TaskModel(QAbstractTableModel):
         row=self.rows[index.row()]
         if role==Qt.ItemDataRole.UserRole:return row
         if role==Qt.ItemDataRole.DisplayRole:return cell_text(row,index.column(),self.parent().bar.chart_unit)
-        if role==Qt.ItemDataRole.AccessibleTextRole:return ', '.join(row[k] for k in ('project_label','title','status_label','stamp') if row[k])
+        if role==Qt.ItemDataRole.AccessibleTextRole:
+            if index.column():return self.parent().bar.label(COLUMNS[index.column()][0])+': '+cell_text(row,index.column(),self.parent().bar.chart_unit)
+            return ', '.join(row[k] for k in ('project_label','title','status_label','stamp') if row[k])
         if role==Qt.ItemDataRole.ToolTipRole:
             lines=[row[k] for k in ('project_label','title','stamp')]
             if index.column() in (3,4,5):
@@ -174,7 +176,7 @@ class TaskFinder(QDialog):
         header.setSectionResizeMode(1,QHeaderView.ResizeMode.Stretch)
         for column,width in ((0,106),(2,90),(3,100),(4,112),(5,72),(6,112)):self.view.setColumnWidth(column,width)
         self.empty=QLabel();self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter);layout.addWidget(self.empty,1)
-        self.count=QLabel();layout.addWidget(self.count)
+        footer=QHBoxLayout();self.count=QLabel();footer.addWidget(self.count);footer.addStretch();self.scope=QLabel();footer.addWidget(self.scope);layout.addLayout(footer)
         self.project_width=80;self.stamp_width=72;self.status_width=55
         self.search.textChanged.connect(self.apply_filter);self.projects.currentIndexChanged.connect(self.apply_filter)
         self.search.returnPressed.connect(self.open_selected)
@@ -205,7 +207,9 @@ class TaskFinder(QDialog):
         key=(data.get('catalog'),data.get('task_statistics'),self.bar.language,self.bar.chart_unit,datetime.now().date(),
              tuple(tuple(t.get(k) for k in ('id','project','title','running','needs_input','unread','status','side_chat','activity_at')) for t in states),bool(data.get('loading')))
         if key==self.input_key:return
+        format_key=(self.bar.language,self.bar.chart_unit);format_changed=format_key!=getattr(self,'format_key',None);self.format_key=format_key
         self.input_key=key;self.rows=finder_rows(data,self.bar.language)
+        self.scope.setText(self.bar.label('All local history'))
         self.units.blockSignals(True);self.units.setCurrentText(self.bar.chart_unit);self.units.blockSignals(False)
         self.model.headerDataChanged.emit(Qt.Orientation.Horizontal,0,len(COLUMNS)-1)
         self.setWindowTitle(self.bar.label('Tasks'));self.search.setPlaceholderText(self.bar.label('Search tasks or projects'))
@@ -220,6 +224,7 @@ class TaskFinder(QDialog):
         self.status_width=max([metrics.horizontalAdvance(self.bar.label(CATEGORY_LABELS[k])) for k in kinds]+[0])
         self.view.setColumnWidth(2,max(90,math.ceil(self.status_width+24)))
         self.loading=bool(data.get('loading'));self.apply_filter()
+        if format_changed and self.model.rows:self.model.dataChanged.emit(self.model.index(0,0),self.model.index(len(self.model.rows)-1,len(COLUMNS)-1))
 
     def apply_filter(self,*args):
         current=self.view.currentIndex().data(Qt.ItemDataRole.UserRole) or {};selected=current.get('id')

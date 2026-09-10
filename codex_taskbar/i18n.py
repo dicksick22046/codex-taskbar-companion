@@ -3,6 +3,7 @@
 LANGUAGE_NAMES = (('en','English'),('zh-CN','简体中文'),('ja','日本語'),('es','Español'))
 LANGUAGES = tuple(code for code,name in LANGUAGE_NAMES)
 COPY = {
+    'All local history':'本机全部历史',
     'Needs input':'待回答',
     'Appearance':'外观','Indicators':'显示项','General':'常规','Updates':'更新','Connected to Codex':'已连接 Codex',
     'Project':'项目','Task':'任务','Status':'状态','Run time':'运行时长','Turns':'轮次','Last active':'最近活动',
@@ -47,6 +48,7 @@ COPY = {
 }
 
 TRANSLATIONS = {'zh-CN': COPY, 'ja': {
+    'All local history':'ローカルの全履歴',
     'Needs input':'回答待ち',
     'Appearance':'外観','Indicators':'表示項目','General':'一般','Updates':'更新','Connected to Codex':'Codex に接続済み',
     'Project':'プロジェクト','Task':'タスク','Status':'状態','Run time':'実行時間','Turns':'ターン','Last active':'最終更新',
@@ -89,6 +91,7 @@ TRANSLATIONS = {'zh-CN': COPY, 'ja': {
     'Update to {version}': '{version}に更新',
     'Version {version} is available. Update from Settings.': 'バージョン{version}が公開されました。設定から更新できます。',
 }, 'es': {
+    'All local history':'Todo el historial local',
     'Needs input':'Requiere respuesta',
     'Appearance':'Apariencia','Indicators':'Indicadores','General':'General','Updates':'Actualizaciones','Connected to Codex':'Conectado a Codex',
     'Project':'Proyecto','Task':'Tarea','Status':'Estado','Run time':'Tiempo activo','Turns':'Turnos','Last active':'Actividad',
