@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+- Fit the capsule to its content in both placements, retaining the existing maximum width and a stable width across rotating tasks.
+- Preserve the floating left anchor when content shrinks; keep task panels readable independently of capsule width.
+
 ## 0.4.0
 
 - Add an optional floating capsule with drag positioning, screen-relative position restore and a keep-on-top setting.

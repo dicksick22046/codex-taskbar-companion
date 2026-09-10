@@ -229,6 +229,7 @@ class StatusBar(QWidget):
         self.surface_loss_since=None;self.surface_repaired=False
         self.frame_key=None;self.panel_key=None
         self.host_key=None;self.drag_origin=None;self.dragging=False
+        self.content_limit=None
         self.settings=read_settings(RUNTIME/'ui_settings.json')
         self.chart_unit=self.settings['chart_unit']
         self.updater=UpdateController(RUNTIME,self);self.updater.changed.connect(self.update_status)
@@ -432,6 +433,35 @@ class StatusBar(QWidget):
     def metric_label_width(self):
         metrics=QFontMetricsF(face(8))
         return max(metrics.horizontalAdvance(value.partition(' ')[0]) for kind,value,fraction in self.quota_choices())
+
+    def project_available(self,x,limit=None):
+        return min(112,max(0,((limit or self.content_limit or self.width())-x)*.35))
+
+    def content_width(self,limit):
+        metrics=self.displayed_metrics();rotating=self.settings.get('rotate_quotas')
+        x=CONTENT_X+sum((25 if rotating else 29)+self.metric_text_width(kind,value) for kind,value,_ in metrics)
+        right=x-(13 if rotating else 17) if metrics else CONTENT_X
+        if not self.settings['show_tasks']:return min(limit,math.ceil(right+12))
+        counts=category_counts(self.data);tasks=self.data.get('tasks',[])
+        statuses=[kind for kind in ('running','unread','failed','stopped') if counts[kind]]
+        if not tasks and not statuses:return min(limit,math.ceil(right+12))
+        if metrics:x+=7
+        font_metrics=QFontMetricsF(face(8));badge_x=x-6
+        for kind in statuses:badge_x+=font_metrics.horizontalAdvance(str(counts[kind]))+30
+        if statuses:right=badge_x-6;x=badge_x+4
+        for task in tasks:
+            project=font_metrics.elidedText(project_label(task['project'],self.language),Qt.TextElideMode.ElideRight,max(0,self.project_available(x,limit)-12))
+            end=x+font_metrics.horizontalAdvance(project)+12+10
+            if task.get('side_chat'):end+=side_tag_width(self.language)+7
+            right=max(right,end+QFontMetricsF(self.font).horizontalAdvance(task['title']))
+        return min(limit,math.ceil(right+12))
+
+    def fitted_width(self,limit):
+        target=self.content_width(limit)
+        interacting=(self.underMouse() or self.pressed or self.drag_origin or self.popup or self.menu.isVisible()
+                     or self.settings_dialog and self.settings_dialog.isVisible())
+        if interacting and self.position:target=max(target,self.width())
+        return min(limit,target)
 
     def set_quota_progress(self,value):
         self.quota_progress=float(value);self.update()
@@ -684,6 +714,7 @@ class StatusBar(QWidget):
             minimum+=(60 if self.data.get('tasks') else 0)+sum(30+QFontMetricsF(face(8)).horizontalAdvance(str(counts[k])) for k in ('running','unread','failed','stopped') if counts[k])
         if not metrics and not self.settings['show_tasks']:
             self.hide();self.hide_popup(immediate=True);return
+        minimum=min(minimum,self.content_width(540))
         if self.floating:
             box=self.geometry() if self.drag_origin is not None else floating_rect(self.floating_screen().availableGeometry(),self.settings.get('floating_position'))
             placed=(*box.getRect(),1,False)
@@ -703,6 +734,11 @@ class StatusBar(QWidget):
         if hidden:
             self.hide();self.hide_popup(immediate=True);return
         logical=tuple(round(v/scale) for v in (x,y,w,h))
+        if self.drag_origin is None:self.content_limit=logical[2]
+        width=self.fitted_width(self.content_limit)
+        if self.floating and self.drag_origin is None:
+            logical=floating_rect(self.floating_screen().availableGeometry(),self.settings.get('floating_position'),width).getRect()
+        elif self.drag_origin is None:logical=(logical[0],logical[1],width,logical[3])
         if self.position!=logical:self.setGeometry(*logical);self.position=logical
         recovered=self.ensure_visible()
         if self.floating:
@@ -816,7 +852,7 @@ class StatusBar(QWidget):
             p.save();p.setClipRect(QRectF(x-2,0,max(0,self.width()-x+2),self.height()))
             def task_label(task,opacity,offset,current=False):
                 p.save();p.setOpacity(opacity);p.translate(0,offset)
-                title_x=x+project_tag(p,x,y,task['project'],face(8),min(112,max(0,(self.width()-x)*.35)),self.language,color=palette['link'],muted=palette['muted'])+10
+                title_x=x+project_tag(p,x,y,task['project'],face(8),self.project_available(x),self.language,color=palette['link'],muted=palette['muted'])+10
                 if task.get('side_chat'):title_x+=side_tag(p,title_x,y,self.language,light=theme=='light')+7
                 available=max(0,self.width()-title_x-6)
                 label=task['title']
@@ -1150,7 +1186,7 @@ class TaskListPopup(TaskPopup):
         longest=max([title_metrics.horizontalAdvance(task['title'])+(side_tag_width(self.owner.language)+7 if task.get('side_chat') else 0) for task in self.rows]+[0])
         self.values={t['id']:chart_number(t.get('tokens'),self.owner.chart_unit) if self.mode=='daily' else duration_text(t.get('round_seconds')) for t in self.rows}
         info_width=max([metrics.horizontalAdvance(value) for value in self.values.values()]+[24])
-        width=min(self.owner.width(),max(260,math.ceil(self.TITLE_X+longest+24+info_width+18)))
+        width=min(getattr(self.owner,'content_limit',None) or self.owner.width(),max(260,math.ceil(self.TITLE_X+longest+24+info_width+18)))
         if self.mode=='daily':width=max(360,width)
         self.value_right=width-18
         self.info_divider=self.value_right-info_width-12

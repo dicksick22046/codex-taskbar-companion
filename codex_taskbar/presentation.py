@@ -8,10 +8,11 @@ def clamp_rect(rect,bounds):
                  max(bounds.top(),min(rect.y(),bounds.bottom()-height+1)),width,height)
 
 
-def floating_rect(bounds,position=None):
-    width=min(540,max(1,bounds.width()-32));height=min(30,bounds.height())
+def floating_rect(bounds,position=None,width=540):
+    width=min(width,540,max(1,bounds.width()-32));height=min(30,bounds.height())
     if position:
-        x=bounds.x()+round(position['x']*(bounds.width()-width))
+        reference=min(position.get('width',540),max(1,bounds.width()-32))
+        x=bounds.x()+round(position['x']*(bounds.width()-reference))
         y=bounds.y()+round(position['y']*(bounds.height()-height))
     else:x,y=bounds.x()+16,bounds.bottom()-height-15
     return clamp_rect(QRect(x,y,width,height),bounds)
@@ -20,7 +21,7 @@ def floating_rect(bounds,position=None):
 def remember_position(rect,bounds,screen):
     rect=clamp_rect(rect,bounds)
     return {'screen':screen,'x':(rect.x()-bounds.x())/max(1,bounds.width()-rect.width()),
-            'y':(rect.y()-bounds.y())/max(1,bounds.height()-rect.height())}
+            'y':(rect.y()-bounds.y())/max(1,bounds.height()-rect.height()),'width':rect.width()}
 
 
 def panel_rect(anchor,bounds,width,height,gap=8):

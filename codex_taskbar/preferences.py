@@ -70,6 +70,8 @@ def read_settings(path):
     valid=isinstance(position,dict) and isinstance(position.get('screen'),str) and all(
         type(position.get(k)) in (int,float) and math.isfinite(position[k]) and 0<=position[k]<=1 for k in ('x','y'))
     result['floating_position']={k:position[k] for k in ('screen','x','y')} if valid else None
+    if valid and type(position.get('width')) is int and 1<=position['width']<=540:
+        result['floating_position']['width']=position['width']
     return result
 
 
