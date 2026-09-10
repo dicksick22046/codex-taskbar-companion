@@ -6,6 +6,8 @@ Captions and blank settings rows never change preferences. Switches are separate
 
 Verify complete flows with the real layout/update callbacks, isolating only OS side effects and persistence. Every settings control has balanced vertical space to its row boundaries; card padding must not make the first row asymmetric. Display changes resize the capsule while settings stay open. Search query/project changes return results to the top; background refresh preserves selection and scroll. Unit changes update all open views immediately. A failed setting write or startup action must not leave the UI claiming success.
 
+Task navigation failure keeps search open and offers a visible retry explanation. The strip uses a desktop notice for an explicit failed navigation action; clicking it opens task search. Error and update notices never automatically move focus. Independent settings failures remain visible until their own operation succeeds.
+
 Quota unit tabs follow the same press/release/cancel contract. Unit targets cannot also be task-row targets, including while scrolling. Task navigation retains a stable ID across a press, and cancels if the release targets a different row. Overlay input must respect the native window actually under the pointer, so covered taskbar widgets cannot steal clicks.
 
 ## Feedback and motion

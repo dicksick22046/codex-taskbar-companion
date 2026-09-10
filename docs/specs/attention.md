@@ -4,9 +4,15 @@
 
 Reuse the existing local log cursor to recognize a structurally valid `response_item` function call named `request_user_input` (optionally namespace-qualified), with a call ID and a nonempty questions list. Retain only call ID and timestamp, never question or answer text. A matching function-call output resolves it. A new turn, completion or interruption also clears the old request. Unrelated calls, malformed arguments and mere text mentioning the tool do not create a signal.
 
-Only expose Needs input on a currently verified running task with an unresolved request in its own log. It takes priority over Running in category counts, without duplicating the task. The turn remains active for elapsed-time accounting, but its title/badge does not pulse as though the model were generating. Show an amber question mark and count, a dedicated task panel, and the same status in search/daily lists. Clicking still returns to the existing task in Codex. No automatic answers, approval decisions, keyboard injection, or global notifications are added.
+Only expose Needs input on a currently verified running task with an unresolved request in its own log. It takes priority over Running in category counts, without duplicating the task. The turn remains active for elapsed-time accounting, but its title/badge does not pulse as though the model were generating. Show an amber question mark and count, a dedicated task panel, and the same status in search/daily lists. Clicking still returns to the existing task in Codex. No automatic answers, approval decisions or keyboard injection are added.
 
 This covers persisted synchronous input requests. It does not claim coverage of asynchronous app questions or ephemeral side-chat requests without saved records. Native Codex dialogs remain the place to answer.
+
+## Optional desktop notice
+
+General settings may enable input-needed notifications; default off. Reuse the existing UI snapshot check, with no new thread, polling or conversation storage. The first usable snapshot establishes a baseline without sending old notices. Enabling the option also establishes a fresh baseline. Batch newly waiting task IDs for one second, remove any already resolved IDs, and notify once per waiting interval. Unchanged data never repeats a notice.
+
+Messages contain a count, not task titles or question text. Clicking a notice opens the remaining single task, or the waiting list for several; if none remain, open task search. When the strip is hidden, task search remains the fallback. Update notices open the General settings page. Delivery depends on Windows notification preferences, so the persistent Needs input category remains the primary signal. Tests use a fake tray and never trigger real questions or notifications.
 
 ## Approval boundary
 
