@@ -3,6 +3,13 @@
 LANGUAGE_NAMES = (('en','English'),('zh-CN','简体中文'),('ja','日本語'),('es','Español'))
 LANGUAGES = tuple(code for code,name in LANGUAGE_NAMES)
 COPY = {
+    'Support':'支持','Copy diagnostics':'复制诊断信息','Copied':'已复制',
+    'Weekly quota remaining':'本周剩余额度',"Today's quota consumption":'今日额度消耗',
+    '5-hour quota remaining':'5 小时窗口剩余额度','Next quota reset':'下次额度重置',
+    'Notify when input is needed':'需要回答时通知',
+    'A task needs input.':'有一个任务等待回答。',
+    '{count} tasks need input.':'有 {count} 个任务等待回答。',
+    'Could not open Codex. Open Codex and try again.':'无法打开 Codex，请启动 Codex 后重试。',
     'Interaction':'交互',
     'Enter to open':'按 Enter 打开',
     'Could not save settings. Changes apply until restart.':'设置未能保存，当前修改仅在本次运行中生效。',
@@ -53,6 +60,13 @@ COPY = {
 }
 
 TRANSLATIONS = {'zh-CN': COPY, 'ja': {
+    'Support':'サポート','Copy diagnostics':'診断情報をコピー','Copied':'コピー済み',
+    'Weekly quota remaining':'週間の残りクォータ',"Today's quota consumption":'本日のクォータ使用量',
+    '5-hour quota remaining':'5 時間枠の残りクォータ','Next quota reset':'次のクォータリセット',
+    'Notify when input is needed':'回答が必要なときに通知',
+    'A task needs input.':'回答待ちのタスクがあります。',
+    '{count} tasks need input.':'{count} 件のタスクが回答を待っています。',
+    'Could not open Codex. Open Codex and try again.':'Codex を開けませんでした。起動してから再試行してください。',
     'Interaction':'操作',
     'Enter to open':'Enter で開く',
     'Could not save settings. Changes apply until restart.':'設定を保存できませんでした。変更は再起動まで有効です。',
@@ -101,6 +115,13 @@ TRANSLATIONS = {'zh-CN': COPY, 'ja': {
     'Update to {version}': '{version}に更新',
     'Version {version} is available. Update from Settings.': 'バージョン{version}が公開されました。設定から更新できます。',
 }, 'es': {
+    'Support':'Soporte','Copy diagnostics':'Copiar diagnóstico','Copied':'Copiado',
+    'Weekly quota remaining':'Cuota semanal restante',"Today's quota consumption":'Consumo de cuota de hoy',
+    '5-hour quota remaining':'Cuota restante de 5 horas','Next quota reset':'Próximo reinicio de cuota',
+    'Notify when input is needed':'Notificar cuando se necesite respuesta',
+    'A task needs input.':'Una tarea necesita una respuesta.',
+    '{count} tasks need input.':'{count} tareas necesitan una respuesta.',
+    'Could not open Codex. Open Codex and try again.':'No se pudo abrir Codex. Ábrelo e inténtalo de nuevo.',
     'Interaction':'Interacción',
     'Enter to open':'Enter para abrir',
     'Could not save settings. Changes apply until restart.':'No se pudo guardar. Los cambios duran hasta reiniciar.',

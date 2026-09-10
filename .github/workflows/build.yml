@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Test portable usage, task, reset and unread rules
-        run: python -m unittest tests.test_usage tests.test_tasks tests.test_period_usage tests.test_resets tests.test_unread tests.test_task_statistics tests.test_input_signals
+        run: python -m unittest tests.test_usage tests.test_tasks tests.test_period_usage tests.test_resets tests.test_unread tests.test_task_statistics tests.test_input_signals tests.test_attention_notices tests.test_diagnostics
   windows:
     runs-on: windows-latest
     steps:

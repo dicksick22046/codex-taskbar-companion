@@ -43,7 +43,10 @@ class WidgetJourneyTests(unittest.TestCase):
         self.page(2);combo=self.dialog.language;combo.showPopup();self.application.processEvents()
         combo.view().setCurrentIndex(combo.model().index(combo.findData('zh-CN'),0));self.key(combo.view(),Qt.Key.Key_Return)
         self.assertEqual(self.bar.language,'zh-CN');self.assertEqual(self.dialog.headings[2].text(),'常规')
+        with patch('codex_taskbar.settings_ui.QApplication.clipboard') as clipboard:self.click(self.dialog.diagnostics_button)
+        clipboard.return_value.setText.assert_called_once();self.assertTrue(self.dialog.copy_timer.isActive())
         self.dialog.close();self.dialog.show();self.application.processEvents()
+        self.assertFalse(self.dialog.copy_timer.isActive())
         self.assertEqual(self.dialog.capsule.currentData(),'light');self.assertFalse(self.dialog.checks['show_tasks'].isChecked())
         self.provider.request_reset.assert_not_called()
 

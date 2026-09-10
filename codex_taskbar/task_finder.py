@@ -182,6 +182,7 @@ class TaskFinder(QDialog):
         header.setSectionResizeMode(1,QHeaderView.ResizeMode.Stretch)
         for column,width in ((0,106),(2,90),(3,100),(4,112),(5,72),(6,112)):self.view.setColumnWidth(column,width)
         self.empty=QLabel();self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter);layout.addWidget(self.empty,1)
+        self.failure=QLabel();self.failure.setWordWrap(True);self.failure.setStyleSheet('color:#ebb45f;');self.failure.hide();layout.addWidget(self.failure)
         footer=QHBoxLayout();self.count=QLabel();self.count.setFont(typeface(bar.font,8));self.count.setStyleSheet('color:#a0a7b4;');footer.addWidget(self.count);footer.addStretch();self.key_hint=QLabel();self.key_hint.setFont(typeface(bar.font,8));self.key_hint.setStyleSheet('color:#a0a7b4;');footer.addWidget(self.key_hint);layout.addLayout(footer)
         self.project_width=80;self.stamp_width=72;self.status_width=55
         self.search.textChanged.connect(self.apply_filter);self.projects.currentIndexChanged.connect(self.apply_filter)
@@ -194,7 +195,7 @@ class TaskFinder(QDialog):
         self.move(bounds.center()-self.rect().center())
 
     def showEvent(self,event):
-        super().showEvent(event);self.bar.provider.set_statistics_active(True)
+        super().showEvent(event);self.failure.hide();self.bar.provider.set_statistics_active(True)
 
     def hideEvent(self,event):
         self.bar.provider.set_statistics_active(False);super().hideEvent(event)
@@ -265,3 +266,4 @@ class TaskFinder(QDialog):
 
     def open_row(self,row):
         if self.bar.open_task(row):self.hide()
+        else:self.failure.setText(self.bar.label('Could not open Codex. Open Codex and try again.'));self.failure.show()

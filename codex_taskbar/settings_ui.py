@@ -1,13 +1,14 @@
 """Native settings and tray entry; deliberately no general layout editor."""
 from pathlib import Path
-from PySide6.QtCore import Qt,QSize,QRectF
+from PySide6.QtCore import Qt,QSize,QRectF,QTimer
 from PySide6.QtGui import QIcon, QPainter, QPixmap, QColor, QPen
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox, QListView, QSlider, QScrollArea, QWidget, QFrame,QStackedWidget,QGraphicsOpacityEffect
+from PySide6.QtWidgets import QApplication,QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox, QListView, QSlider, QScrollArea, QWidget, QFrame,QStackedWidget,QGraphicsOpacityEffect
 from .build_info import APP_NAME, VERSION
 from .i18n import LANGUAGE_NAMES
 from . import startup
 from .motion import Spring
 from .ui_theme import Segments,Navigation,CONTROLS,typeface
+from .diagnostics import diagnostic_text
 
 DISPLAY_LABELS = {
     'show_week': 'Weekly quota', 'show_session': '5-hour quota',
@@ -137,7 +138,12 @@ class SettingsDialog(QDialog):
         self.hover=toggle(behavior);self.hover.setChecked(bar.settings.get('hover_panels',False));self.hover.toggled.connect(bar.set_hover_panels);indicators.addStretch()
         localization=card(general);self.language_label=QLabel();self.language=combo([(name,code) for code,name in LANGUAGE_NAMES],bar.settings.get('language','en'),bar.set_language);row(localization,self.language_label,self.language)
         startup_card=card(general);self.login=toggle(startup_card);self.login.setChecked(startup.enabled());self.login.toggled.connect(bar.set_startup)
+        line(startup_card);self.notify_input=toggle(startup_card);self.notify_input.setChecked(bar.settings.get('notify_input',False));self.notify_input.toggled.connect(bar.set_notify_input)
         updates=card(general);self.update_label=QLabel();self.update_button=QPushButton();self.update_button.setAutoDefault(False);self.update_button.clicked.connect(bar.update_clicked);row(updates,self.update_label,self.update_button)
+        line(updates);self.support_label=QLabel();self.diagnostics_button=QPushButton();self.diagnostics_button.setAutoDefault(False)
+        self.diagnostics_button.setStyleSheet('QPushButton{background:#383c45;} QPushButton:hover{background:#464d59;} QPushButton:pressed{background:#30353e;}')
+        self.diagnostics_button.clicked.connect(self.copy_diagnostics);row(updates,self.support_label,self.diagnostics_button)
+        self.copy_timer=QTimer(self);self.copy_timer.setSingleShot(True);self.copy_timer.timeout.connect(lambda:self.diagnostics_button.setText(self.bar.label('Copy diagnostics')))
         self.connection=QLabel();self.connection.setWordWrap(True);self.connection.setStyleSheet('color:#8797aa;font-size:12px;');general.addWidget(self.connection)
         general.addStretch()
         self.refresh();self.navigation.setCurrentRow(0);self.resize(self.sizeHint())
@@ -157,17 +163,25 @@ class SettingsDialog(QDialog):
         else:self.page_motion.snap(1.);self.page_effect.setEnabled(False)
 
     def hideEvent(self,event):
-        self.page_motion.snap(1.);self.page_effect.setEnabled(False);super().hideEvent(event)
+        self.page_motion.snap(1.);self.page_effect.setEnabled(False);self.copy_timer.stop();super().hideEvent(event)
 
     def stop_motion(self):
         for motion in self.findChildren(Spring):motion.snap(motion.target)
         self.page_effect.setEnabled(False)
+
+    def copy_diagnostics(self):
+        try:login=startup.enabled()
+        except OSError:login=None
+        bar=self.bar
+        report=diagnostic_text(bar.settings,bar.provider.get(),{'visible':bar.isVisible(),'width':bar.width(),'height':bar.height(),'placement_available':not bar.placement_unavailable,'animations':bar.motion_enabled,'font':bar.font.family(),'startup':login})
+        QApplication.clipboard().setText(report);self.diagnostics_button.setText(bar.label('Copied'));self.copy_timer.start(2000)
 
     def refresh(self):
         label=self.bar.label;self.setWindowTitle(f'{label("Settings")} · {APP_NAME}')
         for i,name in enumerate(('Appearance','Indicators','General')):
             self.navigation.item(i).setText(label(name));self.headings[i].setText(label(name))
         self.language_label.setText(label('Language'));self.behavior_title.setText(label('Interaction'));self.update_label.setText(label('Updates'))
+        self.support_label.setText(label('Support'));self.diagnostics_button.setText(label('Copied' if self.copy_timer.isActive() else 'Copy diagnostics'))
         for control,key,options in ((self.language,'language',None),(self.placement,'placement',('Taskbar','Floating')),(self.capsule,'capsule_theme',('Dark','Light'))):
             control.blockSignals(True)
             if options:
@@ -181,15 +195,17 @@ class SettingsDialog(QDialog):
         self.transparency.blockSignals(True);self.transparency.setValue(self.bar.settings.get('capsule_transparency',0));self.transparency.blockSignals(False);self.transparency_value.setText(f'{self.transparency.value()}%')
         for key,source in DISPLAY_LABELS.items():self.checks[key].setText(label(source))
         self.rotation.setText(label('Rotate left-side indicators'));self.hover.setText(label('Open panels on hover'));self.login.setText(label('Start at Windows sign-in'))
+        self.notify_input.setText(label('Notify when input is needed'))
         self.login.blockSignals(True);self.login.setChecked(startup.enabled());self.login.blockSignals(False)
         self.status_key=None;self.refresh_status()
 
     def refresh_status(self):
         label=self.bar.label;data=self.bar.provider.get()
-        error=getattr(self.bar,'settings_error','');self.feedback.setText(label(error) if error else '');self.feedback.setVisible(bool(error))
-        key=(self.bar.language,data.get('quota_error'),bool(data.get('quota')),data.get('error'),data.get('loading'),self.bar.placement_unavailable,self.bar.updater.message,self.bar.updater.busy,(self.bar.updater.release or {}).get('version'))
+        errors=tuple(sorted(self.bar.settings_errors))
+        key=(errors,self.bar.language,data.get('quota_error'),bool(data.get('quota')),data.get('error'),data.get('loading'),self.bar.placement_unavailable,self.bar.updater.message,self.bar.updater.busy,(self.bar.updater.release or {}).get('version'))
         if key==getattr(self,'status_key',None):return
         self.status_key=key
+        self.feedback.setText('\n'.join(label(error) for error in errors));self.feedback.setVisible(bool(errors))
         if data.get('quota_error'):message='Showing the last available quota.' if data.get('quota') else 'Quota unavailable. Try again later.'
         elif data.get('error'):message='Some data is unavailable. Showing the last available records.'
         elif data.get('loading'):message='Connecting to Codex…'

@@ -123,3 +123,40 @@ class UIFlowTests(unittest.TestCase):
         self.dialog.close();reopened=app.SettingsDialog(self.bar);self.bar.settings_dialog=reopened;reopened.grab()
         self.assertFalse(reopened.checks['show_week'].isChecked());self.assertTrue(reopened.rotation.isChecked())
         self.assertEqual(reopened.capsule.currentData(),'light');self.assertEqual(reopened.transparency.value(),35)
+
+    def test_optional_notice_is_grouped_and_click_rechecks_current_state(self):
+        self.dialog.notify_input.setChecked(True);task=self.data['tasks'][0];task['needs_input']=True;task['title']='private title'
+        with patch('codex_taskbar.app.time.monotonic',return_value=100):self.bar.check_attention()
+        self.bar.tray.showMessage.assert_not_called()
+        with patch('codex_taskbar.app.time.monotonic',return_value=101):self.bar.check_attention()
+        self.bar.tray.showMessage.assert_called_once();self.assertNotIn('private title',str(self.bar.tray.showMessage.call_args))
+        with patch.object(self.bar,'open_task') as opened:self.bar.notification_clicked();opened.assert_called_once_with(task)
+        task['needs_input']=False
+        with patch.object(self.bar,'open_finder') as finder:self.bar.notification_clicked();finder.assert_called_once()
+        self.bar.notification_kind='settings'
+        with patch.object(self.bar,'open_settings') as settings:self.bar.notification_clicked();settings.assert_called_once()
+        self.assertEqual(self.dialog.navigation.currentRow(),2)
+
+    def test_navigation_failure_is_visible_and_never_closes_search(self):
+        finder=TaskFinder(self.bar);self.bar.task_finder=finder
+        with patch('codex_taskbar.app.os.startfile',side_effect=OSError('fixture')),patch('builtins.print'),patch.object(finder,'hide') as hide:
+            finder.open_row(finder.rows[0]);hide.assert_not_called()
+        self.assertFalse(finder.failure.isHidden());self.assertIn('try again',finder.failure.text())
+        self.bar.tray.showMessage.assert_called_once();self.assertEqual(self.bar.notification_kind,'navigation')
+
+    def test_independent_errors_clear_only_when_each_operation_recovers(self):
+        self.save.side_effect=OSError('fixture')
+        with patch('builtins.print'),patch('codex_taskbar.app.startup.set_enabled',side_effect=OSError('fixture')):
+            self.bar.save_settings();self.bar.set_startup(True)
+        self.assertEqual(len(self.bar.settings_errors),2)
+        self.save.side_effect=None;self.bar.save_settings();self.assertEqual(len(self.bar.settings_errors),1)
+        self.assertIn('startup',self.dialog.feedback.text())
+        with patch('codex_taskbar.app.startup.set_enabled'):self.bar.set_startup(True)
+        self.assertFalse(self.bar.settings_errors);self.assertTrue(self.dialog.feedback.isHidden())
+
+    def test_copy_diagnostics_uses_fake_clipboard_and_confirms_completion(self):
+        with patch('codex_taskbar.settings_ui.QApplication.clipboard') as clipboard:
+            self.dialog.diagnostics_button.click()
+        clipboard.return_value.setText.assert_called_once();self.assertIn('"window"',clipboard.return_value.setText.call_args.args[0])
+        self.assertEqual(self.dialog.diagnostics_button.text(),'Copied');self.assertTrue(self.dialog.copy_timer.isActive())
+        self.dialog.hideEvent(QHideEvent());self.assertFalse(self.dialog.copy_timer.isActive())

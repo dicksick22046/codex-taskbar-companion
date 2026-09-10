@@ -32,6 +32,7 @@ from .build_info import VERSION, APP_NAME, RELEASE_REPOSITORY
 from .i18n import LANGUAGES, translate, project_label, task_title
 from .presentation import floating_rect,remember_position,clamp_rect,panel_rect
 from .motion import Spring
+from .attention_notices import AttentionNotices
 
 PANEL, MUTED, ACCENT, BLUE = "#262b33", "#bac5d2", "#53d5a0", "#79b6f5"
 TITLE_MUTED = "#8797aa"
@@ -241,7 +242,8 @@ class StatusBar(QWidget):
         self.hit_regions=[];self.pressed=None;self.confirming_reset=False
         self.pressed_local=None;self.press_inside=False;self.right_pressed=None
         self.hover_target=None;self.hover_since=0.;self.hover_leave_since=None;self.hover_suppressed=None
-        self.metrics=[];self.settings_dialog=None;self.task_finder=None;self.placement_unavailable=False;self.settings_error=''
+        self.metrics=[];self.settings_dialog=None;self.task_finder=None;self.placement_unavailable=False;self.settings_errors=set()
+        self.attention_notices=AttentionNotices();self.notification_kind='settings';self.notification_tasks=[]
         self.surface_loss_since=None;self.surface_repaired=False
         self.frame_key=None;self.panel_key=None
         self.host_key=None;self.drag_origin=None;self.dragging=False
@@ -259,7 +261,7 @@ class StatusBar(QWidget):
         self.quit_action=self.menu.addAction(self.label('Quit'),self.close)
         self.tray.setContextMenu(self.menu)
         self.tray.activated.connect(lambda reason:self.open_settings() if reason==QSystemTrayIcon.ActivationReason.Trigger else None)
-        self.tray.messageClicked.connect(self.open_settings)
+        self.tray.messageClicked.connect(self.notification_clicked)
         self.tray.show()
         self.update_timer=QTimer(self);self.update_timer.setInterval(24*60*60*1000)
         self.update_timer.timeout.connect(self.updater.check)
@@ -415,6 +417,27 @@ class StatusBar(QWidget):
         self.settings['hover_panels']=bool(value)
         self.hover_target=None;self.hover_leave_since=None;self.hover_suppressed=None
         self.save_settings()
+
+    def set_notify_input(self,value):
+        self.attention_notices.update(self.data.get('tasks',[]),False,time.monotonic())
+        self.settings['notify_input']=bool(value);self.save_settings()
+
+    def check_attention(self):
+        ids=self.attention_notices.update(self.data.get('tasks',[]),self.settings.get('notify_input',False),time.monotonic(),ready=not self.data.get('loading'))
+        if ids:
+            self.notification_kind='input';self.notification_tasks=ids
+            self.tray.showMessage(self.label('Needs input'),self.label('A task needs input.' if len(ids)==1 else '{count} tasks need input.',count=len(ids)))
+
+    def notification_clicked(self):
+        if self.notification_kind=='input':
+            tasks=[task for task in self.provider.get().get('tasks',[]) if task.get('needs_input') and task['id'] in self.notification_tasks]
+            if len(tasks)==1:self.open_task(tasks[0])
+            elif tasks and self.isVisible():self.toggle_popup('waiting')
+            else:self.open_finder()
+        elif self.notification_kind=='navigation':self.open_finder()
+        else:
+            self.open_settings()
+            if self.settings_dialog:self.settings_dialog.navigation.setCurrentRow(2)
 
     @property
     def floating(self):
@@ -583,8 +606,8 @@ class StatusBar(QWidget):
         error='Could not save settings. Changes apply until restart.'
         try:
             write_settings(RUNTIME/'ui_settings.json',self.settings)
-            if self.settings_error==error:self.settings_error=''
-        except OSError as exc:self.settings_error=error;print('Settings:',exc)
+            self.settings_errors.discard(error)
+        except OSError as exc:self.settings_errors.add(error);print('Settings:',exc)
         if self.settings_dialog:self.settings_dialog.refresh_status()
 
     def set_display(self,key,value):
@@ -622,14 +645,15 @@ class StatusBar(QWidget):
         error='Could not change startup. The previous setting is retained.'
         try:
             startup.set_enabled(value)
-            if self.settings_error==error:self.settings_error=''
-        except OSError as exc:self.settings_error=error;print('Startup:',exc)
+            self.settings_errors.discard(error)
+        except OSError as exc:self.settings_errors.add(error);print('Startup:',exc)
         if self.settings_dialog:self.settings_dialog.refresh()
 
     def update_status(self):
         if self.settings_dialog:self.settings_dialog.refresh()
         if self.updater.release and self.settings.get('notified_version')!=self.updater.release['version']:
             self.settings['notified_version']=self.updater.release['version'];self.save_settings()
+            self.notification_kind='settings'
             self.tray.showMessage(APP_NAME,self.label('Version {version} is available. Update from Settings.',version=self.updater.release['version']))
 
     def update_clicked(self):
@@ -647,6 +671,7 @@ class StatusBar(QWidget):
             os.startfile(thread_url(task['id']))
         except (OSError,ValueError) as exc:
             print(f'Task navigation: {exc}',file=sys.stderr)
+            self.notification_kind='navigation';self.tray.showMessage(APP_NAME,self.label('Could not open Codex. Open Codex and try again.'))
             return False
         self.hide_popup(immediate=True)
         return True
@@ -712,7 +737,7 @@ class StatusBar(QWidget):
         if hit:
             mode,_,task=hit
             if mode=='task':tip='<qt>'+escape(project_label(task.get('project'),self.language))+'<br>'+escape(task_title(task,self.language))+'</qt>'
-            else:tip=self.label({'usage':'Weekly quota','daily':'Daily quota usage','session':'5-hour quota','resets':'Reset countdown'}.get(mode,CATEGORY_LABELS.get(mode,mode)))
+            else:tip=self.label({'usage':'Weekly quota remaining','daily':"Today's quota consumption",'session':'5-hour quota remaining','resets':'Next quota reset'}.get(mode,CATEGORY_LABELS.get(mode,mode)))
         if self.toolTip()!=tip:self.setToolTip(tip)
         if hovering!=self.task_hover:
             now=time.monotonic()
@@ -790,6 +815,7 @@ class StatusBar(QWidget):
 
     def tick(self,resize=False):
         if not (self.pressed and self.pressed[0]=='task'):self.data=self.provider.get()
+        self.check_attention()
         if self.settings_dialog and self.settings_dialog.isVisible():self.settings_dialog.refresh_status()
         if self.task_finder and self.task_finder.isVisible():self.task_finder.refresh(self.data)
         if not any(self.settings[key] for key in DISPLAY_DEFAULTS):
