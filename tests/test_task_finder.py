@@ -4,7 +4,7 @@ import tempfile
 import threading
 import unittest
 from unittest.mock import Mock,patch
-from PySide6.QtCore import Qt,QEvent
+from PySide6.QtCore import Qt,QEvent,QRect
 from PySide6.QtGui import QKeyEvent
 from codex_taskbar import app
 from codex_taskbar.codex_api import CodexApi
@@ -76,6 +76,11 @@ class FinderInteractionTests(unittest.TestCase):
         self.finder.resize(560,300);self.finder.grab();self.finder.view.doItemsLayout()
         self.assertLessEqual(self.finder.view.visualRect(self.finder.model.index(0,0)).width(),self.finder.view.viewport().width())
         self.assertEqual(self.finder.view.horizontalScrollBar().maximum(),0)
+
+    def test_initial_window_fits_a_smaller_available_screen(self):
+        bounds=QRect(0,0,820,600);screen=Mock();screen.availableGeometry.return_value=bounds
+        with patch.object(self.bar,'screen',return_value=screen):finder=TaskFinder(self.bar)
+        self.assertTrue(bounds.contains(finder.geometry()));finder.close();finder.deleteLater()
 
     def test_data_change_between_press_and_release_does_not_open_replacement(self):
         self.finder.remember_press(self.finder.model.index(0,0))

@@ -144,7 +144,8 @@ class TaskFinder(QDialog):
     def __init__(self,bar):
         super().__init__();self.bar=bar;self.rows=[];self.input_key=None;self.pressed_id=None
         self.sort_column=6;self.sort_descending=True
-        self.setFont(bar.font);self.setMinimumSize(760,300)
+        bounds=bar.screen().availableGeometry();max_width=max(320,bounds.width()-32);max_height=max(240,bounds.height()-48)
+        self.setFont(bar.font);self.setMinimumSize(min(760,max_width),min(300,max_height))
         self.setStyleSheet('''QDialog,QTableView{background:#242930;color:#bac5d2;} QLabel{color:#8797aa;}
             QLineEdit,QComboBox{background:#303843;color:#bac5d2;border:1px solid #414b58;border-radius:5px;padding:8px;}
             QComboBox{padding-right:26px;}
@@ -182,7 +183,8 @@ class TaskFinder(QDialog):
         self.search.returnPressed.connect(self.open_selected)
         self.view.pressed.connect(self.remember_press);self.view.clicked.connect(self.open_clicked)
         self.refresh(bar.provider.get())
-        self.resize(1030,min(530,max(300,len(self.rows)*40+150),self.screen().availableGeometry().height()-60))
+        self.resize(min(1030,max_width),min(530,max(300,len(self.rows)*40+150),max_height))
+        self.move(bounds.center()-self.rect().center())
 
     def showEvent(self,event):
         super().showEvent(event);self.bar.provider.set_statistics_active(True)
