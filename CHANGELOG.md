@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+## 0.6.1
+
 - Restrict setting changes to the switch itself; labels and row whitespace no longer toggle preferences.
 - Commit unit, task and menu actions on release, cancel when dragged away, and keep the held task stable during rotation.
 - Prevent passive scrolling from changing settings or task filters; support precision scrolling in popovers.
