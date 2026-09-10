@@ -9,7 +9,7 @@ from PySide6.QtGui import QKeyEvent
 from codex_taskbar import app
 from codex_taskbar.codex_api import CodexApi
 from codex_taskbar.provider import Provider
-from codex_taskbar.task_finder import finder_rows,filter_rows,TaskFinder
+from codex_taskbar.task_finder import finder_rows,filter_rows,sort_rows,cell_text,TaskFinder
 from tests import test_interactions as fixtures
 
 
@@ -105,3 +105,20 @@ class FinderInteractionTests(unittest.TestCase):
         self.bar.settings['language']='zh-CN';self.finder.refresh(self.data)
         spoken=self.finder.model.index(0,0).data(Qt.ItemDataRole.AccessibleTextRole)
         self.assertIn('进行中',spoken);self.assertIn(self.finder.model.rows[0]['stamp'],spoken)
+
+    def test_totals_are_numeric_sortable_in_both_directions_with_unknown_last(self):
+        self.data['catalog']=self.data['catalog'][:3]
+        self.data['task_statistics']={'0':{'ready':True,'tokens':9000000,'seconds':80,'turns':2},
+                                      '1':{'ready':True,'tokens':120000000,'seconds':120,'turns':9,'partial':True}}
+        self.finder.refresh(self.data);self.finder.choose_sort(4)
+        self.assertEqual([row['id'] for row in self.finder.model.rows],['1','0','2'])
+        self.finder.choose_sort(4);self.assertEqual([row['id'] for row in self.finder.model.rows],['0','1','2'])
+        row=self.finder.model.rows[1];self.assertEqual(cell_text(row,4,'100M'),'1.2 ×100M');self.assertEqual(cell_text(row,3),'≥ 2m')
+        self.assertEqual(self.finder.model.headerData(5,Qt.Orientation.Horizontal),'Turns')
+
+    def test_statistics_updates_preserve_selected_task(self):
+        self.finder.view.setCurrentIndex(self.finder.model.index(3,1))
+        self.data['task_statistics']={'3':{'ready':True,'tokens':100,'seconds':40,'turns':1}}
+        self.finder.refresh(self.data)
+        self.assertEqual(self.finder.view.currentIndex().data(Qt.ItemDataRole.UserRole)['id'],'3')
+        self.assertEqual(self.finder.model.rows[3]['total_tokens'],100)

@@ -3,6 +3,11 @@
 LANGUAGE_NAMES = (('en','English'),('zh-CN','简体中文'),('ja','日本語'),('es','Español'))
 LANGUAGES = tuple(code for code,name in LANGUAGE_NAMES)
 COPY = {
+    'Needs input':'待回答',
+    'Appearance':'外观','Indicators':'显示项','General':'常规','Updates':'更新','Connected to Codex':'已连接 Codex',
+    'Project':'项目','Task':'任务','Status':'状态','Run time':'运行时长','Turns':'轮次','Last active':'最近活动',
+    'Indexing local history: {count}':'正在整理本机历史：{count}',
+    'Local recorded totals; run time excludes gaps, and turns count execution starts.':'本机记录的累计值；运行时长排除轮次间的空档，轮次按开始执行计数。',
     'Find task…':'查找任务…','Search tasks or projects':'搜索任务或项目','All projects':'所有项目',
     'No matching tasks':'没有匹配的任务','Results: {count}':'结果：{count}','Untitled task':'未命名任务',
     'Placement':'显示位置','Taskbar':'任务栏','Floating':'悬浮窗','Keep on top':'保持置顶',
@@ -42,6 +47,11 @@ COPY = {
 }
 
 TRANSLATIONS = {'zh-CN': COPY, 'ja': {
+    'Needs input':'回答待ち',
+    'Appearance':'外観','Indicators':'表示項目','General':'一般','Updates':'更新','Connected to Codex':'Codex に接続済み',
+    'Project':'プロジェクト','Task':'タスク','Status':'状態','Run time':'実行時間','Turns':'ターン','Last active':'最終更新',
+    'Indexing local history: {count}':'ローカル履歴を集計中：{count}',
+    'Local recorded totals; run time excludes gaps, and turns count execution starts.':'ローカル記録の累計です。実行時間はターン間の空白を除き、ターン数は実行開始を数えます。',
     'Find task…':'タスクを検索…','Search tasks or projects':'タスクやプロジェクトを検索','All projects':'すべてのプロジェクト',
     'No matching tasks':'一致するタスクはありません','Results: {count}':'検索結果：{count}','Untitled task':'無題のタスク',
     'Placement':'表示位置','Taskbar':'タスクバー','Floating':'フローティング','Keep on top':'常に手前に表示',
@@ -79,6 +89,11 @@ TRANSLATIONS = {'zh-CN': COPY, 'ja': {
     'Update to {version}': '{version}に更新',
     'Version {version} is available. Update from Settings.': 'バージョン{version}が公開されました。設定から更新できます。',
 }, 'es': {
+    'Needs input':'Requiere respuesta',
+    'Appearance':'Apariencia','Indicators':'Indicadores','General':'General','Updates':'Actualizaciones','Connected to Codex':'Conectado a Codex',
+    'Project':'Proyecto','Task':'Tarea','Status':'Estado','Run time':'Tiempo activo','Turns':'Turnos','Last active':'Actividad',
+    'Indexing local history: {count}':'Procesando historial local: {count}',
+    'Local recorded totals; run time excludes gaps, and turns count execution starts.':'Totales locales; el tiempo excluye pausas entre turnos y cada inicio de ejecución cuenta como un turno.',
     'Find task…':'Buscar tarea…','Search tasks or projects':'Buscar tareas o proyectos','All projects':'Todos los proyectos',
     'No matching tasks':'No hay tareas que coincidan','Results: {count}':'Resultados: {count}','Untitled task':'Tarea sin título',
     'Placement':'Ubicación','Taskbar':'Barra de tareas','Floating':'Flotante','Keep on top':'Mantener encima',

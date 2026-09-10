@@ -106,7 +106,7 @@ class FloatingInteractionTests(unittest.TestCase):
 
     def test_settings_scroll_on_short_windows_and_translate_placement(self):
         with patch('codex_taskbar.settings_ui.startup.enabled',return_value=False):dialog=app.SettingsDialog(self.bar)
-        self.bar.settings['language']='es';dialog.refresh();dialog.resize(dialog.width(),380);dialog.grab()
+        self.bar.settings['language']='es';dialog.refresh();dialog.tabs.setCurrentIndex(1);dialog.resize(dialog.width(),300);dialog.grab()
         self.assertGreater(dialog.scroll_area.verticalScrollBar().maximum(),0)
         self.assertEqual(dialog.placement.currentText(),'Flotante')
         self.assertEqual(dialog.capsule.currentText(),'Oscuro')
