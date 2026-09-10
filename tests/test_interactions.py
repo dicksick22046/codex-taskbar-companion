@@ -402,7 +402,9 @@ class InteractionTests(unittest.TestCase):
         from codex_taskbar.settings_ui import SettingsDialog
         self.data['tasks'][0].update(project='',side_chat=True,title='原任务标题')
         panel=app.TaskListPopup(self.bar,'daily');self.bar.popup=panel;panel.refresh(self.data)
-        with patch('codex_taskbar.settings_ui.startup.enabled',return_value=True),patch('codex_taskbar.app.write_settings') as save:
+        with patch('codex_taskbar.settings_ui.startup.enabled',return_value=True),patch('codex_taskbar.app.write_settings') as save, \
+             patch('codex_taskbar.app.windows.placement',return_value=(0,900,1200,30,1,False)), \
+             patch.object(self.bar,'ensure_visible',return_value=False),patch('codex_taskbar.app.windows.follow_taskbar'):
             dialog=SettingsDialog(self.bar);self.bar.settings_dialog=dialog
             before={key:self.bar.settings.get(key) for key in app.DISPLAY_DEFAULTS}
             rotated=self.bar.rotated_at
