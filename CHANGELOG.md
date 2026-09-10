@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- Use 100M consistently for reset-history totals; retain the unit on every row.
 - Left-align rotating values in a compact column after their labels, retaining the ring position.
 - Shorten the cycle-usage heading to “Cycle · Tokens” and update the translations.
 - Tighten the rotating slot to the current countdown format, retaining the ring position and stable width between rotations.

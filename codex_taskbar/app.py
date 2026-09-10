@@ -893,11 +893,9 @@ class ResetPopup(TaskPopup):
     def history_usage(self,row):
         tokens=row.get('tokens')
         if tokens is None:value='—'
-        elif self.owner.language in ('zh-CN','ja'):
-            value=chart_number(tokens,'100M')+(' 亿' if self.owner.language=='zh-CN' else ' 億')
-        elif tokens>=1_000_000_000:
-            value=f'{tokens/1_000_000_000:.3f}'.rstrip('0').rstrip('.')+'B'
-        else:value=chart_number(tokens,'M')+'M'
+        else:
+            unit={'zh-CN':'亿','ja':'億'}.get(self.owner.language,'×100M')
+            value=chart_number(tokens,'100M')+' '+unit
         return self.owner.label('Tokens')+' '+value
 
     def history_label(self,row):

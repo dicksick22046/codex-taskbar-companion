@@ -275,18 +275,25 @@ class InteractionTests(unittest.TestCase):
 
     def test_history_rows_identify_usage_and_units_and_use_blue_categories(self):
         self.data['reset_events']=[{'kind':'scheduled','at':datetime.now().timestamp(),'tokens':2036647183,'windows':['10080']}]
-        for language,expected in [('en','Tokens 2.037B'),('zh-CN','用量 20.37 亿'),('ja','使用量 20.37 億'),('es','Tokens 2.037B')]:
+        for language,expected in [('en','Tokens 20.37 ×100M'),('zh-CN','用量 20.37 亿'),('ja','使用量 20.37 億'),('es','Tokens 20.37 ×100M')]:
             self.bar.settings['language']=language
             panel=app.ResetPopup(self.bar);panel.refresh(self.data)
             with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
             labels=[call.args[3] for call in draw.call_args_list]
             self.assertIn(expected,labels);self.assertIn(self.bar.label('History'),labels)
-            self.assertFalse(any('100M' in value for value in labels))
+            self.assertNotIn('History · 100M',labels)
             category=next(call for call in draw.call_args_list if call.args[3]==panel.history_label(self.data['reset_events'][0]))
             self.assertEqual(category.args[5],app.BLUE)
             self.assertEqual(panel.history_usage({'tokens':None}),self.bar.label('Tokens')+' —')
             self.assertGreater(panel.history_divider,panel.token_right)
             panel.close();panel.deleteLater()
+
+    def test_history_uses_100m_for_both_small_and_large_totals(self):
+        panel=app.ResetPopup(self.bar)
+        self.assertEqual(panel.history_usage({'tokens':521911499}),'Tokens 5.22 ×100M')
+        self.assertEqual(panel.history_usage({'tokens':1_000_000_000}),'Tokens 10 ×100M')
+        self.assertEqual(panel.history_usage({'tokens':0}),'Tokens 0 ×100M')
+        panel.close();panel.deleteLater()
 
     def test_history_window_labels_depend_on_event_not_current_account_windows(self):
         panel=app.ResetPopup(self.bar)
