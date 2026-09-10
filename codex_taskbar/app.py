@@ -639,8 +639,10 @@ class StatusBar(QWidget):
             self.hit_regions.append((mode,QRectF(left,0,x-left-8,self.height()),None))
         def separator():
             nonlocal x
-            pen(p,"#53606d",.7)
-            p.drawLine(QPointF(x-6,y-5),QPointF(x-6,y+5));x+=7
+            if not self.settings.get('rotate_quotas'):
+                pen(p,"#53606d",.7)
+                p.drawLine(QPointF(x-6,y-5),QPointF(x-6,y+5))
+            x+=7
         for kind,value,fraction in self.displayed_metrics():field(kind,value,fraction)
         self.task_area=QRectF();self.task_rect=QRectF()
         if not self.settings['show_tasks']:finish();return
@@ -875,12 +877,18 @@ class ResetPopup(TaskPopup):
         source_width=max([QFontMetricsF(face(7)).horizontalAdvance(self.history_label(row)) for row in self.rows]+[0])
         metrics=QFontMetricsF(face(8))
         date_width=max([metrics.horizontalAdvance(datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M')) for row in self.rows]+[0])
-        usage_width=max([metrics.horizontalAdvance(self.history_usage(row)) for row in self.rows]+[0])
+        label_width=metrics.horizontalAdvance(self.owner.label('Tokens'))
+        number_width=max([metrics.horizontalAdvance(self.history_parts(row)[0]) for row in self.rows]+[0])
+        unit_width=max([metrics.horizontalAdvance(self.history_parts(row)[1]) for row in self.rows]+[0])
+        usage_width=label_width+6+number_width+4+unit_width
         width=max(self.WIDTH,math.ceil(18+date_width+16+usage_width+24+source_width+18))
         self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-height),width,height)
         self.button.setGeometry(18,height-48,self.width()-36,32)
         self.history_divider=self.width()-18-source_width-12
         self.token_right=self.history_divider-12
+        self.token_left=self.token_right-usage_width
+        self.number_right=self.token_left+label_width+6+number_width
+        self.unit_left=self.number_right+4
         credit=data.get('reset_selected')
         eligible=bool(credit and data.get('reset_account'))
         if credit and not data.get('reset_retry') and credit.get('expiresAt') is not None:eligible=eligible and credit['expiresAt']>time.time()
@@ -890,13 +898,13 @@ class ResetPopup(TaskPopup):
         self.scroll=min(self.scroll,max(0,len(self.rows)*26-self.history_height))
         self.update()
 
-    def history_usage(self,row):
+    def history_parts(self,row):
         tokens=row.get('tokens')
-        if tokens is None:value='—'
-        else:
-            unit={'zh-CN':'亿','ja':'億'}.get(self.owner.language,'×100M')
-            value=chart_number(tokens,'100M')+' '+unit
-        return self.owner.label('Tokens')+' '+value
+        if tokens is None:return '—',''
+        return chart_number(tokens,'100M'),{'zh-CN':'亿','ja':'億'}.get(self.owner.language,'×100M')
+
+    def history_usage(self,row):
+        return self.owner.label('Tokens')+' '+' '.join(part for part in self.history_parts(row) if part)
 
     def history_label(self,row):
         label={'scheduled':'Scheduled','manual':'Manual','official':'Official'}.get(row['kind'],'')
@@ -922,8 +930,10 @@ class ResetPopup(TaskPopup):
         for i,row in enumerate(self.rows):
             y=89+i*26-self.scroll
             text(p,18,y,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),face(8),MUTED)
-            total=self.history_usage(row)
-            text(p,self.token_right-QFontMetricsF(face(8)).horizontalAdvance(total),y,total,face(8),MUTED)
+            number,unit=self.history_parts(row)
+            text(p,self.token_left,y,self.owner.label('Tokens'),face(8),MUTED)
+            text(p,self.number_right-QFontMetricsF(face(8)).horizontalAdvance(number),y,number,face(8),MUTED)
+            if unit:text(p,self.unit_left,y,unit,face(8),MUTED)
             label=self.history_label(row)
             if label:
                 pen(p,'#53606d',.6);p.drawLine(QPointF(self.history_divider,y-5),QPointF(self.history_divider,y+5))

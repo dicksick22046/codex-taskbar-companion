@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Hide the taskbar divider when the left-side indicators rotate.
+- Align reset-history labels, numeric values, and units in separate columns.
 - Use 100M consistently for reset-history totals; retain the unit on every row.
 - Left-align rotating values in a compact column after their labels, retaining the ring position.
 - Shorten the cycle-usage heading to “Cycle · Tokens” and update the translations.

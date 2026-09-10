@@ -280,7 +280,8 @@ class InteractionTests(unittest.TestCase):
             panel=app.ResetPopup(self.bar);panel.refresh(self.data)
             with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
             labels=[call.args[3] for call in draw.call_args_list]
-            self.assertIn(expected,labels);self.assertIn(self.bar.label('History'),labels)
+            self.assertEqual(panel.history_usage(self.data['reset_events'][0]),expected)
+            self.assertIn(self.bar.label('Tokens'),labels);self.assertIn(self.bar.label('History'),labels)
             self.assertNotIn('History · 100M',labels)
             category=next(call for call in draw.call_args_list if call.args[3]==panel.history_label(self.data['reset_events'][0]))
             self.assertEqual(category.args[5],app.BLUE)
@@ -294,6 +295,27 @@ class InteractionTests(unittest.TestCase):
         self.assertEqual(panel.history_usage({'tokens':1_000_000_000}),'Tokens 10 ×100M')
         self.assertEqual(panel.history_usage({'tokens':0}),'Tokens 0 ×100M')
         panel.close();panel.deleteLater()
+
+    def test_history_labels_numbers_and_units_have_separate_aligned_columns(self):
+        self.data['reset_events']=[{'kind':'scheduled','at':datetime.now().timestamp()+i,'tokens':value,'windows':['10080']}
+                                   for i,value in enumerate((2037000000,522000000,None))]
+        for language in app.LANGUAGES:
+            self.bar.settings['language']=language
+            panel=app.ResetPopup(self.bar);panel.refresh(self.data)
+            with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
+            calls=draw.call_args_list
+            labels=[c for c in calls if c.args[3]==self.bar.label('Tokens')]
+            self.assertEqual(len(labels),3)
+            self.assertEqual(len({c.args[1] for c in labels}),1)
+            row_y={c.args[2] for c in labels}
+            numbers=[c for c in calls if c.args[3] in ('20.37','5.22','—') and c.args[2] in row_y]
+            self.assertEqual(len(numbers),3)
+            for call in numbers:
+                self.assertAlmostEqual(call.args[1]+app.QFontMetricsF(call.args[4]).horizontalAdvance(call.args[3]),panel.number_right)
+            units=[c for c in calls if c.args[3] in ('×100M','亿','億')]
+            self.assertEqual(len(units),2)
+            self.assertEqual({c.args[1] for c in units},{panel.unit_left})
+            panel.close();panel.deleteLater()
 
     def test_history_window_labels_depend_on_event_not_current_account_windows(self):
         panel=app.ResetPopup(self.bar)
