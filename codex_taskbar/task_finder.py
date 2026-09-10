@@ -129,7 +129,8 @@ class TaskFinder(QDialog):
 
     def refresh(self,data):
         states=task_rows(data)
-        key=(id(data.get('catalog')),self.bar.language,datetime.now().date(),
+        # Retain the catalog itself: object IDs can be reused while this window is hidden.
+        key=(data.get('catalog'),self.bar.language,datetime.now().date(),
              tuple(tuple(t.get(k) for k in ('id','project','title','running','unread','status','side_chat','activity_at')) for t in states),bool(data.get('loading')))
         if key==self.input_key:return
         self.input_key=key;self.rows=finder_rows(data,self.bar.language)
