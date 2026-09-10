@@ -1315,7 +1315,9 @@ class TaskListPopup(TaskPopup):
 
 
 def main():
-    if sys.argv[1:]==["--smoke-test"]:return
+    if sys.argv[1:]==["--smoke-test"]:
+        from .task_finder import TaskFinder
+        return
     if len(sys.argv)==4 and sys.argv[1]=='--install-update':
         install_after_exit(sys.argv[2],int(sys.argv[3]),RUNTIME);return
     ctypes.windll.kernel32.CreateMutexW.restype=ctypes.c_void_p

@@ -122,7 +122,7 @@ class TaskFinder(QDialog):
         self.search.returnPressed.connect(self.open_selected)
         self.view.pressed.connect(self.remember_press);self.view.clicked.connect(self.open_clicked)
         self.refresh(bar.provider.get())
-        self.resize(740,min(490,max(300,len(self.rows)*40+100),self.screen().availableGeometry().height()-60))
+        self.resize(740,min(490,max(300,len(self.rows)*40+112),self.screen().availableGeometry().height()-60))
 
     def eventFilter(self,watched,event):
         if watched is self.search and event.type()==QEvent.Type.KeyPress and event.key()==Qt.Key.Key_Down and self.model.rowCount():

@@ -43,6 +43,14 @@ En los ajustes puedes elegir inglés, chino simplificado, japonés o español, a
 
 En Ajustes puedes elegir manualmente el color oscuro o claro de la cápsula y la transparencia del fondo. Un 0% significa fondo opaco; el texto y los anillos no se atenúan.
 
+Haz clic derecho y elige **Buscar tarea…** para buscar tareas guardadas por título o proyecto. Filtra por proyecto y abre un resultado con un clic o con las flechas y Enter. La búsqueda es local y no guarda el texto introducido. El filtro solo afecta a esta ventana.
+
+La cápsula se ajusta al contenido hasta el ancho máximo anterior. Reserva espacio para la tarea más larga de la rotación, evitando cambios de tamaño entre tareas. El catálogo también incluye ejecuciones CLI guardadas; sus registros pueden aumentar los totales locales de tokens.
+
+![Búsqueda de tareas](../images/task-search.png)
+
+*Datos de ejemplo. La herramienta aún no muestra las solicitudes de entrada o aprobación en tiempo real de otros clientes de Codex.*
+
 ## Qué significan los datos
 
 - Los porcentajes de cuota proceden de la cuenta; los tokens, de los registros de tareas de este equipo. Los tokens no permiten calcular un porcentaje exacto de cuota ni el coste de la suscripción.

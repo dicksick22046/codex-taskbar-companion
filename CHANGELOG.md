@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+## 0.5.0
+
 - Add Find task to the context menu, with local title/project search, project filtering and keyboard navigation.
 - Include recorded Codex CLI execution and app-server sources in the existing catalog, deduplicated by task ID.
 - Keep the full search catalog in memory and localize untitled task labels.

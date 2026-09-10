@@ -11,11 +11,11 @@ Help people notice what their AI tasks need and return to the right task, with q
 
 See [the milestone contract](specs/windows-companion.md). Ship a cohesive, verified batch; small commits are not separate releases.
 
-## 2. Help users return to work
+## 2. Help users return to work — task finding in 0.5.0
 
-- Add task search and project focus based on the existing task catalog.
+- Task search and project filtering reuse the existing catalog; capsule width fits content without resizing on each rotation.
 - Investigate reliable waiting-for-input and approval evidence before adding an attention inbox or notifications.
-- Verify whether desktop, CLI and IDE tasks can be aggregated without duplicates or guesses about state.
+- Explicitly include recorded CLI, VS Code, app-server and execution sources, deduplicated by ID. Live input/approval visibility across clients still needs a verified source; see [the evidence boundary](specs/task-finding.md#waitingapproval-evidence-boundary).
 - Keep notifications optional and grouped. Measure missed actions and incorrect notifications with users.
 
 ## 3. Expand where there is evidence

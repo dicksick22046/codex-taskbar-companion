@@ -43,12 +43,21 @@ Settings include English, Simplified Chinese, Japanese, and Spanish UI selection
 
 Capsule colors and background transparency are set manually in Settings. Choose Dark or Light; 0% transparency gives a solid background. Text and ring opacity are unaffected.
 
+The capsule fits its content up to the original maximum width. It reserves room for the longest rotating task, so switching tasks does not make it jump in size.
+
+Right-click and choose **Find task…** to search recorded tasks by title or project. Filter to one project, then click a result or use the arrow keys and Enter to return to it in Codex. This filter affects the search window only; quota and strip counts keep their existing scope.
+
+![Task search](docs/images/task-search.png)
+
+*Search window with sample tasks. Search runs locally and does not save your query.*
+
 ## About the numbers
 
 - Quota percentages come from the account. Tokens come from task logs on this computer. Token totals cannot be converted into an exact quota percentage or subscription cost.
 - Daily quota usage starts at the day's first available reading. Restarting preserves it. Earlier usage is not reconstructed; a reset during the day is handled as a separate interval.
 - The daily task list includes today's turns. Status panels show the current or latest turn's duration, including time waiting for tools.
 - Historical token totals cover locally recorded tasks. Other devices and temporary side chats without saved usage are excluded.
+- The task catalog includes recorded CLI, VS Code, app-server and CLI execution sources. Newly included records can increase local token totals. Runtime waiting/approval states from other Codex clients are not currently exposed by this tool.
 
 Reset history uses **Scheduled** for an observed natural rollover, **Manual** for a reset confirmed through this tool, and **Official** for other observed recoveries. Official is an inferred category, not a verified statement from OpenAI. Using a reset credit requires confirmation and consumes a real credit.
 
