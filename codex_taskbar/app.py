@@ -214,12 +214,13 @@ class StatusBar(QWidget):
         self.hit_regions=[];self.pressed=None;self.confirming_reset=False
         self.hover_target=None;self.hover_since=0.;self.hover_leave_since=None;self.hover_suppressed=None
         self.metrics=[];self.settings_dialog=None;self.placement_unavailable=False
+        self.surface_loss_since=None;self.surface_repaired=False
         self.settings=read_settings(RUNTIME/'ui_settings.json')
         self.chart_unit=self.settings['chart_unit']
         self.updater=UpdateController(RUNTIME,self);self.updater.changed.connect(self.update_status)
         self.updater.ready.connect(self.install_update)
         self.tray=QSystemTrayIcon(app_icon(),self);self.tray.setToolTip(APP_NAME)
-        self.menu=QMenu();self.menu.setFont(face(8))
+        self.menu=QMenu(self);self.menu.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint,True);self.menu.setFont(face(8))
         self.menu.setStyleSheet('QMenu{background:#242930;color:#bac5d2;border:1px solid #3b4350;padding:5px;} QMenu::item{padding:7px 12px;} QMenu::item:selected{background:#3b4552;}')
         self.settings_action=self.menu.addAction(self.label('Settings…'),lambda:QTimer.singleShot(0,self.open_settings))
         self.quit_action=self.menu.addAction(self.label('Quit'),self.close)
@@ -236,7 +237,7 @@ class StatusBar(QWidget):
         self.task_tween.valueChanged.connect(self.set_task_blend)
         self.timer=QTimer(self);self.timer.timeout.connect(self.tick);self.timer.start(150)
         self.animation=QTimer(self);self.animation.timeout.connect(self.animate);self.animation.start(33)
-        self.winId()  # Create the native handle only after transparency attributes are set.
+        self.native_handle=int(self.winId())  # Create the native handle only after transparency attributes are set.
         self.click_hook=windows.ClickHook(self.desktop_click)
         self.tick()
 
@@ -457,7 +458,12 @@ class StatusBar(QWidget):
         self.settings_dialog.raise_();self.settings_dialog.activateWindow()
 
     def open_menu(self):
-        self.hide_popup(immediate=True);self.menu.popup(QCursor.pos())
+        self.hide_popup(immediate=True);self.menu.ensurePolished()
+        bounds=self.screen().availableGeometry();size=self.menu.sizeHint()
+        x=max(bounds.left(),min(QCursor.pos().x(),bounds.right()-size.width()+1))
+        bottom=min(self.y(),bounds.bottom()+1)-TaskPopup.GAP
+        y=max(bounds.top(),bottom-size.height())
+        self.menu.popup(QPointF(x,y).toPoint())
 
     def set_startup(self,value):
         try:startup.set_enabled(value)
@@ -551,6 +557,27 @@ class StatusBar(QWidget):
         self.track_pointer(QPointF(-1,-1))
         self.hover_target=None;self.hover_suppressed=None
 
+    def ensure_visible(self,now=None):
+        hwnd=int(self.winId());window=self.windowHandle()
+        native_visible=bool(windows.user32.IsWindowVisible(hwnd))
+        minimized=bool(windows.user32.IsIconic(hwnd))
+        exposed=bool(window and window.isExposed())
+        if self.isVisible() and native_visible and not minimized and exposed:
+            self.surface_loss_since=None;self.surface_repaired=False;return False
+        if self.menu.isVisible() or self.confirming_reset:return False
+        if not self.isVisible():
+            self.surface_loss_since=None;self.surface_repaired=False
+            self.show();windows.hide_border(hwnd);return True
+        now=time.monotonic() if now is None else now
+        if self.surface_loss_since is None:self.surface_loss_since=now
+        if self.surface_repaired or now-self.surface_loss_since<.3:return False
+        self.surface_repaired=True
+        print(f'{datetime.now().astimezone().isoformat()} Window recovery: native_visible={native_visible}, minimized={minimized}, exposed={exposed}',flush=True)
+        self.hide()
+        if minimized:self.setWindowState(self.windowState() & ~Qt.WindowState.WindowMinimized)
+        self.show();windows.hide_border(int(self.winId()));self.update()
+        return True
+
     def tick(self):
         self.data=self.provider.get()
         if self.settings_dialog and self.settings_dialog.isVisible():self.settings_dialog.refresh()
@@ -566,17 +593,21 @@ class StatusBar(QWidget):
         placed=windows.placement(minimum_width=minimum)
         self.placement_unavailable=placed is None
         if not placed:self.hide();self.hide_popup(immediate=True);return
-        if not windows.user32.IsWindow(int(self.winId())):
+        hwnd=int(self.winId())
+        if not windows.user32.IsWindow(hwnd):
             # Explorer destroys owned native windows when rebuilding the taskbar.
             self.hide_popup(immediate=True);self.hide();self.destroy();self.create()
             self.position=None
+            hwnd=int(self.winId())
+        if hwnd!=self.native_handle:
+            self.native_handle=hwnd;self.position=None
+            self.surface_loss_since=None;self.surface_repaired=False
         x,y,w,h,scale,hidden=placed
         if hidden:
             self.hide();self.hide_popup(immediate=True);return
         logical=tuple(round(v/scale) for v in (x,y,w,h))
         if self.position!=logical:self.setGeometry(*logical);self.position=logical
-        if not self.isVisible():
-            self.show();windows.hide_border(int(self.winId()))
+        self.ensure_visible()
         windows.follow_taskbar(int(self.winId()))
         self.track_pointer(self.mapFromGlobal(QCursor.pos()))
         self.data=self.provider.get()

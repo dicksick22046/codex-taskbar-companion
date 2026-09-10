@@ -19,6 +19,10 @@ user32.GetDpiForWindow.argtypes = [w.HWND]
 user32.GetDpiForWindow.restype = w.UINT
 user32.IsWindow.argtypes = [w.HWND]
 user32.IsWindow.restype = w.BOOL
+user32.IsWindowVisible.argtypes = [w.HWND]
+user32.IsWindowVisible.restype = w.BOOL
+user32.IsIconic.argtypes = [w.HWND]
+user32.IsIconic.restype = w.BOOL
 user32.GetWindowLongPtrW.argtypes = [w.HWND, ctypes.c_int]
 user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
 user32.GetWindow.argtypes = [w.HWND, ctypes.c_uint]
@@ -107,7 +111,8 @@ def follow_taskbar(hwnd):
     tray = user32.FindWindowW("Shell_TrayWnd", None)
     if tray and user32.GetWindowLongPtrW(hwnd, -8) != tray:
         user32.SetWindowLongPtrW(hwnd, -8, tray)  # GWLP_HWNDPARENT: owner, not child parenting.
-        topmost(hwnd)
+        insert_after=user32.GetWindow(tray,3)
+        if insert_after!=hwnd:user32.SetWindowPos(hwnd,insert_after or 0,0,0,0,0,0x0213)
         return
     if not tray:return
     previous=user32.GetWindow(hwnd,3)  # GW_HWNDPREV walks toward the top of the Z order.

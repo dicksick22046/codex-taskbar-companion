@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- Recover native visibility and Qt surface state after an unexpected hide; keep context menus above the strip and taskbar.
 - Hide the taskbar divider when the left-side indicators rotate.
 - Align reset-history labels, numeric values, and units in separate columns.
 - Use 100M consistently for reset-history totals; retain the unit on every row.

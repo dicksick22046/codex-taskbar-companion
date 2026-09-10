@@ -24,7 +24,13 @@ class TaskbarOrderTests(unittest.TestCase):
 
     def test_rebinds_a_recreated_taskbar_once(self):
         owners,moves,tops=self.follow({},owner=99)
-        self.assertEqual(owners[0].args,(10,-8,20));self.assertEqual(tops[0].args,(10,))
+        self.assertEqual(owners[0].args,(10,-8,20));self.assertEqual(tops,[])
+        self.assertEqual(moves[0].args,(10,0,0,0,0,0,0x0213))
+
+    def test_rebind_does_not_raise_above_a_menu_already_above_taskbar(self):
+        owners,moves,tops=self.follow({20:30},owner=0)
+        self.assertEqual(tops,[])
+        self.assertEqual(moves[0].args,(10,30,0,0,0,0,0x0213))
 
     def test_missing_taskbar_or_changing_order_does_not_loop_or_force_topmost(self):
         self.assertEqual(self.follow({},tray=0)[1],[])

@@ -326,6 +326,19 @@ class InteractionTests(unittest.TestCase):
             self.assertEqual(panel.history_label({'kind':'manual','windows':[]}),'Manual')
         panel.close();panel.deleteLater()
 
+    def test_context_menu_belongs_above_strip_and_opens_above_taskbar(self):
+        self.assertIs(self.bar.menu.parentWidget(),self.bar)
+        self.assertTrue(self.bar.menu.windowFlags() & app.Qt.WindowType.WindowStaysOnTopHint)
+        menu_handle=int(self.bar.menu.winId())
+        self.assertIs(self.bar.menu.windowHandle().transientParent(),self.bar.windowHandle())
+        self.assertTrue(app.windows.user32.GetWindowLongPtrW(menu_handle,-20)&0x8)
+        self.bar.move(12,700)
+        with patch('codex_taskbar.app.QCursor.pos',return_value=app.QPointF(100,715).toPoint()),patch.object(self.bar.menu,'popup') as opened:
+            self.bar.open_menu()
+        point=opened.call_args.args[0];height=self.bar.menu.sizeHint().height()
+        self.assertLessEqual(point.y()+height,self.bar.y()-app.TaskPopup.GAP)
+        self.assertLessEqual(point.y()+height,self.bar.screen().availableGeometry().bottom()+1-app.TaskPopup.GAP)
+
     def test_language_switch_updates_open_settings_menu_and_panel_without_side_effects(self):
         from codex_taskbar.settings_ui import SettingsDialog
         self.data['tasks'][0].update(project='',side_chat=True,title='原任务标题')
