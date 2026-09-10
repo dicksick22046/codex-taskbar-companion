@@ -1,7 +1,8 @@
 from contextlib import ExitStack
 from unittest.mock import patch
 import unittest
-from PySide6.QtCore import QPointF,Qt
+from PySide6.QtCore import QPointF,Qt,QEvent
+from PySide6.QtGui import QKeyEvent,QHideEvent,QFontInfo
 from codex_taskbar import app
 from codex_taskbar.task_finder import TaskFinder
 from tests import test_interactions as fixtures
@@ -29,14 +30,14 @@ class UIFlowTests(unittest.TestCase):
         for language in app.LANGUAGES:
             self.bar.set_language(language)
             for page,controls in ((0,[self.dialog.placement,self.dialog.capsule,self.dialog.transparency.parentWidget()]),(1,list(self.dialog.checks.values())),(2,[self.dialog.language,self.dialog.update_button,self.dialog.login])):
-                self.dialog.tabs.setCurrentIndex(page);self.layout()
+                self.dialog.navigation.setCurrentRow(page);self.layout()
                 for control in controls:
                     row=control.parentWidget();top=control.y();bottom=row.height()-control.y()-control.height()
                     with self.subTest(language=language,control=control.accessibleName()):
                         self.assertGreaterEqual(top,8);self.assertGreaterEqual(bottom,8);self.assertLessEqual(abs(top-bottom),1)
 
     def test_settings_changes_resize_real_layout_without_closing_dialog(self):
-        self.dialog.tabs.setCurrentIndex(1);self.layout()
+        self.dialog.navigation.setCurrentRow(1);self.layout()
         for placement in ('taskbar','floating'):
             self.dialog.placement.setCurrentIndex(self.dialog.placement.findData(placement))
             for key in ('show_tasks','show_week','show_session','show_countdown','show_daily'):
@@ -62,7 +63,7 @@ class UIFlowTests(unittest.TestCase):
     def test_save_failure_remains_visible_when_status_refreshes(self):
         self.save.side_effect=OSError('fixture')
         with patch('builtins.print'):self.dialog.capsule.setCurrentIndex(self.dialog.capsule.findData('light'))
-        self.dialog.tabs.setCurrentIndex(2);self.dialog.refresh_status()
+        self.dialog.navigation.setCurrentRow(2);self.dialog.refresh_status()
         self.assertFalse(self.dialog.feedback.isHidden());self.assertIn('save',self.dialog.feedback.text().lower())
         self.save.side_effect=None;self.dialog.capsule.setCurrentIndex(self.dialog.capsule.findData('dark'))
         self.assertTrue(self.dialog.feedback.isHidden())
@@ -83,3 +84,42 @@ class UIFlowTests(unittest.TestCase):
         self.bar.track_pointer(QPointF(-5,-5));self.assertFalse(self.bar.press_inside)
         self.bar.track_pointer(hit[1].center());self.assertTrue(self.bar.press_inside)
         self.bar.release_press();self.assertFalse(self.bar.press_inside)
+
+    def test_segment_motion_survives_real_setting_refresh_and_hiding_settles(self):
+        self.layout();choice=self.dialog.placement
+        with patch.object(choice,'isVisible',return_value=True):
+            choice.setCurrentIndex(choice.findData('floating'))
+            self.assertTrue(choice.motion.timer.isActive())
+            choice.motion.advance(.025);before=(choice.motion.value,choice.motion.velocity)
+            self.dialog.refresh();self.assertEqual((choice.motion.value,choice.motion.velocity),before)
+            choice.hideEvent(QHideEvent());self.assertFalse(choice.motion.timer.isActive())
+            self.assertEqual(choice.position,choice.items[choice.currentIndex()][0].x())
+
+    def test_rapid_navigation_retains_each_visible_weight(self):
+        nav=self.dialog.navigation
+        with patch.object(nav,'isVisible',return_value=True):
+            nav.setCurrentRow(1)
+            for motion in nav.motions:motion.advance(.035)
+            before=[(motion.value,motion.velocity) for motion in nav.motions]
+            nav.setCurrentRow(2)
+            self.assertEqual([(motion.value,motion.velocity) for motion in nav.motions],before)
+            for motion in nav.motions:motion.advance(1.)
+            self.assertEqual(nav.weights,[0.,0.,1.])
+
+    def test_keyboard_navigation_and_runtime_reduced_motion_leave_no_timers(self):
+        nav=self.dialog.navigation
+        with patch.object(nav,'isVisible',return_value=True):
+            self.application.sendEvent(nav,QKeyEvent(QEvent.Type.KeyPress,Qt.Key.Key_Down,Qt.KeyboardModifier.NoModifier))
+            self.assertEqual(nav.currentRow(),1);self.assertFalse(any(m.timer.isActive() for m in nav.motions));self.assertFalse(self.dialog.page_motion.timer.isActive())
+            nav.setCurrentRow(2);self.assertTrue(self.dialog.page_motion.timer.isActive())
+            with patch('codex_taskbar.app.windows.animations_enabled',return_value=False):self.bar.sync_motion()
+            self.assertFalse(any(m.timer.isActive() for m in nav.motions));self.assertFalse(self.dialog.page_effect.isEnabled())
+
+    def test_current_font_and_reopened_preferences_match_all_controls(self):
+        self.layout()
+        self.assertEqual(QFontInfo(self.dialog.placement_label.font()).family(),self.bar.font.family())
+        self.dialog.checks['show_week'].setChecked(False);self.dialog.rotation.setChecked(True)
+        self.dialog.capsule.setCurrentIndex(self.dialog.capsule.findData('light'));self.dialog.transparency.setValue(35)
+        self.dialog.close();reopened=app.SettingsDialog(self.bar);self.bar.settings_dialog=reopened;reopened.grab()
+        self.assertFalse(reopened.checks['show_week'].isChecked());self.assertTrue(reopened.rotation.isChecked())
+        self.assertEqual(reopened.capsule.currentData(),'light');self.assertEqual(reopened.transparency.value(),35)

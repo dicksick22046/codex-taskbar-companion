@@ -81,8 +81,9 @@ def painter(widget):
 
 
 def panel_painter(widget):
-    p=painter(widget);p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QColor(PANEL));p.drawRoundedRect(QRectF(widget.rect()),9,9)
+    p=painter(widget);p.setPen(QPen(QColor('#454b56'),.7))
+    surface=QLinearGradient(0,0,0,widget.height());surface.setColorAt(0,QColor('#30343c'));surface.setColorAt(1,QColor('#25282f'))
+    p.setBrush(surface);p.drawRoundedRect(QRectF(widget.rect()).adjusted(.5,.5,-.5,-.5),12,12)
     return p
 
 
@@ -132,9 +133,9 @@ def project_tag(p,x,y,value,font,available,language='en',color=BLUE,muted='#8795
     label=metrics.elidedText(project_label(value,language),Qt.TextElideMode.ElideRight,max(0,available-12))
     width=metrics.horizontalAdvance(label)+12
     color=QColor(muted if not value else color)
-    outline=QColor(color);outline.setAlpha(155)
-    pen(p,outline,.7)
-    p.drawRoundedRect(QRectF(x,y-9,width,18),4,4)
+    fill=QColor(color);fill.setAlpha(24)
+    p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill)
+    p.drawRoundedRect(QRectF(x,y-9,width,18),5,5)
     text(p,x+6,y,label,font,color)
     return width
 
@@ -145,8 +146,8 @@ def side_tag_width(language='en'):
 
 def side_tag(p,x,y,language='en',light=False):
     width=side_tag_width(language)
-    pen(p,'#91a2b6' if light else '#536170',.6);p.setBrush(QColor('#dce3ec' if light else '#303740'))
-    p.drawRoundedRect(QRectF(x,y-7,width,14),2,2)
+    p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('#dce3ec' if light else '#3b424d'))
+    p.drawRoundedRect(QRectF(x,y-7,width,14),3,3)
     text(p,x+5,y,translate(language,'Side'),face(7),'#465a72' if light else '#a6b2c0')
     return width
 
@@ -252,7 +253,7 @@ class StatusBar(QWidget):
         self.updater.ready.connect(self.install_update)
         self.tray=QSystemTrayIcon(app_icon(),self);self.tray.setToolTip(APP_NAME)
         self.menu=QMenu(self);self.menu.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint,True);self.menu.setFont(face(8))
-        self.menu.setStyleSheet('QMenu{background:#242930;color:#bac5d2;border:1px solid #3b4350;padding:5px;} QMenu::item{padding:7px 12px;} QMenu::item:selected{background:#3b4552;}')
+        self.menu.setStyleSheet('QMenu{background:#2b2f37;color:#d7dfe9;border:1px solid #474f5d;padding:6px;} QMenu::item{padding:8px 16px;border-radius:5px;} QMenu::item:selected{background:#426992;}')
         self.find_action=self.menu.addAction(self.label('Find task…'),lambda:QTimer.singleShot(0,self.open_finder))
         self.settings_action=self.menu.addAction(self.label('Settings…'),lambda:QTimer.singleShot(0,self.open_settings))
         self.quit_action=self.menu.addAction(self.label('Quit'),self.close)
@@ -291,6 +292,7 @@ class StatusBar(QWidget):
             if self.popup and self.popup.reveal_target is not None:self.popup.reveal_to(self.popup.reveal_target,force=True)
             if self.settings_dialog:
                 for control in self.settings_dialog.findChildren(Toggle):control.motion.snap(float(control.isChecked()))
+                self.settings_dialog.stop_motion()
         self.update()
 
     def desktop_click(self,x,y,button="left"):
@@ -1011,7 +1013,7 @@ class TaskPopup(QWidget):
         if self.mode in ('usage','daily'):
             for unit in ('M','100M'):
                 button=QPushButton(unit,self);button.setFont(face(8));button.setCheckable(True);button.setAutoDefault(False);button.setCursor(Qt.CursorShape.PointingHandCursor)
-                button.setAccessibleName(unit+' Tokens');button.setStyleSheet('QPushButton{background:transparent;color:#bac5d2;border:0;border-bottom:1px solid transparent;border-radius:3px;} QPushButton:checked{color:#79b6f5;border-bottom-color:#79b6f5;} QPushButton:hover{background:#303b48;} QPushButton:pressed{background:#405166;} QPushButton:focus{border:1px solid #708aa8;}')
+                button.setAccessibleName(unit+' Tokens');button.setStyleSheet('QPushButton{background:transparent;color:#a0a7b4;border:1px solid transparent;border-radius:5px;} QPushButton:checked{color:#eef4fc;background:#46566f;} QPushButton:hover{color:#ffffff;} QPushButton:pressed{background:#365072;} QPushButton:focus{border-color:#82b6ff;}')
                 button.clicked.connect(lambda checked=False,u=unit:self.owner.set_chart_unit(u));self.unit_group.addButton(button);self.unit_buttons[unit]=button
 
     def sync_units(self):
@@ -1108,7 +1110,9 @@ class TaskPopup(QWidget):
         return {unit:rect.translated(self.width()-360,self.TITLE_HEIGHT) for unit,rect in self.UNIT_RECTS.items()}
 
     def usage_header(self,p,period,total):
-        text(p,18,17,self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens'),face(8),'#8795a5')
+        text(p,18,17,self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens'),face(9),'#d7dfe9')
+        boxes=list(self.unit_rects().values());unit_box=boxes[0].united(boxes[1]).adjusted(-2,-2,2,2)
+        p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('#20242b'));p.drawRoundedRect(unit_box,7,7)
         y=21+self.TITLE_HEIGHT
         icon(p,'chart',23,y,LILAC)
         date_width=text(p,39,y,period,face(8),BLUE)

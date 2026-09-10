@@ -3,6 +3,8 @@
 LANGUAGE_NAMES = (('en','English'),('zh-CN','简体中文'),('ja','日本語'),('es','Español'))
 LANGUAGES = tuple(code for code,name in LANGUAGE_NAMES)
 COPY = {
+    'Interaction':'交互',
+    'Enter to open':'按 Enter 打开',
     'Could not save settings. Changes apply until restart.':'设置未能保存，当前修改仅在本次运行中生效。',
     'Could not change startup. The previous setting is retained.':'无法修改开机启动，已保留原设置。',
     'No tasks':'暂无任务',
@@ -51,6 +53,8 @@ COPY = {
 }
 
 TRANSLATIONS = {'zh-CN': COPY, 'ja': {
+    'Interaction':'操作',
+    'Enter to open':'Enter で開く',
     'Could not save settings. Changes apply until restart.':'設定を保存できませんでした。変更は再起動まで有効です。',
     'Could not change startup. The previous setting is retained.':'自動起動を変更できませんでした。以前の設定を保持します。',
     'No tasks':'タスクはありません',
@@ -97,6 +101,8 @@ TRANSLATIONS = {'zh-CN': COPY, 'ja': {
     'Update to {version}': '{version}に更新',
     'Version {version} is available. Update from Settings.': 'バージョン{version}が公開されました。設定から更新できます。',
 }, 'es': {
+    'Interaction':'Interacción',
+    'Enter to open':'Enter para abrir',
     'Could not save settings. Changes apply until restart.':'No se pudo guardar. Los cambios duran hasta reiniciar.',
     'Could not change startup. The previous setting is retained.':'No se pudo cambiar el inicio automático. Se conserva el ajuste anterior.',
     'No tasks':'No hay tareas',

@@ -31,6 +31,10 @@ jobs:
           .venv/Scripts/python.exe -m pip install -r requirements-build.txt
       - name: Test
         run: .venv/Scripts/python.exe -m unittest discover
+      - name: Test complete widget journeys without desktop input
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: .venv/Scripts/python.exe -m unittest tests.test_widget_journeys
       - name: Build application and installer
         if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         shell: pwsh

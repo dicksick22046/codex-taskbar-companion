@@ -10,6 +10,7 @@ from .app import face,text,project_tag,side_tag,side_tag_width,chart_number,BLUE
 from .i18n import project_label,task_title,translate
 from .tasks import task_rows,task_category,CATEGORY_LABELS,duration_text
 from .settings_ui import Choice
+from .ui_theme import CONTROLS,typeface
 
 COLUMNS=(('Project','project_label'),('Task','title'),('Status','status_label'),('Run time','total_seconds'),('Tokens','total_tokens'),('Turns','total_turns'),('Last active','at'))
 
@@ -120,7 +121,9 @@ class TaskDelegate(QStyledItemDelegate):
         if option.state & (QStyle.StateFlag.State_Selected|QStyle.StateFlag.State_MouseOver):
             selected=bool(option.state&QStyle.StateFlag.State_Selected)
             pressed=row['id']==browser.pressed_id and bool(option.state&QStyle.StateFlag.State_MouseOver)
-            p.fillRect(box.adjusted(0,1,0,-1),QColor('#40536b' if pressed else '#34465a' if selected else '#2e3845'))
+            fill=QColor('#405c7e' if pressed else '#334d6d' if selected else '#303741')
+            p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill)
+            p.drawRoundedRect(box.adjusted(2 if index.column()==0 else -6,2,-2 if index.column()==len(COLUMNS)-1 else 6,-2),6,6)
         x=box.left()+12
         column=index.column();right=box.right()-12;font=face(8)
         if column==0:project_tag(p,x,y,row['project'],font,max(0,box.width()-24),browser.bar.language)
@@ -153,19 +156,14 @@ class TaskFinder(QDialog):
         self.sort_column=6;self.sort_descending=True
         bounds=bar.screen().availableGeometry();max_width=max(320,bounds.width()-32);max_height=max(240,bounds.height()-48)
         self.setFont(bar.font);self.setMinimumSize(min(760,max_width),min(300,max_height))
-        self.setStyleSheet('''QDialog,QTableView{background:#242930;color:#bac5d2;} QLabel{color:#8797aa;}
-            QLineEdit,QComboBox{background:#303843;color:#bac5d2;border:1px solid #414b58;border-radius:5px;padding:8px;}
-            QComboBox{padding-right:26px;}
-            QComboBox::drop-down{width:24px;border:0;}
-            QComboBox::down-arrow{image:url(__CHEVRON__);width:12px;height:8px;}
-            QLineEdit:focus{border-color:#708aa8;} QTableView{border:0;outline:0;}
-            QHeaderView::section{background:#242930;color:#8797aa;border:0;border-bottom:1px solid #414b58;padding:8px;}
-            QComboBox QAbstractItemView{background:#303843;color:#bac5d2;selection-background-color:#405166;}
-            QScrollBar:vertical{background:#242930;width:6px;margin:4px 0;}
-            QScrollBar::handle:vertical{background:#536170;min-height:28px;border-radius:3px;}
-            QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}
-            QScrollBar::add-page:vertical,QScrollBar::sub-page:vertical{background:none;}'''.replace('__CHEVRON__',(Path(__file__).resolve().parents[1]/'assets/icons/chevron-down.svg').as_posix()))
-        layout=QVBoxLayout(self);layout.setContentsMargins(16,16,16,12);layout.setSpacing(10)
+        self.setStyleSheet(('QWidget{font-family:"'+bar.font.family()+'";} '+CONTROLS+'''QDialog,QTableView{background:#24262c;color:#d7dfe9;}
+            QLineEdit{background:#30343c;color:#e1e5ec;border:1px solid #484f5c;border-radius:9px;padding:10px 12px;}
+            QLineEdit:focus{border-color:#82b6ff;} QTableView{border:0;outline:0;}
+            QHeaderView::section{background:#24262c;color:#a0a7b4;border:0;border-bottom:1px solid #3b424d;padding:10px 12px;font-weight:400;}
+            ''' ).replace('__CHEVRON__',(Path(__file__).resolve().parents[1]/'assets/icons/chevron-down.svg').as_posix()))
+        layout=QVBoxLayout(self);layout.setContentsMargins(20,20,20,14);layout.setSpacing(14)
+        heading=QHBoxLayout();self.heading=QLabel();self.heading.setFont(typeface(bar.font,18));heading.addWidget(self.heading);heading.addStretch()
+        self.scope=QLabel();self.scope.setFont(typeface(bar.font,8));self.scope.setStyleSheet('color:#a0a7b4;');heading.addWidget(self.scope);layout.addLayout(heading)
         controls=QHBoxLayout();self.search=QLineEdit();self.search.setClearButtonEnabled(True)
         self.search.installEventFilter(self)
         self.projects=Choice();self.projects.setMaximumWidth(200);self.projects.setView(QListView());self.projects.addItem('',None)
@@ -184,13 +182,15 @@ class TaskFinder(QDialog):
         header.setSectionResizeMode(1,QHeaderView.ResizeMode.Stretch)
         for column,width in ((0,106),(2,90),(3,100),(4,112),(5,72),(6,112)):self.view.setColumnWidth(column,width)
         self.empty=QLabel();self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter);layout.addWidget(self.empty,1)
-        footer=QHBoxLayout();self.count=QLabel();footer.addWidget(self.count);footer.addStretch();self.scope=QLabel();footer.addWidget(self.scope);layout.addLayout(footer)
+        footer=QHBoxLayout();self.count=QLabel();self.count.setFont(typeface(bar.font,8));self.count.setStyleSheet('color:#a0a7b4;');footer.addWidget(self.count);footer.addStretch();self.key_hint=QLabel();self.key_hint.setFont(typeface(bar.font,8));self.key_hint.setStyleSheet('color:#a0a7b4;');footer.addWidget(self.key_hint);layout.addLayout(footer)
         self.project_width=80;self.stamp_width=72;self.status_width=55
         self.search.textChanged.connect(self.apply_filter);self.projects.currentIndexChanged.connect(self.apply_filter)
         self.search.returnPressed.connect(self.open_selected)
         self.view.pressed.connect(self.remember_press);self.view.clicked.connect(self.open_clicked)
         self.refresh(bar.provider.get())
-        self.resize(min(1030,max_width),min(530,max(300,len(self.rows)*40+150),max_height))
+        self.ensurePolished()
+        chrome=34+layout.spacing()*3+heading.sizeHint().height()+controls.sizeHint().height()+footer.sizeHint().height()+header.sizeHint().height()
+        self.resize(min(1030,max_width),min(560,max(300,len(self.rows)*40+chrome+8),max_height))
         self.move(bounds.center()-self.rect().center())
 
     def showEvent(self,event):
@@ -219,6 +219,7 @@ class TaskFinder(QDialog):
         format_key=(self.bar.language,self.bar.chart_unit);format_changed=format_key!=getattr(self,'format_key',None);self.format_key=format_key
         self.input_key=key;self.rows=finder_rows(data,self.bar.language)
         self.scope.setText(self.bar.label('All local history'))
+        self.heading.setText(self.bar.label('Tasks'));self.key_hint.setText(self.bar.label('Enter to open'))
         self.units.blockSignals(True);self.units.setCurrentText(self.bar.chart_unit);self.units.blockSignals(False)
         self.model.headerDataChanged.emit(Qt.Orientation.Horizontal,0,len(COLUMNS)-1)
         self.setWindowTitle(self.bar.label('Tasks'));self.search.setPlaceholderText(self.bar.label('Search tasks or projects'))

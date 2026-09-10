@@ -2,11 +2,12 @@
 from pathlib import Path
 from PySide6.QtCore import Qt,QSize,QRectF
 from PySide6.QtGui import QIcon, QPainter, QPixmap, QColor, QPen
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox, QListView, QSlider, QScrollArea, QWidget, QFrame,QTabWidget,QTabBar
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox, QListView, QSlider, QScrollArea, QWidget, QFrame,QStackedWidget,QGraphicsOpacityEffect
 from .build_info import APP_NAME, VERSION
 from .i18n import LANGUAGE_NAMES
 from . import startup
 from .motion import Spring
+from .ui_theme import Segments,Navigation,CONTROLS,typeface
 
 DISPLAY_LABELS = {
     'show_week': 'Weekly quota', 'show_session': '5-hour quota',
@@ -32,7 +33,7 @@ class Toggle(QCheckBox):
         self.progress=0.;self.motion=Spring(self,response=.16);self.motion.changed.connect(self.set_progress);self.toggled.connect(self.animate_state)
     def set_progress(self,value):self.progress=max(0.,min(1.,float(value)));self.update()
     def animate_state(self,checked):
-        if self.isVisible() and getattr(getattr(self.window(),'bar',None),'motion_enabled',True):self.motion.retarget(float(checked))
+        if self.isVisible() and not self.keyboard_focus and getattr(getattr(self.window(),'bar',None),'motion_enabled',True):self.motion.retarget(float(checked))
         else:self.motion.snap(float(checked))
     def setChecked(self,value):
         super().setChecked(value)
@@ -73,44 +74,28 @@ class ValueSlider(QSlider):
     def wheelEvent(self,event):event.ignore()
 
 
-class SettingsTabBar(QTabBar):
-    def wheelEvent(self,event):event.ignore()
-
-
 class SettingsDialog(QDialog):
     def __init__(self,bar):
-        super().__init__();self.bar=bar;self.setFont(bar.font);self.setWindowIcon(app_icon());self.setMinimumSize(460,280)
-        self.setStyleSheet('''QDialog,QScrollArea,QScrollArea>QWidget>QWidget{background:#222830;color:#bac5d2;}
-            QLabel{color:#bac5d2;} QFrame#settingsCard{background:#2b323c;border:1px solid #39434f;border-radius:8px;}
-            QFrame#settingsLine{background:#3b4551;max-height:1px;border:0;}
-            QTabWidget::pane{border:0;} QTabBar{background:#222830;}
-            QTabBar::tab{color:#8797aa;background:#222830;border:0;padding:10px 18px;border-bottom:2px solid transparent;}
-            QTabBar::tab:selected{color:#c7d8ed;border-bottom-color:#79b6f5;} QTabBar::tab:hover{background:#2b333e;}
-            QPushButton{background:#3a5067;color:#d7e4f3;border:1px solid transparent;border-radius:5px;padding:8px 12px;}
-            QPushButton:hover{background:#45617b;} QPushButton:disabled{background:#323b46;color:#8797aa;}
-            QPushButton:pressed{background:#2e4358;}
-            QPushButton:focus{border-color:#86b6e6;}
-            QComboBox{background:#343e4b;color:#bac5d2;border:1px solid #465262;border-radius:5px;padding:6px 27px 6px 10px;}
-            QComboBox:focus{border-color:#79b6f5;} QComboBox::drop-down{width:24px;border:0;}
-            QComboBox::down-arrow{image:url(__CHEVRON__);width:12px;height:8px;}
-            QComboBox QAbstractItemView{background:#303843;color:#bac5d2;selection-background-color:#405166;border:1px solid #465262;outline:0;padding:4px;}
-            QSlider::groove:horizontal{height:4px;background:#526174;border-radius:2px;}
-            QSlider::handle:horizontal{width:12px;margin:-4px 0;background:#8fbdec;border-radius:6px;}
-            QSlider::handle:horizontal:focus{background:#c7e1fa;border:1px solid #edf3fa;}
-            QScrollBar:vertical{background:#222830;width:6px;margin:4px 0;}
-            QScrollBar::handle:vertical{background:#536170;min-height:28px;border-radius:3px;}
-            QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}
-            QScrollBar::add-page:vertical,QScrollBar::sub-page:vertical{background:none;}'''.replace('__CHEVRON__',(Path(__file__).resolve().parents[1]/'assets/icons/chevron-down.svg').as_posix()))
-        outer=QVBoxLayout(self);outer.setContentsMargins(12,8,12,12);self.tabs=QTabWidget();outer.addWidget(self.tabs)
-        self.tabs.setTabBar(SettingsTabBar())
-        self.tabs.tabBar().setDrawBase(False)
-        self.tabs.tabBar().setUsesScrollButtons(False);self.tabs.tabBar().setElideMode(Qt.TextElideMode.ElideNone)
-        self.feedback=QLabel();self.feedback.setWordWrap(True);self.feedback.setStyleSheet('color:#ebb45f;padding:4px 8px;');self.feedback.hide();outer.addWidget(self.feedback)
-        self.pages=[]
+        super().__init__();self.bar=bar;self.setFont(bar.font);self.setWindowIcon(app_icon());self.setMinimumSize(620,300)
+        self.setStyleSheet(('QWidget{font-family:"'+bar.font.family()+'";} QDialog,QFrame#rail{background:#1b1d22;} QWidget#content,QScrollArea,QScrollArea>QWidget>QWidget{background:#24262c;} QListWidget{background:transparent;border:0;outline:0;} '+CONTROLS).replace('__CHEVRON__',(Path(__file__).resolve().parents[1]/'assets/icons/chevron-down.svg').as_posix()))
+        outer=QHBoxLayout(self);outer.setContentsMargins(0,0,0,0);outer.setSpacing(0)
+        rail=QFrame();rail.setObjectName('rail');rail.setFixedWidth(174);sidebar=QVBoxLayout(rail);sidebar.setContentsMargins(14,24,14,16);sidebar.setSpacing(6)
+        brand=QLabel('Codex');brand.setFont(typeface(bar.font,17));sidebar.addWidget(brand)
+        product=QLabel('Taskbar Companion');product.setFont(typeface(bar.font,8));product.setStyleSheet('color:#8f98a7;');sidebar.addWidget(product);sidebar.addSpacing(24)
+        self.navigation=Navigation();self.navigation.setFont(typeface(bar.font,9));self.navigation.addItems(['','','']);sidebar.addWidget(self.navigation,1)
+        version=QLabel('v'+VERSION);version.setStyleSheet('color:#8f98a7;');version.setFont(typeface(bar.font,8));sidebar.addWidget(version)
+        outer.addWidget(rail);content=QWidget();content.setObjectName('content');right=QVBoxLayout(content);right.setContentsMargins(0,0,0,0);right.setSpacing(0);outer.addWidget(content,1)
+        self.stack=QStackedWidget();right.addWidget(self.stack,1)
+        self.feedback=QLabel();self.feedback.setWordWrap(True);self.feedback.setStyleSheet('color:#ebb45f;padding:12px 24px;');self.feedback.hide();right.addWidget(self.feedback)
+        self.page_effect=QGraphicsOpacityEffect(self.stack);self.page_effect.setOpacity(1);self.page_effect.setEnabled(False);self.stack.setGraphicsEffect(self.page_effect)
+        self.page_motion=Spring(self,value=1.,response=.14);self.page_motion.changed.connect(self.page_effect.setOpacity);self.page_motion.finished.connect(lambda:self.page_effect.setEnabled(False))
+        self.navigation.currentRowChanged.connect(self.select_page)
+        self.pages=[];self.headings=[]
         for _ in range(3):
-            scroll=QScrollArea();scroll.setFrameShape(QFrame.Shape.NoFrame);scroll.setWidgetResizable(True)
-            body=QWidget();page=QVBoxLayout(body);page.setContentsMargins(8,16,8,8);page.setSpacing(12)
-            page.setSizeConstraint(QVBoxLayout.SizeConstraint.SetMinimumSize);scroll.setWidget(body);self.pages.append(scroll);self.tabs.addTab(scroll,'')
+            scroll=QScrollArea();scroll.setFrameShape(QFrame.Shape.NoFrame);scroll.setWidgetResizable(True);scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            body=QWidget();page=QVBoxLayout(body);page.setContentsMargins(24,24,24,24);page.setSpacing(16)
+            heading=QLabel();heading.setFont(typeface(bar.font,18));self.headings.append(heading);page.addWidget(heading);page.addSpacing(4)
+            page.setSizeConstraint(QVBoxLayout.SizeConstraint.SetMinimumSize);scroll.setWidget(body);self.pages.append(scroll);self.stack.addWidget(scroll)
         appearance=self.pages[0].widget().layout();indicators=self.pages[1].widget().layout();general=self.pages[2].widget().layout()
         def card(parent):
             frame=QFrame();frame.setObjectName('settingsCard');items=QVBoxLayout(frame);items.setContentsMargins(14,0,14,0);items.setSpacing(0);parent.addWidget(frame);return items
@@ -118,52 +103,71 @@ class SettingsDialog(QDialog):
             result=QFrame();result.setObjectName('settingsLine');result.setFixedHeight(1);parent.addWidget(result);return result
         def row(parent,label,control):
             widget=QWidget();layout=QHBoxLayout(widget);layout.setContentsMargins(0,8,0,8);widget.setMinimumHeight(48)
+            label.setFont(bar.font);control.setFont(bar.font)
             layout.addWidget(label);layout.addStretch();layout.addWidget(control);parent.addWidget(widget)
-        def combo(values,current,callback):
-            control=Choice();control.setView(QListView());control.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        def combo(values,current,callback,segmented=False):
+            control=Segments() if segmented else Choice()
+            if not segmented:control.setView(QListView());control.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
             for text,value in values:control.addItem(text,value)
             control.setCurrentIndex(control.findData(current));control.currentIndexChanged.connect(lambda:callback(control.currentData()));return control
         def toggle(parent):
             container=QWidget();container.setMinimumHeight(48);items=QHBoxLayout(container);items.setContentsMargins(0,8,0,8)
             caption=QLabel();caption.setTextFormat(Qt.TextFormat.PlainText);caption.setWordWrap(True);caption.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+            caption.setFont(bar.font)
             control=Toggle(caption);control.row=container;caption.setBuddy(control)
             items.addWidget(caption,1);items.addSpacing(16);items.addWidget(control);parent.addWidget(container);return control
         position=card(appearance);self.placement_label=QLabel()
-        self.placement=combo([('','taskbar'),('','floating')],bar.settings.get('placement','taskbar'),bar.set_placement)
+        self.placement=combo([('','taskbar'),('','floating')],bar.settings.get('placement','taskbar'),bar.set_placement,segmented=True)
         row(position,self.placement_label,self.placement);self.topmost_line=line(position)
         self.topmost=toggle(position);self.topmost.setChecked(bar.settings.get('floating_topmost',True));self.topmost.toggled.connect(bar.set_floating_topmost)
         colors=card(appearance);self.capsule_label=QLabel()
-        self.capsule=combo([('','dark'),('','light')],bar.settings.get('capsule_theme','dark'),bar.set_capsule_theme);row(colors,self.capsule_label,self.capsule);line(colors)
+        self.capsule=combo([('','dark'),('','light')],bar.settings.get('capsule_theme','dark'),bar.set_capsule_theme,segmented=True);row(colors,self.capsule_label,self.capsule);line(colors)
         self.transparency_label=QLabel();opacity=QWidget();opacity_row=QHBoxLayout(opacity);opacity_row.setContentsMargins(0,0,0,0)
         self.transparency=ValueSlider(Qt.Orientation.Horizontal);self.transparency.setRange(0,100);self.transparency.setMinimumWidth(150)
         self.transparency.setValue(bar.settings.get('capsule_transparency',0));self.transparency_value=QLabel();self.transparency_value.setMinimumWidth(34);self.transparency_value.setAlignment(Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter)
         self.transparency.valueChanged.connect(lambda value:bar.set_capsule_transparency(value,save=not self.transparency.isSliderDown()))
         self.transparency.valueChanged.connect(lambda value:self.transparency_value.setText(f'{value}%'));self.transparency.sliderReleased.connect(bar.save_settings)
         opacity_row.addWidget(self.transparency);opacity_row.addWidget(self.transparency_value);row(colors,self.transparency_label,opacity);appearance.addStretch()
-        self.title=QLabel();self.title.setStyleSheet('color:#8797aa;');indicators.addWidget(self.title)
+        self.behavior_title=QLabel();self.behavior_title.setFont(typeface(bar.font,8));self.behavior_title.setStyleSheet('color:#a0a7b4;')
         visible=card(indicators);self.checks={}
         for number,key in enumerate(DISPLAY_LABELS):
             if number:line(visible)
             check=toggle(visible);check.setChecked(bar.settings[key]);check.toggled.connect(lambda checked,key=key:bar.set_display(key,checked));self.checks[key]=check
-        behavior=card(indicators);self.rotation=toggle(behavior);self.rotation.setChecked(bar.settings.get('rotate_quotas',False));self.rotation.toggled.connect(bar.set_quota_rotation);line(behavior)
+        indicators.addWidget(self.behavior_title);behavior=card(indicators);self.rotation=toggle(behavior);self.rotation.setChecked(bar.settings.get('rotate_quotas',False));self.rotation.toggled.connect(bar.set_quota_rotation);line(behavior)
         self.hover=toggle(behavior);self.hover.setChecked(bar.settings.get('hover_panels',False));self.hover.toggled.connect(bar.set_hover_panels);indicators.addStretch()
         localization=card(general);self.language_label=QLabel();self.language=combo([(name,code) for code,name in LANGUAGE_NAMES],bar.settings.get('language','en'),bar.set_language);row(localization,self.language_label,self.language)
         startup_card=card(general);self.login=toggle(startup_card);self.login.setChecked(startup.enabled());self.login.toggled.connect(bar.set_startup)
         updates=card(general);self.update_label=QLabel();self.update_button=QPushButton();self.update_button.setAutoDefault(False);self.update_button.clicked.connect(bar.update_clicked);row(updates,self.update_label,self.update_button)
         self.connection=QLabel();self.connection.setWordWrap(True);self.connection.setStyleSheet('color:#8797aa;font-size:12px;');general.addWidget(self.connection)
-        general.addStretch();version=QLabel(f'{APP_NAME}  {VERSION}');version.setStyleSheet('color:#748497;font-size:12px;');general.addWidget(version)
-        self.refresh();self.resize(self.sizeHint())
+        general.addStretch()
+        self.refresh();self.navigation.setCurrentRow(0);self.resize(self.sizeHint())
 
     @property
-    def scroll_area(self):return self.pages[self.tabs.currentIndex()]
+    def scroll_area(self):return self.pages[self.stack.currentIndex()]
     @property
     def body(self):return self.scroll_area.widget()
-    def sizeHint(self):return QSize(520,min(460,max(280,self.screen().availableGeometry().height()-48)))
+    def sizeHint(self):return QSize(min(700,self.screen().availableGeometry().width()-32),min(540,max(300,self.screen().availableGeometry().height()-48)))
+
+    def select_page(self,index):
+        self.stack.setCurrentIndex(index)
+        if self.isVisible() and self.bar.motion_enabled and not self.navigation.keyboard_navigation:
+            self.page_effect.setEnabled(True)
+            if not self.page_motion.timer.isActive():self.page_motion.snap(.72)
+            self.page_motion.retarget(1.)
+        else:self.page_motion.snap(1.);self.page_effect.setEnabled(False)
+
+    def hideEvent(self,event):
+        self.page_motion.snap(1.);self.page_effect.setEnabled(False);super().hideEvent(event)
+
+    def stop_motion(self):
+        for motion in self.findChildren(Spring):motion.snap(motion.target)
+        self.page_effect.setEnabled(False)
 
     def refresh(self):
         label=self.bar.label;self.setWindowTitle(f'{label("Settings")} · {APP_NAME}')
-        for i,name in enumerate(('Appearance','Indicators','General')):self.tabs.setTabText(i,label(name))
-        self.language_label.setText(label('Language'));self.title.setText(label('Display'));self.update_label.setText(label('Updates'))
+        for i,name in enumerate(('Appearance','Indicators','General')):
+            self.navigation.item(i).setText(label(name));self.headings[i].setText(label(name))
+        self.language_label.setText(label('Language'));self.behavior_title.setText(label('Interaction'));self.update_label.setText(label('Updates'))
         for control,key,options in ((self.language,'language',None),(self.placement,'placement',('Taskbar','Floating')),(self.capsule,'capsule_theme',('Dark','Light'))):
             control.blockSignals(True)
             if options:

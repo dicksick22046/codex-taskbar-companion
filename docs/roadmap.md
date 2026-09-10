@@ -2,6 +2,14 @@
 
 Help people notice what their AI tasks need and return to the right task, with quota visibility close at hand.
 
+## Current delivery order
+
+The first-level goals below are governed by the concrete second-level checklist in [product quality execution](plans/product-quality.md). Completing a single item is not the end of the work. Reconcile unfinished items before reporting completion or beginning another milestone.
+
+1. **Rebuild the desktop experience — active.** Redesign settings, search, popovers and strip as one coherent interface; retain proven ring interpolation and stable rotation. Complete multi-step interaction and installed-build checks.
+2. **Make attention and failures actionable — next.** Finish context-specific failure feedback and verify optional, deduplicated input-needed notifications using existing state. Do not claim broad human-approval detection.
+3. **Reassess the product after delivery — queued.** Review glanceability, return-to-task time, accidental changes, background cost, recovery and supportability. Implement verified high-value improvements in small batches; keep speculative expansion explicit.
+
 ## 1. Reliable Windows companion — 0.4.0
 
 - Measure and reduce idle rendering and diagnostic writes without slowing task or quota collection.
@@ -26,4 +34,4 @@ See [the milestone contract](specs/windows-companion.md). Ship a cohesive, verif
 
 Reference-driven choices and the mobile web / WeChat feasibility direction are recorded in [product references](product-references.md). Task search now includes sortable local lifetime metrics, and settings follow grouped control patterns from Windows guidance.
 
-These are staged candidates, not advertised capabilities. A full chat client, remote approval execution and team administration are outside the current milestones.
+These platform/provider/mobile items remain staged candidates, not delivered capabilities. Mobile web and WeChat work so far is feasibility analysis only; no service has been deployed. A full chat client, remote approval execution and team administration are outside the current milestones.
