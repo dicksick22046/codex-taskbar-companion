@@ -3,6 +3,8 @@
 LANGUAGE_NAMES = (('en','English'),('zh-CN','简体中文'),('ja','日本語'),('es','Español'))
 LANGUAGES = tuple(code for code,name in LANGUAGE_NAMES)
 COPY = {
+    'Find task…':'查找任务…','Search tasks or projects':'搜索任务或项目','All projects':'所有项目',
+    'No matching tasks':'没有匹配的任务','Results: {count}':'结果：{count}','Untitled task':'未命名任务',
     'Placement':'显示位置','Taskbar':'任务栏','Floating':'悬浮窗','Keep on top':'保持置顶',
     'Capsule': '胶囊配色', 'Dark': '深色', 'Light': '浅色', 'Transparency': '背景透明度',
     'Settings': '设置', 'Settings…': '设置…', 'Quit': '退出',
@@ -40,6 +42,8 @@ COPY = {
 }
 
 TRANSLATIONS = {'zh-CN': COPY, 'ja': {
+    'Find task…':'タスクを検索…','Search tasks or projects':'タスクやプロジェクトを検索','All projects':'すべてのプロジェクト',
+    'No matching tasks':'一致するタスクはありません','Results: {count}':'検索結果：{count}','Untitled task':'無題のタスク',
     'Placement':'表示位置','Taskbar':'タスクバー','Floating':'フローティング','Keep on top':'常に手前に表示',
     'Capsule': 'カプセル配色', 'Dark': 'ダーク', 'Light': 'ライト', 'Transparency': '背景の透明度',
     'Settings': '設定', 'Settings…': '設定…', 'Quit': '終了',
@@ -75,6 +79,8 @@ TRANSLATIONS = {'zh-CN': COPY, 'ja': {
     'Update to {version}': '{version}に更新',
     'Version {version} is available. Update from Settings.': 'バージョン{version}が公開されました。設定から更新できます。',
 }, 'es': {
+    'Find task…':'Buscar tarea…','Search tasks or projects':'Buscar tareas o proyectos','All projects':'Todos los proyectos',
+    'No matching tasks':'No hay tareas que coincidan','Results: {count}':'Resultados: {count}','Untitled task':'Tarea sin título',
     'Placement':'Ubicación','Taskbar':'Barra de tareas','Floating':'Flotante','Keep on top':'Mantener encima',
     'Capsule': 'Color de la cápsula', 'Dark': 'Oscuro', 'Light': 'Claro', 'Transparency': 'Transparencia del fondo',
     'Settings': 'Ajustes', 'Settings…': 'Ajustes…', 'Quit': 'Salir',
@@ -118,3 +124,7 @@ def translate(language, key, **values):
 
 def project_label(value, language):
     return value or translate(language, 'No project')
+
+
+def task_title(task,language):
+    return task.get('title') or translate(language,'Untitled task')

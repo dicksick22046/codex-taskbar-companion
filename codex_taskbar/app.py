@@ -27,7 +27,7 @@ from . import startup
 from .settings_ui import SettingsDialog, app_icon
 from .updates import UpdateController, install_after_exit
 from .build_info import VERSION, APP_NAME, RELEASE_REPOSITORY
-from .i18n import LANGUAGES, translate, project_label
+from .i18n import LANGUAGES, translate, project_label, task_title
 from .presentation import floating_rect,remember_position,clamp_rect,panel_rect
 
 PANEL, MUTED, ACCENT, BLUE = "#262b33", "#bac5d2", "#53d5a0", "#79b6f5"
@@ -225,7 +225,7 @@ class StatusBar(QWidget):
         self.quota_tween.finished.connect(self.finish_quota_transition)
         self.hit_regions=[];self.pressed=None;self.confirming_reset=False
         self.hover_target=None;self.hover_since=0.;self.hover_leave_since=None;self.hover_suppressed=None
-        self.metrics=[];self.settings_dialog=None;self.placement_unavailable=False
+        self.metrics=[];self.settings_dialog=None;self.task_finder=None;self.placement_unavailable=False
         self.surface_loss_since=None;self.surface_repaired=False
         self.frame_key=None;self.panel_key=None
         self.host_key=None;self.drag_origin=None;self.dragging=False
@@ -237,6 +237,7 @@ class StatusBar(QWidget):
         self.tray=QSystemTrayIcon(app_icon(),self);self.tray.setToolTip(APP_NAME)
         self.menu=QMenu(self);self.menu.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint,True);self.menu.setFont(face(8))
         self.menu.setStyleSheet('QMenu{background:#242930;color:#bac5d2;border:1px solid #3b4350;padding:5px;} QMenu::item{padding:7px 12px;} QMenu::item:selected{background:#3b4552;}')
+        self.find_action=self.menu.addAction(self.label('Find task…'),lambda:QTimer.singleShot(0,self.open_finder))
         self.settings_action=self.menu.addAction(self.label('Settings…'),lambda:QTimer.singleShot(0,self.open_settings))
         self.quit_action=self.menu.addAction(self.label('Quit'),self.close)
         self.tray.setContextMenu(self.menu)
@@ -354,6 +355,8 @@ class StatusBar(QWidget):
         if self.quota_previous:
             self.quota_previous=next((m for m in self.quota_choices() if m[0]==self.quota_previous[0]),None)
         self.settings_action.setText(self.label('Settings…'));self.quit_action.setText(self.label('Quit'))
+        self.find_action.setText(self.label('Find task…'))
+        if self.task_finder:self.task_finder.refresh(self.data)
         if self.settings_dialog:self.settings_dialog.refresh()
         if self.popup:
             self.popup.setWindowTitle('Codex · '+self.label('Tasks' if isinstance(self.popup,TaskListPopup) else 'Usage'))
@@ -453,7 +456,7 @@ class StatusBar(QWidget):
             project=font_metrics.elidedText(project_label(task['project'],self.language),Qt.TextElideMode.ElideRight,max(0,self.project_available(x,limit)-12))
             end=x+font_metrics.horizontalAdvance(project)+12+10
             if task.get('side_chat'):end+=side_tag_width(self.language)+7
-            right=max(right,end+QFontMetricsF(self.font).horizontalAdvance(task['title']))
+            right=max(right,end+QFontMetricsF(self.font).horizontalAdvance(task_title(task,self.language)))
         return min(limit,math.ceil(right+12))
 
     def fitted_width(self,limit):
@@ -543,6 +546,14 @@ class StatusBar(QWidget):
         windows.user32.ShowWindow(int(self.settings_dialog.winId()),1)
         self.settings_dialog.raise_();self.settings_dialog.activateWindow()
 
+    def open_finder(self):
+        from .task_finder import TaskFinder
+        self.hide_popup(immediate=True)
+        if self.task_finder is None:self.task_finder=TaskFinder(self)
+        self.task_finder.refresh(self.provider.get());self.task_finder.show()
+        windows.user32.ShowWindow(int(self.task_finder.winId()),1)
+        self.task_finder.raise_();self.task_finder.activateWindow();self.task_finder.search.setFocus()
+
     def open_menu(self):
         self.hide_popup(immediate=True);self.menu.ensurePolished()
         bounds=self.screen().availableGeometry();size=self.menu.sizeHint()
@@ -578,8 +589,9 @@ class StatusBar(QWidget):
             os.startfile(thread_url(task['id']))
         except (OSError,ValueError) as exc:
             print(f'Task navigation: {exc}',file=sys.stderr)
-            return
+            return False
         self.hide_popup(immediate=True)
+        return True
 
     def confirm_reset(self):
         data=self.provider.get();credit=data.get('reset_selected');account=data.get('reset_account')
@@ -705,6 +717,7 @@ class StatusBar(QWidget):
     def tick(self):
         self.data=self.provider.get()
         if self.settings_dialog and self.settings_dialog.isVisible():self.settings_dialog.refresh_status()
+        if self.task_finder and self.task_finder.isVisible():self.task_finder.refresh(self.data)
         if not any(self.settings[key] for key in DISPLAY_DEFAULTS):
             self.hide();self.hide_popup(immediate=True);return
         metrics=self.displayed_metrics()
@@ -855,7 +868,7 @@ class StatusBar(QWidget):
                 title_x=x+project_tag(p,x,y,task['project'],face(8),self.project_available(x),self.language,color=palette['link'],muted=palette['muted'])+10
                 if task.get('side_chat'):title_x+=side_tag(p,title_x,y,self.language,light=theme=='light')+7
                 available=max(0,self.width()-title_x-6)
-                label=task['title']
+                label=task_title(task,self.language)
                 metrics=QFontMetricsF(self.font)
                 title_y=y-metrics.tightBoundingRect(label).center().y()-(metrics.ascent()-metrics.descent())/2
                 shown=min(available,metrics.horizontalAdvance(label))
@@ -893,6 +906,7 @@ class StatusBar(QWidget):
         self.click_hook.close();self.timer.stop();self.animation.stop();self.update_timer.stop()
         self.tray.hide();self.hide_popup(immediate=True)
         if self.settings_dialog:self.settings_dialog.close()
+        if self.task_finder:self.task_finder.close()
         self.provider.stop();event.accept();QApplication.instance().quit()
 
 
@@ -1183,7 +1197,7 @@ class TaskListPopup(TaskPopup):
         self.project_width=min(80,max([metrics.horizontalAdvance(project_label(t['project'],self.owner.language))+12 for t in self.rows]+[44]))
         self.TITLE_X=33+self.project_width+10
         title_metrics=QFontMetricsF(face())
-        longest=max([title_metrics.horizontalAdvance(task['title'])+(side_tag_width(self.owner.language)+7 if task.get('side_chat') else 0) for task in self.rows]+[0])
+        longest=max([title_metrics.horizontalAdvance(task_title(task,self.owner.language))+(side_tag_width(self.owner.language)+7 if task.get('side_chat') else 0) for task in self.rows]+[0])
         self.values={t['id']:chart_number(t.get('tokens'),self.owner.chart_unit) if self.mode=='daily' else duration_text(t.get('round_seconds')) for t in self.rows}
         info_width=max([metrics.horizontalAdvance(value) for value in self.values.values()]+[24])
         width=min(getattr(self.owner,'content_limit',None) or self.owner.width(),max(260,math.ceil(self.TITLE_X+longest+24+info_width+18)))
@@ -1253,7 +1267,7 @@ class TaskListPopup(TaskPopup):
             title_x=self.TITLE_X
             if task.get('side_chat'):title_x+=side_tag(p,title_x,y,self.owner.language)+7
             title_width=max(0,self.TITLE_WIDTH-(title_x-self.TITLE_X))
-            title=task['title'];metrics=QFontMetricsF(face());shift=0.
+            title=task_title(task,self.owner.language);metrics=QFontMetricsF(face());shift=0.
             if task['id']==self.hovered:
                 shift=marquee_offset(time.monotonic()-self.hover_started,metrics.horizontalAdvance(title)-title_width)
             else:title=metrics.elidedText(title,Qt.TextElideMode.ElideRight,title_width)

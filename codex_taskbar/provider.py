@@ -27,6 +27,7 @@ class Provider:
         except (OSError, ValueError):
             self.quota_history = []
         self.snapshot = {"tasks": [], "quota": [], "totals": None, "loading": True}
+        self.catalog_rows=None;self.project_names={}
         self.unread_state = UnreadState()
         self.side_reader=SideChats(cache_path=self.runtime_dir/'side_chat_links.json');self.side_rows=[]
         self.api = None
@@ -115,8 +116,9 @@ class Provider:
             if cursor.duration_known and cursor.started_at and (running or ended_at):
                 end_time=datetime.now().astimezone() if running else datetime.fromisoformat(ended_at)
                 round_seconds=max(0, int((end_time-datetime.fromisoformat(cursor.started_at)).total_seconds()))
-            task = {"id": thread["id"], "title": thread.get("name") or "未命名任务",
-                              "project": project_name(thread, projects), "tokens": cursor.daily["total_tokens"],
+            names=getattr(self,'project_names',{})
+            task = {"id": thread["id"], "title": thread.get("name") or "",
+                              "project": names[thread['id']] if thread['id'] in names else project_name(thread, projects), "tokens": cursor.daily["total_tokens"],
                               "started_at": cursor.started_at, "usage_at": cursor.usage_at,
                               "ended_at": ended_at, "activity_at": cursor.activity_at,
                               "run_tokens": cursor.run_tokens, "running": running, "status": status,
@@ -155,6 +157,7 @@ class Provider:
         from .usage import daily_quota_text
         week = next((w for w in quota if w["label"] == "周"), None)
         snapshot = {"tasks": tasks, "recent_tasks": recent, "quota": quota, "quota_updated_at": quota_at,
+                    "catalog":getattr(self,'catalog_rows',None),
                     "unread_count": sum(task['unread'] is True for task in recent) if unread_ids is not None else None,
                     "history": daily, "daily_quota": daily_quota_text(self.quota_history, week),
                     "totals": totals, "usage_at": newest_usage, "loading": False,
@@ -175,7 +178,7 @@ class Provider:
     def _write_snapshot(self,force=False):
         now=time.monotonic()
         if not force and now-getattr(self,'snapshot_written_at',float('-inf'))<30:return
-        snapshot=self.get()
+        snapshot={key:value for key,value in self.get().items() if key!='catalog'}
         temporary = self.runtime_dir / "snapshot.tmp"
         try:
             temporary.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -231,6 +234,9 @@ class Provider:
                             catalog_error=message
                         else:
                             projects,threads=new_projects,new_threads;catalog_error=None
+                            self.project_names={t['id']:project_name(t,projects) for t in threads}
+                            self.catalog_rows=[{'id':t['id'],'title':t.get('name') or '',
+                                               'project':self.project_names[t['id']],'updated_at':t.get('updatedAt') or t.get('createdAt') or 0} for t in threads]
                             live_ids={t['id'] for t in threads}
                             cursors={k:v for k,v in cursors.items() if k in live_ids}
                         if hasattr(self,'side_reader'):

@@ -393,7 +393,8 @@ class InteractionTests(unittest.TestCase):
                     ('ja','設定…','未所属','サイド','実行中'),('es','Ajustes…','Sin proyecto','Lateral','En curso')]:
                 dialog.language.setCurrentIndex(dialog.language.findData(language))
                 self.assertEqual(self.bar.settings['language'],language)
-                self.assertEqual(self.bar.menu.actions()[0].text(),settings)
+                self.assertEqual(self.bar.settings_action.text(),settings)
+                self.assertEqual(self.bar.menu.actions()[0].text(),self.bar.label('Find task…'))
                 self.assertEqual(panel.sections[0][0],category)
                 self.assertEqual(dialog.checks['show_session'].text(),self.bar.label('5-hour quota'))
                 self.assertEqual(dialog.language_label.text(),self.bar.label('Language'))

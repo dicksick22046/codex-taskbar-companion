@@ -66,17 +66,19 @@ class CodexApi:
 
     def catalog(self):
         projects = self.call("project/list", {})["data"]
-        threads = []
+        threads = {}
         cursor = None
         while True:
-            params = {"limit": 100, "sortKey": "updated_at", "useStateDbOnly": True}
+            params = {"limit": 100, "sortKey": "updated_at", "useStateDbOnly": True,
+                      "sourceKinds": ["cli", "vscode", "appServer", "exec"]}
             if cursor:
                 params["cursor"] = cursor
             page = self.call("thread/list", params)
-            threads.extend(t for t in page["data"] if not t.get("parentThreadId"))
+            for thread in page['data']:
+                if not thread.get('parentThreadId'):threads.setdefault(thread['id'],thread)
             cursor = page.get("nextCursor")
             if not cursor:
-                return projects, threads
+                return projects, list(threads.values())
 
     def latest_turn(self,thread_id):
         result=self.call('thread/turns/list',{'threadId':thread_id,'limit':1,
