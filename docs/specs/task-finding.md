@@ -1,5 +1,7 @@
 # Task finding
 
+Lifetime metric columns and numeric sorting are specified in [task statistics](task-statistics.md); the read-only Needs input category is specified in [attention](attention.md).
+
 ## Scope and entry
 
 Add **Find task…** to the strip/tray context menu, above Settings and Quit. Keep tray-left-click and second-launch Settings behavior unchanged. No global shortcut, extra strip icon, or automatic window opening. The task browser is a modeless window with a search field, project filter and single-line results. Opening a result uses the existing Codex task URL.
@@ -20,7 +22,7 @@ Render with a virtualized list. Reuse the UI tick while visible and avoid model 
 
 The [official App Server documentation](https://learn.chatgpt.com/docs/app-server) describes runtime status notifications for loaded threads, including `waitingOnApproval`, and the `thread/loaded/list` query. Its stored thread listing defaults to `cli` and `vscode` when source filters are omitted.
 
-A read-only probe on 2026-09-10 found 100 catalog tasks all `notLoaded` and zero loaded tasks in this tool's observer process, while the existing local-log path observed active work. Explicit source selection returned additional `exec` tasks. This verifies a coverage gap, but does not establish access to another client's live approval/input requests. Waiting-state badges and notifications remain deferred until an observational source is verified; never resume a user's task merely to subscribe to it.
+A read-only probe on 2026-09-10 found 100 catalog tasks all `notLoaded` and zero loaded tasks in this tool's observer process, while the existing local-log path observed active work. Explicit source selection returned additional `exec` tasks. This verifies a coverage gap, but does not establish access to another client's live approval/input requests. Version 0.6 adds explicit persisted synchronous input request/result pairing as specified in [attention signals](attention.md). Human approval and asynchronous/ephemeral questions remain outside that coverage; never resume a user's task merely to subscribe to it.
 
 ## Verification
 

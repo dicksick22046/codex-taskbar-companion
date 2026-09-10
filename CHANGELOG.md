@@ -4,6 +4,14 @@
 
 ## Unreleased
 
+## 0.6.0
+
+- Add sortable local lifetime run time, tokens and execution turns to task search, with M / 100M units.
+- Index history incrementally while the search window is open, reuse cached offsets, and mark incomplete history as lower bounds.
+- Group settings into Appearance, Indicators and General, with aligned controls and keyboard-accessible switches.
+- Show an exclusive Needs input category for explicit unresolved synchronous input requests; stop the waiting task's generation animation and return to Codex to answer.
+- Retain existing approval routing; automatic-review hooks are not treated as human approval prompts.
+
 ## 0.5.0
 
 - Add Find task to the context menu, with local title/project search, project filtering and keyboard navigation.

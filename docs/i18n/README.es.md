@@ -53,6 +53,14 @@ La cápsula se ajusta al contenido hasta el ancho máximo anterior. Reserva espa
 
 ## Qué significan los datos
 
+La búsqueda muestra tiempo activo, tokens y turnos acumulados del historial local. Haz clic en una cabecera para ordenar y otra vez para invertir el orden. El historial se procesa por lotes mientras la ventana está abierta y se conserva en caché. El tiempo incluye esperas dentro del turno y excluye pausas entre turnos. `≥` indica un mínimo conocido cuando faltan registros.
+
+Los ajustes se agrupan en Apariencia, Indicadores y General. Una pregunta síncrona sin respuesta aparece como «Requiere respuesta», con un signo de interrogación ámbar. Se responde en Codex. Las preguntas asíncronas, los chats laterales no guardados y las aprobaciones humanas no tienen cobertura completa.
+
+![Ajustes](../images/settings.png)
+
+![Indicador de respuesta pendiente con datos de ejemplo](../images/attention.png)
+
 - Los porcentajes de cuota proceden de la cuenta; los tokens, de los registros de tareas de este equipo. Los tokens no permiten calcular un porcentaje exacto de cuota ni el coste de la suscripción.
 - El consumo diario parte de la primera lectura disponible del día y se conserva al reiniciar. No reconstruye el consumo anterior. Si la cuota se reinicia durante el día, suma los intervalos por separado.
 - La lista diaria incluye los turnos de hoy. Los paneles de estado muestran la duración del turno actual o más reciente, incluida la espera de herramientas.

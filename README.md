@@ -47,6 +47,16 @@ The capsule fits its content up to the original maximum width. It reserves room 
 
 Right-click and choose **Find task…** to search recorded tasks by title or project. Filter to one project, then click a result or use the arrow keys and Enter to return to it in Codex. This filter affects the search window only; quota and strip counts keep their existing scope.
 
+Task search also shows local lifetime **run time, tokens and execution turns**. Click a column heading to sort; click again to reverse it. The first history scan runs in small batches while the window is open, then resumes from a cache. Run time includes waits within a turn and excludes gaps between turns. Turns are execution rounds, not individual messages or tool calls. `≥` marks a known lower bound when records are incomplete.
+
+Settings are grouped under **Appearance**, **Indicators** and **General**. Existing preferences still apply immediately.
+
+![Grouped settings](docs/images/settings.png)
+
+An unresolved synchronous `request_user_input` record appears as **Needs input**, with an amber question mark in the strip. Open that task in Codex to answer. Asynchronous app questions, unsaved side chats and human approval prompts are not all observable; automatic review is not labeled as a request for your approval.
+
+![Needs input indicator with sample data](docs/images/attention.png)
+
 ![Task search](docs/images/task-search.png)
 
 *Search window with sample tasks. Search runs locally and does not save your query.*
@@ -57,7 +67,7 @@ Right-click and choose **Find task…** to search recorded tasks by title or pro
 - Daily quota usage starts at the day's first available reading. Restarting preserves it. Earlier usage is not reconstructed; a reset during the day is handled as a separate interval.
 - The daily task list includes today's turns. Status panels show the current or latest turn's duration, including time waiting for tools.
 - Historical token totals cover locally recorded tasks. Other devices and temporary side chats without saved usage are excluded.
-- The task catalog includes recorded CLI, VS Code, app-server and CLI execution sources. Newly included records can increase local token totals. Runtime waiting/approval states from other Codex clients are not currently exposed by this tool.
+- The task catalog includes recorded CLI, VS Code, app-server and CLI execution sources. Newly included records can increase local token totals. Persisted synchronous input requests are observable; live approval routing and unrecorded questions are not fully exposed.
 
 Reset history uses **Scheduled** for an observed natural rollover, **Manual** for a reset confirmed through this tool, and **Official** for other observed recoveries. Official is an inferred category, not a verified statement from OpenAI. Using a reset credit requires confirmation and consumes a real credit.
 
