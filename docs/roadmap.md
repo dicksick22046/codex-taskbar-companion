@@ -2,7 +2,7 @@
 
 Help people notice what their AI tasks need and return to the right task, with quota visibility close at hand.
 
-## 1. Reliable Windows companion — in progress
+## 1. Reliable Windows companion — 0.4.0
 
 - Measure and reduce idle rendering and diagnostic writes without slowing task or quota collection.
 - Offer a floating capsule alongside the existing taskbar placement, sharing the same data and panels.

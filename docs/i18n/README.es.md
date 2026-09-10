@@ -2,7 +2,7 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · **Español**
 
-Muestra la cuota de Codex, el consumo de tokens y el estado de las tareas en la barra de tareas de Windows 11.
+Muestra la cuota de Codex, el consumo de tokens y el estado de las tareas en la barra de tareas de Windows 11 o en una cápsula flotante.
 
 [Descargar](https://github.com/dicksick22046/codex-taskbar-companion/releases/latest) · [Informar de un problema](https://github.com/dicksick22046/codex-taskbar-companion/issues) · [Cambios](../../CHANGELOG.md)
 
@@ -19,6 +19,12 @@ Requiere **Windows 11 x64** y la **aplicación de escritorio de Codex**, instala
 3. Haz clic derecho en la barra para abrir los ajustes. Elige qué mostrar y si debe iniciarse al entrar en Windows.
 
 Se coloca a la izquierda de la barra de tareas principal. Si no hay espacio, puedes abrir los ajustes desde la bandeja del sistema. Busca actualizaciones en GitHub, pero solo las instala cuando tú lo eliges.
+
+Elige **Ubicación → Flotante** en los ajustes para mover la cápsula arrastrándola. La posición se conserva al reiniciar. **Mantener encima** es opcional; los paneles se abren arriba o abajo según el espacio disponible. Puedes volver a **Barra de tareas** en cualquier momento.
+
+![Cápsula flotante](../images/floating.png)
+
+*Datos de ejemplo. El modo flotante comparte los controles y paneles del modo de barra de tareas.*
 
 ## Uso
 

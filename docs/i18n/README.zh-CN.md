@@ -2,7 +2,7 @@
 
 [English](../../README.md) · **简体中文** · [日本語](README.ja.md) · [Español](README.es.md)
 
-在 Windows 11 任务栏显示 Codex 额度、Token 用量和任务状态。
+在 Windows 11 任务栏或悬浮胶囊中显示 Codex 额度、Token 用量和任务状态。
 
 [下载](https://github.com/dicksick22046/codex-taskbar-companion/releases/latest) · [反馈问题](https://github.com/dicksick22046/codex-taskbar-companion/issues) · [更新记录](../../CHANGELOG.md)
 
@@ -19,6 +19,12 @@
 3. 右键状态条打开设置，选择显示项目和是否开机启动。
 
 状态条位于主任务栏左侧。空间不足时，可从系统托盘打开设置。更新从 GitHub 检查，由你选择是否安装。
+
+在设置中选择 **显示位置 → 悬浮窗**，就能把胶囊拖到合适的位置，重启后保留位置。可关闭 **保持置顶**；面板根据屏幕空间向上或向下展开。随时可以切回 **任务栏**。
+
+![悬浮胶囊](../images/floating.png)
+
+*图中使用演示数据；悬浮窗和任务栏共用同一套组件与面板。*
 
 ## 使用
 

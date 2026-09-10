@@ -2,7 +2,7 @@
 
 **English** · [简体中文](docs/i18n/README.zh-CN.md) · [日本語](docs/i18n/README.ja.md) · [Español](docs/i18n/README.es.md)
 
-Shows Codex quota, token usage, and task status in the Windows 11 taskbar.
+Shows Codex quota, token usage, and task status in the Windows 11 taskbar or a floating capsule.
 
 [Download](https://github.com/dicksick22046/codex-taskbar-companion/releases/latest) · [Report an issue](https://github.com/dicksick22046/codex-taskbar-companion/issues) · [Changelog](CHANGELOG.md)
 
@@ -19,6 +19,12 @@ Requires **Windows 11 x64** and the **Codex desktop app**, installed and signed 
 3. Right-click the strip to open Settings. Choose which items to show and whether to start at sign-in.
 
 The strip sits on the left of the primary taskbar. If there is not enough space, open Settings from the system tray. Updates are checked on GitHub; installation starts only when you choose it.
+
+Choose **Placement → Floating** in Settings to move the capsule away from the taskbar. Drag it to a convenient position; that position is remembered. **Keep on top** is optional, and panels open above or below it to fit the screen. Switch back to **Taskbar** at any time.
+
+![Floating capsule](docs/images/floating.png)
+
+*Floating mode with sample data; the panel and capsule use the same controls as taskbar mode.*
 
 ## Use
 
@@ -68,7 +74,7 @@ Exit the installed app before running from source; a second launch opens the exi
 
 To preview the 5h panel without an eligible account, run `./scripts/preview-session.ps1`. It uses sample data in a separate window and does not change your account or settings.
 
-Implementation notes: [architecture](docs/architecture.md) and [interaction specification](docs/specs/interaction.md), currently in Chinese.
+Implementation notes: [architecture](docs/architecture.md), [interaction specification](docs/specs/interaction.md), [performance checks](docs/performance.md), and [roadmap](docs/roadmap.md). Some technical documents are in Chinese.
 
 ## License
 
