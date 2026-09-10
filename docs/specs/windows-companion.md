@@ -16,7 +16,15 @@ Validate with repeatable idle/active render counts and CPU samples using control
 
 Settings offer Taskbar / Floating, plus Keep on top for Floating. Switch immediately without restarting collection. Reuse manual theme/transparency, indicators, tasks and panels. Right-click retains Settings and Quit. The tray remains available if all indicators are disabled.
 
-The floating capsule uses a stable 540 DIP width (constrained by available screen width) and 30 DIP height. It is independent of taskbar availability and alignment. Drag anywhere inside the capsule; movement must exceed the system drag threshold before being a drag. A completed drag never opens a panel or task. Preserve normal click targets and outside dismissal. Transparent rounded corners stay outside the target.
+The floating capsule is 30 DIP high, with a maximum width of 540 DIP constrained by the screen. Content sizing is specified below. It is independent of taskbar availability and alignment. Drag anywhere inside the capsule; movement must exceed the system drag threshold before being a drag. A completed drag never opens a panel or task. Preserve normal click targets and outside dismissal. Transparent rounded corners stay outside the target.
+
+### Adaptive capsule width
+
+Both placements fit the enabled metrics, nonempty status counts and task content, with balanced end padding. Keep the existing taskbar space limit and floating 540 DIP limit. Measure every current rotating task and use the longest required width, so switching tasks does not resize the capsule. Retain the quota rotation slot's existing stable width. Long content still elides and scrolls on hover. No extra setting is needed.
+
+Keep the left edge and ring positions fixed when content changes. Defer shrinking while hovering, pressing, dragging, or a panel/menu/settings window is open. Opening a task panel continues to use its own readable minimum width even when the capsule is short.
+
+Floating position records may include a reference width, so resizing content does not change the restored left anchor. Older position records assume the previous 540 DIP reference. Screen changes still constrain the whole capsule. Invalid reference widths are discarded. Dragging saves the actual current width as the reference.
 
 Persist position only after a completed drag, as screen name and normalized coordinates within its available area. Restore on that screen when present; use the primary screen if removed. Clamp the whole capsule after display/DPI/work-area changes. Do not follow the taskbar owner in Floating mode. Keep-on-top changes must not activate the window. Defaults: Keep on top enabled, lower-left inset position.
 
