@@ -12,6 +12,7 @@ from .unread import UnreadState
 from .preferences import write_json
 from .resets import ResetLedger
 from .side_chats import SideChats
+from .task_statistics import TaskStatistics
 
 
 class Provider:
@@ -28,6 +29,7 @@ class Provider:
             self.quota_history = []
         self.snapshot = {"tasks": [], "quota": [], "totals": None, "loading": True}
         self.catalog_rows=None;self.project_names={}
+        self.statistics_active=threading.Event()
         self.unread_state = UnreadState()
         self.side_reader=SideChats(cache_path=self.runtime_dir/'side_chat_links.json');self.side_rows=[]
         self.api = None
@@ -44,6 +46,10 @@ class Provider:
 
     def refresh(self):
         self.refresh_event.set()
+
+    def set_statistics_active(self,active):
+        if active:self.statistics_active.set()
+        else:self.statistics_active.clear()
 
     def request_reset(self, account, credit_id):
         with self.lock:
@@ -88,6 +94,7 @@ class Provider:
         recent = []
         daily = {}
         newest_usage = None
+        native_running=[]
         unread_ids=self.unread_state.read()
         for thread in threads:
             cursor = cursors.get(thread["id"])
@@ -106,6 +113,7 @@ class Provider:
             failed=turn.get('id')==cursor.turn and turn.get('status')=='failed' and bool(turn.get('error'))
             status='failed' if failed else 'running' if running else 'stopped' if cursor.completion_kind=='turn_aborted' else 'idle'
             if failed:running=False
+            if running:native_running.append(thread['id'])
             daily_seconds=cursor.elapsed_today(include_running=running)
             ended_at = cursor.ended_at
             if failed and cursor.running:
@@ -158,6 +166,7 @@ class Provider:
         week = next((w for w in quota if w["label"] == "周"), None)
         snapshot = {"tasks": tasks, "recent_tasks": recent, "quota": quota, "quota_updated_at": quota_at,
                     "catalog":getattr(self,'catalog_rows',None),
+                    "task_statistics":self.statistics.view(native_running) if hasattr(self,'statistics') else {},
                     "unread_count": sum(task['unread'] is True for task in recent) if unread_ids is not None else None,
                     "history": daily, "daily_quota": daily_quota_text(self.quota_history, week),
                     "totals": totals, "usage_at": newest_usage, "loading": False,
@@ -189,6 +198,7 @@ class Provider:
 
     def _run(self):
         self.resets=ResetLedger(self.runtime_dir/'reset_history.json')
+        self.statistics=TaskStatistics(self.runtime_dir/'task_statistics.json')
         self.reset_request=getattr(self,'reset_request',None)
         self.reset_busy=getattr(self,'reset_busy',False)
         api = None
@@ -237,6 +247,7 @@ class Provider:
                             self.project_names={t['id']:project_name(t,projects) for t in threads}
                             self.catalog_rows=[{'id':t['id'],'title':t.get('name') or '',
                                                'project':self.project_names[t['id']],'updated_at':t.get('updatedAt') or t.get('createdAt') or 0} for t in threads]
+                            self.statistics.sync(threads)
                             live_ids={t['id'] for t in threads}
                             cursors={k:v for k,v in cursors.items() if k in live_ids}
                         if hasattr(self,'side_reader'):
@@ -274,6 +285,7 @@ class Provider:
                                 continue
                             last_turn_errors.pop(thread['id'],None)
                             turn_signatures[thread['id']]=signature
+                    if getattr(self,'statistics_active',None) and self.statistics_active.is_set():self.statistics.step()
                     error = catalog_error
                     self._publish(threads, projects, cursors, quota, quota_at, error,last_turns,quota_error)
                 except Exception as exc:
@@ -290,6 +302,7 @@ class Provider:
                 self.stop_event.wait(1)
         finally:
             self._write_snapshot(force=True)
+            self.statistics.save(force=True)
             if api:
                 api.close()
 
