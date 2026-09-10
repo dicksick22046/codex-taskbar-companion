@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- Add a fixed capsule background with manual dark/light colors and background transparency controls.
 - Recover native visibility and Qt surface state after an unexpected hide; keep context menus above the strip and taskbar.
 - Hide the taskbar divider when the left-side indicators rotate.
 - Align reset-history labels, numeric values, and units in separate columns.

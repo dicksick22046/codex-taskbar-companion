@@ -3,6 +3,7 @@
 LANGUAGE_NAMES = (('en','English'),('zh-CN','简体中文'),('ja','日本語'),('es','Español'))
 LANGUAGES = tuple(code for code,name in LANGUAGE_NAMES)
 COPY = {
+    'Capsule': '胶囊配色', 'Dark': '深色', 'Light': '浅色', 'Transparency': '背景透明度',
     'Settings': '设置', 'Settings…': '设置…', 'Quit': '退出',
     'Language': '语言', 'Display': '显示',
     'Weekly quota': '本周额度', '5-hour quota': '5 小时额度',
@@ -38,6 +39,7 @@ COPY = {
 }
 
 TRANSLATIONS = {'zh-CN': COPY, 'ja': {
+    'Capsule': 'カプセル配色', 'Dark': 'ダーク', 'Light': 'ライト', 'Transparency': '背景の透明度',
     'Settings': '設定', 'Settings…': '設定…', 'Quit': '終了',
     'Language': '言語', 'Display': '表示',
     'Weekly quota': '週の利用枠', '5-hour quota': '5時間の利用枠',
@@ -71,6 +73,7 @@ TRANSLATIONS = {'zh-CN': COPY, 'ja': {
     'Update to {version}': '{version}に更新',
     'Version {version} is available. Update from Settings.': 'バージョン{version}が公開されました。設定から更新できます。',
 }, 'es': {
+    'Capsule': 'Color de la cápsula', 'Dark': 'Oscuro', 'Light': 'Claro', 'Transparency': 'Transparencia del fondo',
     'Settings': 'Ajustes', 'Settings…': 'Ajustes…', 'Quit': 'Salir',
     'Language': 'Idioma', 'Display': 'Visualización',
     'Weekly quota': 'Cuota semanal', '5-hour quota': 'Cuota de 5 horas',

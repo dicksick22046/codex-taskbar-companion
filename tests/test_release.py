@@ -44,6 +44,17 @@ class ReleaseTests(unittest.TestCase):
             write_settings(path,settings);self.assertEqual(read_settings(path),settings)
             settings['rotate_quotas']='true';write_settings(path,settings)
             self.assertFalse(read_settings(path)['rotate_quotas'])
+
+    def test_manual_capsule_preferences_default_and_persist(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'settings.json';settings=read_settings(path)
+            self.assertEqual((settings['capsule_theme'],settings['capsule_transparency']),('dark',0))
+            settings.update(capsule_theme='light',capsule_transparency=43)
+            write_settings(path,settings);self.assertEqual(read_settings(path),settings)
+            for value,expected in ((150,100),(-3,0),('50',0),(True,0)):
+                write_settings(path,{'capsule_theme':'auto','capsule_transparency':value})
+                restored=read_settings(path)
+                self.assertEqual(restored['capsule_theme'],'dark');self.assertEqual(restored['capsule_transparency'],expected)
     def test_update_version_and_asset_origin(self):
         repo='owner/repo';tag='v0.2.0';name='CodexTaskbarCompanion-0.2.0-Setup-x64.exe'
         release={'tag_name':tag,'assets':[{'name':n,'browser_download_url':f'https://github.com/{repo}/releases/download/{tag}/{n}'} for n in [name,name+'.sha256']]}

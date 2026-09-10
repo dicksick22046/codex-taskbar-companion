@@ -2,7 +2,7 @@
 from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap, QColor, QPen
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox, QListView
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox, QListView, QSlider
 from .build_info import APP_NAME, VERSION
 from .i18n import LANGUAGE_NAMES
 from . import startup
@@ -39,7 +39,9 @@ class SettingsDialog(QDialog):
             QComboBox::down-arrow {image:url(__CHEVRON__);width:12px;height:8px;}
             QComboBox QAbstractItemView {background:#303843;color:#bac5d2;border:1px solid #414b58;padding:4px;outline:0;}
             QComboBox QAbstractItemView::item {min-height:28px;padding:2px 8px;border-radius:4px;}
-            QComboBox QAbstractItemView::item:selected {background:#405166;color:#dce5ef;}'''.replace(
+            QComboBox QAbstractItemView::item:selected {background:#405166;color:#dce5ef;}
+            QSlider::groove:horizontal {height:4px;background:#475361;border-radius:2px;}
+            QSlider::handle:horizontal {width:12px;margin:-4px 0;background:#8fbdec;border-radius:6px;}'''.replace(
                 '__CHEVRON__',(Path(__file__).resolve().parents[1]/'assets/icons/chevron-down.svg').as_posix()))
         layout = QVBoxLayout(self); layout.setContentsMargins(24, 20, 24, 20); layout.setSpacing(8)
         language_row=QHBoxLayout();self.language_label=QLabel();language_row.addWidget(self.language_label)
@@ -49,6 +51,19 @@ class SettingsDialog(QDialog):
         self.language.setCurrentIndex(self.language.findData(bar.settings.get('language','en')))
         self.language.currentIndexChanged.connect(lambda:bar.set_language(self.language.currentData()))
         language_row.addStretch();language_row.addWidget(self.language);layout.addLayout(language_row)
+        theme_row=QHBoxLayout();self.capsule_label=QLabel();theme_row.addWidget(self.capsule_label)
+        self.capsule=QComboBox();self.capsule.addItem('','dark');self.capsule.addItem('','light');self.capsule.setView(QListView())
+        self.capsule.setCurrentIndex(self.capsule.findData(bar.settings.get('capsule_theme','dark')))
+        self.capsule.currentIndexChanged.connect(lambda:bar.set_capsule_theme(self.capsule.currentData()))
+        theme_row.addStretch();theme_row.addWidget(self.capsule);layout.addLayout(theme_row)
+        opacity_row=QHBoxLayout();self.transparency_label=QLabel();opacity_row.addWidget(self.transparency_label)
+        self.transparency=QSlider(Qt.Orientation.Horizontal);self.transparency.setRange(0,100)
+        self.transparency.setValue(bar.settings.get('capsule_transparency',0))
+        self.transparency.valueChanged.connect(lambda value:bar.set_capsule_transparency(value,save=not self.transparency.isSliderDown()))
+        self.transparency.sliderReleased.connect(bar.save_settings)
+        self.transparency_value=QLabel();self.transparency_value.setMinimumWidth(36);self.transparency_value.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.transparency.valueChanged.connect(lambda value:self.transparency_value.setText(f'{value}%'))
+        opacity_row.addWidget(self.transparency,1);opacity_row.addWidget(self.transparency_value);layout.addLayout(opacity_row)
         self.title = QLabel(); self.title.setStyleSheet('font-size:16px;color:#eef2f7;'); layout.addWidget(self.title)
         self.checks = {}
         for key, label in DISPLAY_LABELS.items():
@@ -75,6 +90,12 @@ class SettingsDialog(QDialog):
         self.language.blockSignals(True)
         self.language.setCurrentIndex(self.language.findData(self.bar.settings.get('language','en')))
         self.language.blockSignals(False)
+        self.capsule_label.setText(label('Capsule'));self.transparency_label.setText(label('Transparency'))
+        self.capsule.blockSignals(True)
+        self.capsule.setItemText(0,label('Dark'));self.capsule.setItemText(1,label('Light'))
+        self.capsule.setCurrentIndex(self.capsule.findData(self.bar.settings.get('capsule_theme','dark')));self.capsule.blockSignals(False)
+        self.transparency.blockSignals(True);self.transparency.setValue(self.bar.settings.get('capsule_transparency',0));self.transparency.blockSignals(False)
+        self.transparency_value.setText(f'{self.transparency.value()}%')
         for key,source in DISPLAY_LABELS.items():self.checks[key].setText(label(source))
         self.rotation.setText(label('Rotate left-side indicators'))
         self.hover.setText(label('Open panels on hover'));self.login.setText(label('Start at Windows sign-in'))

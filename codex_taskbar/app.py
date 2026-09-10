@@ -36,6 +36,14 @@ FONT_FAMILY = None
 LILAC = "#b59bea"
 AMBER = "#ebb45f"
 FAILED = "#df8589"
+CAPSULE_COLORS = {
+    'dark': {'background':'#252b34','text':MUTED,'muted':TITLE_MUTED,'link':BLUE,'green':ACCENT,'amber':AMBER,'failed':FAILED,'stopped':'#8795a5','divider':'#53606d',
+             'shimmer':(TITLE_MUTED,'#a1cddc','#f4fcff'),
+             'rings':{'quota':'#45ba91','session':'#51adb4','clock':'#5d9dd7','spent':'#a088d1'}},
+    'light': {'background':'#eef1f5','text':'#27374b','muted':'#43556b','link':'#2169ad','green':'#19775d','amber':'#936005','failed':'#ab3443','stopped':'#596a7d','divider':'#abb7c5',
+              'shimmer':('#43556b','#28647b','#0b405b'),
+              'rings':{'quota':'#19775d','session':'#14767e','clock':'#286dab','spent':'#7150a1'}},
+}
 FLAGS = Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.WindowDoesNotAcceptFocus | Qt.WindowType.NoDropShadowWindowHint
 
 
@@ -76,7 +84,8 @@ def pen(p, color=MUTED, width=1):
     p.setBrush(Qt.BrushStyle.NoBrush)
 
 
-def icon(p, kind, x, y, color=MUTED, fraction=1):
+def icon(p, kind, x, y, color=None, fraction=1):
+    color=color or (ACCENT if kind=='task' else MUTED)
     pen(p, color)
     if kind in ("quota", "session", "spent", "clock"):
         ratio=p.device().devicePixelRatioF()
@@ -95,8 +104,8 @@ def icon(p, kind, x, y, color=MUTED, fraction=1):
             p.drawLine(QPointF(x+dx,y+4),QPointF(x+dx,y+4-height))
     elif kind == "task":
         phase=(1-math.cos(time.monotonic()*2*math.pi/2.4))/2
-        halo=QColor(ACCENT);halo.setAlpha(round(24+35*phase))
-        center=QColor(ACCENT);center.setAlpha(round(160+95*phase))
+        halo=QColor(color);halo.setAlpha(round(24+35*phase))
+        center=QColor(color);center.setAlpha(round(160+95*phase))
         p.setPen(Qt.PenStyle.NoPen);p.setBrush(halo);p.drawEllipse(QPointF(x,y),4.3,4.3)
         p.setBrush(center);p.drawEllipse(QPointF(x,y),2.4+.2*phase,2.4+.2*phase)
 
@@ -108,11 +117,11 @@ def text(p, x, y, value, font, color=MUTED):
     return metrics.horizontalAdvance(value)
 
 
-def project_tag(p,x,y,value,font,available,language='en'):
+def project_tag(p,x,y,value,font,available,language='en',color=BLUE,muted='#8795a5'):
     metrics=QFontMetricsF(font)
     label=metrics.elidedText(project_label(value,language),Qt.TextElideMode.ElideRight,max(0,available-12))
     width=metrics.horizontalAdvance(label)+12
-    color=QColor('#8795a5' if not value else BLUE)
+    color=QColor(muted if not value else color)
     outline=QColor(color);outline.setAlpha(155)
     pen(p,outline,.7)
     p.drawRoundedRect(QRectF(x,y-9,width,18),4,4)
@@ -124,37 +133,38 @@ def side_tag_width(language='en'):
     return QFontMetricsF(face(7)).horizontalAdvance(translate(language,'Side'))+10
 
 
-def side_tag(p,x,y,language='en'):
+def side_tag(p,x,y,language='en',light=False):
     width=side_tag_width(language)
-    pen(p,'#536170',.6);p.setBrush(QColor('#303740'))
+    pen(p,'#91a2b6' if light else '#536170',.6);p.setBrush(QColor('#dce3ec' if light else '#303740'))
     p.drawRoundedRect(QRectF(x,y-7,width,14),2,2)
-    text(p,x+5,y,translate(language,'Side'),face(7),'#a6b2c0')
+    text(p,x+5,y,translate(language,'Side'),face(7),'#465a72' if light else '#a6b2c0')
     return width
 
 
-def activity_count(p,x,y,count,color=ACCENT,pulse=True):
+def activity_count(p,x,y,count,color=ACCENT,pulse=True,text_color=None):
     font=face(8);label=str(count)
     width=QFontMetricsF(font).horizontalAdvance(label)+24
     background=QColor(color);background.setAlpha(26)
     p.setPen(Qt.PenStyle.NoPen);p.setBrush(background)
     p.drawRoundedRect(QRectF(x,y-9,width,18),9,9)
-    if pulse:icon(p,'task',x+8,y)
+    if pulse:icon(p,'task',x+8,y,color)
     else:
         p.setBrush(QColor(color));p.drawEllipse(QPointF(x+8,y),2.5,2.5)
-    text(p,x+17,y,label,font,'#b0ddca' if pulse else QColor(color).lighter(115))
+    text(p,x+17,y,label,font,text_color or ('#b0ddca' if pulse else QColor(color).lighter(115)))
     return width
 
 
-def running_title(p,x,y,value,font,left,width):
+def running_title(p,x,y,value,font,left,width,colors=None):
+    base,middle,peak=colors or (TITLE_MUTED,'#a1cddc','#f4fcff')
     metrics=QFontMetricsF(font)
     phase=time.monotonic()%3.2
     if phase>=2.6:
-        text(p,x,y,value,font,TITLE_MUTED)
+        text(p,x,y,value,font,base)
         return
     band=24
     center=left-band+(width+2*band)*phase/2.6
     light=QLinearGradient(center-band,0,center+band,0)
-    for position,color in ((0,TITLE_MUTED),(.3,'#a1cddc'),(.5,'#f4fcff'),(.7,'#a1cddc'),(1,TITLE_MUTED)):
+    for position,color in ((0,base),(.3,middle),(.5,peak),(.7,middle),(1,base)):
         light.setColorAt(position,QColor(color))
     p.setFont(font);p.setPen(QPen(QBrush(light),1))
     p.drawText(QPointF(x,y+(metrics.ascent()-metrics.descent())/2),value)
@@ -340,6 +350,15 @@ class StatusBar(QWidget):
         self.settings['hover_panels']=bool(value)
         self.hover_target=None;self.hover_leave_since=None;self.hover_suppressed=None
         self.save_settings()
+
+    def set_capsule_theme(self,value):
+        if value not in CAPSULE_COLORS:return
+        self.settings['capsule_theme']=value;self.save_settings();self.update()
+
+    def set_capsule_transparency(self,value,save=True):
+        self.settings['capsule_transparency']=max(0,min(100,int(value)))
+        if save:self.save_settings()
+        self.update()
 
     def set_quota_rotation(self,value):
         self.settings['rotate_quotas']=bool(value)
@@ -629,25 +648,31 @@ class StatusBar(QWidget):
 
     def paintEvent(self,event):
         p=painter(self);data=self.data
+        theme=self.settings.get('capsule_theme','dark');palette=CAPSULE_COLORS[theme]
         self.hit_regions=[]
         def finish():
             # Windows passes mouse messages through alpha-zero pixels in layered windows.
             p.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOver)
+            if self.hit_regions:
+                background=QColor(palette['background']);background.setAlpha(round(255*(1-self.settings.get('capsule_transparency',0)/100)))
+                p.setPen(Qt.PenStyle.NoPen);p.setBrush(background)
+                box=QRectF(1,1,self.width()-2,self.height()-2)
+                p.drawRoundedRect(box,box.height()/2,box.height()/2)
             for mode,rect,target in self.hit_regions:p.fillRect(rect.toAlignedRect(),QColor(0,0,0,1))
             p.end()
         x,y=12.,self.height()/2
         def field(kind,value,fraction):
             nonlocal x
             left=x-7
-            colors={"quota":"#45ba91","session":"#51adb4","clock":"#5d9dd7","spent":"#a088d1"}
+            colors=palette['rings']
             color=QColor(colors[kind]);width=self.metric_text_width(kind,value)
             def draw_value(value,line_y):
                 if self.settings.get('rotate_quotas'):
                     label,_,number=value.partition(' ')
-                    text(p,x+12,line_y,label,face(8),TITLE_MUTED)
+                    text(p,x+12,line_y,label,face(8),palette['muted'])
                     number_x=x+12+self.metric_label_width()+3
-                    text(p,number_x,line_y,number,face(8),TITLE_MUTED)
-                else:text(p,x+12,line_y,value,face(8),TITLE_MUTED)
+                    text(p,number_x,line_y,number,face(8),palette['muted'])
+                else:text(p,x+12,line_y,value,face(8),palette['muted'])
             current_fraction=None if fraction is None else self.ring_values.get(kind,fraction)
             previous=self.quota_previous if self.settings.get('rotate_quotas') else None
             hit_kind=kind
@@ -671,7 +696,7 @@ class StatusBar(QWidget):
         def separator():
             nonlocal x
             if not self.settings.get('rotate_quotas'):
-                pen(p,"#53606d",.7)
+                pen(p,palette['divider'],.7)
                 p.drawLine(QPointF(x-6,y-5),QPointF(x-6,y+5))
             x+=7
         for kind,value,fraction in self.displayed_metrics():field(kind,value,fraction)
@@ -681,9 +706,9 @@ class StatusBar(QWidget):
         if not self.task and not any(counts[k] for k in ('running','unread','failed','stopped')):finish();return
         if x>12:separator()
         badge_x=x-6
-        for mode,color in [('running',ACCENT),('unread',AMBER),('failed',FAILED),('stopped','#8795a5')]:
+        for mode,color in [('running',palette['green']),('unread',palette['amber']),('failed',palette['failed']),('stopped',palette['stopped'])]:
             if counts[mode]:
-                width=activity_count(p,badge_x,y,counts[mode],color,pulse=mode=='running')
+                width=activity_count(p,badge_x,y,counts[mode],color,pulse=mode=='running',text_color=color if theme=='light' else None)
                 self.hit_regions.append((mode,QRectF(badge_x-2,0,width+4,self.height()),None));badge_x+=width+6
         if any(counts[k] for k in ('running','unread','failed','stopped')):x=badge_x+4
         if self.task:
@@ -691,8 +716,8 @@ class StatusBar(QWidget):
             p.save();p.setClipRect(QRectF(x-2,0,max(0,self.width()-x+2),self.height()))
             def task_label(task,opacity,offset,current=False):
                 p.save();p.setOpacity(opacity);p.translate(0,offset)
-                title_x=x+project_tag(p,x,y,task['project'],face(8),min(112,max(0,(self.width()-x)*.35)),self.language)+10
-                if task.get('side_chat'):title_x+=side_tag(p,title_x,y,self.language)+7
+                title_x=x+project_tag(p,x,y,task['project'],face(8),min(112,max(0,(self.width()-x)*.35)),self.language,color=palette['link'],muted=palette['muted'])+10
+                if task.get('side_chat'):title_x+=side_tag(p,title_x,y,self.language,light=theme=='light')+7
                 available=max(0,self.width()-title_x-6)
                 label=task['title']
                 metrics=QFontMetricsF(self.font)
@@ -707,11 +732,11 @@ class StatusBar(QWidget):
                     label=metrics.elidedText(label,Qt.TextElideMode.ElideRight,available)
                 p.setClipRect(QRectF(title_x,-offset,available,self.height()),Qt.ClipOperation.IntersectClip)
                 if self.task_hover and shift>0:
-                    text(p,title_x-shift,title_y,label,self.font)
+                    text(p,title_x-shift,title_y,label,self.font,palette['text'])
                 elif self.task_blend<1:
-                    text(p,title_x,title_y,label,self.font,TITLE_MUTED)
+                    text(p,title_x,title_y,label,self.font,palette['muted'])
                 else:
-                    running_title(p,title_x-shift,title_y,label,self.font,title_x,min(available,metrics.horizontalAdvance(label)))
+                    running_title(p,title_x-shift,title_y,label,self.font,title_x,min(available,metrics.horizontalAdvance(label)),palette['shimmer'])
                 p.restore()
             if self.previous_task and self.task_blend<1:
                 task_label(self.previous_task,1-self.task_blend,-22*self.task_blend)

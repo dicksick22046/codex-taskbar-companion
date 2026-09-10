@@ -61,6 +61,9 @@ def read_settings(path):
     result['hover_panels'] = data.get('hover_panels') is True
     result['rotate_quotas'] = data.get('rotate_quotas') is True
     result['language'] = data.get('language') if data.get('language') in LANGUAGES else 'en'
+    result['capsule_theme'] = data.get('capsule_theme') if data.get('capsule_theme') in ('dark','light') else 'dark'
+    transparency=data.get('capsule_transparency',0)
+    result['capsule_transparency']=max(0,min(100,transparency)) if type(transparency) is int else 0
     return result
 
 

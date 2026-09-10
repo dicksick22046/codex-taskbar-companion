@@ -339,6 +339,47 @@ class InteractionTests(unittest.TestCase):
         self.assertLessEqual(point.y()+height,self.bar.y()-app.TaskPopup.GAP)
         self.assertLessEqual(point.y()+height,self.bar.screen().availableGeometry().bottom()+1-app.TaskPopup.GAP)
 
+    def test_capsule_background_alpha_does_not_dim_foreground_or_move_controls(self):
+        self.bar.settings['rotate_quotas']=True;self.bar.quota_kind='spent'
+        baseline=None
+        for theme in ('dark','light'):
+            foreground=[]
+            for transparency in (0,50,100):
+                self.bar.settings.update(capsule_theme=theme,capsule_transparency=transparency)
+                with patch('codex_taskbar.app.text',wraps=app.text) as draw:pixmap=self.bar.grab()
+                positions=[(mode,rect.x(),rect.width()) for mode,rect,target in self.bar.hit_regions]
+                if baseline is None:baseline=positions
+                self.assertEqual(positions,baseline)
+                image=pixmap.toImage();ratio=image.devicePixelRatio()
+                pixel=image.pixelColor(round((self.bar.width()-40)*ratio),round(self.bar.height()/2*ratio))
+                self.assertLessEqual(abs(pixel.alpha()-round(255*(1-transparency/100))),1)
+                if transparency==0:self.assertEqual(pixel.name(),app.CAPSULE_COLORS[theme]['background'])
+                colors=[app.QColor(c.args[5]).name() for c in draw.call_args_list if c.args[3]=='12%']
+                self.assertEqual(colors,[app.CAPSULE_COLORS[theme]['muted']]);foreground.append(colors)
+                self.assertEqual(self.bar.windowOpacity(),1.)
+                self.assertEqual(image.pixelColor(0,0).alpha(),0)
+            self.assertEqual(foreground[0],foreground[1]);self.assertEqual(foreground[0],foreground[2])
+        self.bar.settings.update(dict.fromkeys(app.DISPLAY_DEFAULTS,False));self.bar.grab()
+        self.assertEqual(self.bar.grab().toImage().pixelColor(100,15).alpha(),0)
+
+    def test_capsule_controls_preview_drag_and_save_on_release_and_keyboard(self):
+        from codex_taskbar.settings_ui import SettingsDialog
+        from PySide6.QtTest import QTest
+        with patch('codex_taskbar.settings_ui.startup.enabled',return_value=False),patch('codex_taskbar.app.write_settings') as saved:
+            dialog=SettingsDialog(self.bar);self.bar.settings_dialog=dialog
+            dialog.capsule.setCurrentIndex(dialog.capsule.findData('light'))
+            self.assertEqual(self.bar.settings['capsule_theme'],'light');saved.assert_called_once()
+            saved.reset_mock();dialog.transparency.setSliderDown(True);dialog.transparency.setValue(37)
+            self.assertEqual(self.bar.settings['capsule_transparency'],37);saved.assert_not_called()
+            dialog.transparency.setSliderDown(False);saved.assert_called_once()
+            saved.reset_mock();QTest.keyClick(dialog.transparency,app.Qt.Key.Key_Right)
+            self.assertEqual(self.bar.settings['capsule_transparency'],38);saved.assert_called_once()
+            for language in app.LANGUAGES:
+                self.bar.set_language(language)
+                self.assertEqual(dialog.capsule_label.text(),self.bar.label('Capsule'))
+                self.assertEqual(dialog.capsule.currentText(),self.bar.label('Light'))
+                self.assertEqual(dialog.transparency_label.text(),self.bar.label('Transparency'))
+
     def test_language_switch_updates_open_settings_menu_and_panel_without_side_effects(self):
         from codex_taskbar.settings_ui import SettingsDialog
         self.data['tasks'][0].update(project='',side_chat=True,title='原任务标题')
