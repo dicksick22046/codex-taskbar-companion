@@ -7,6 +7,7 @@
 - Add Find task to the context menu, with local title/project search, project filtering and keyboard navigation.
 - Include recorded Codex CLI execution and app-server sources in the existing catalog, deduplicated by task ID.
 - Keep the full search catalog in memory and localize untitled task labels.
+- Reuse font configuration during rendering while keeping returned font objects independent.
 
 - Fit the capsule to its content in both placements, retaining the existing maximum width and a stable width across rotating tasks.
 - Preserve the floating left anchor when content shrinks; keep task panels readable independently of capsule width.

@@ -8,6 +8,7 @@ import math
 import json
 import os
 import subprocess
+from functools import lru_cache
 
 BASE = Path(__file__).resolve().parents[1]
 from .preferences import runtime_dir, migrate_legacy, read_settings, write_settings, DISPLAY_DEFAULTS, legacy_runtime_dirs
@@ -55,8 +56,13 @@ def face(size=None):
         identifier=QFontDatabase.addApplicationFont(str(BASE/'assets/fonts/AlibabaPuHuiTi-3-55-Regular.ttf'))
         families=QFontDatabase.applicationFontFamilies(identifier)
         FONT_FAMILY=families[0] if families else QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont).family()
-    result=QFont(FONT_FAMILY)
-    result.setPointSizeF((size if size is not None else 9)+.5)
+    return QFont(_configured_face(FONT_FAMILY,(size if size is not None else 9)+.5))
+
+
+@lru_cache(maxsize=8)
+def _configured_face(family,size):
+    result=QFont(family)
+    result.setPointSizeF(size)
     result.setWeight(QFont.Weight.Normal)
     result.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
     result.setStyleStrategy(QFont.StyleStrategy.PreferAntialias|QFont.StyleStrategy.NoSubpixelAntialias)
