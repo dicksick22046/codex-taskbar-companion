@@ -28,6 +28,11 @@ class LifetimeTests(unittest.TestCase):
         self.sync(forkedFromId='parent',createdAt=(self.start+timedelta(seconds=40)).timestamp())
         row=self.index.view()['task'];self.assertEqual((row['tokens'],row['seconds'],row['turns']),(30,20,1))
 
+    def test_fork_without_inherited_baseline_is_a_lower_bound(self):
+        self.log.write_bytes(self.event('task_started',50)+self.event('token_count',51,100)+self.event('token_count',52,130)+self.event('task_complete',70))
+        self.sync(forkedFromId='parent',createdAt=(self.start+timedelta(seconds=40)).timestamp())
+        row=self.index.view()['task'];self.assertEqual(row['tokens'],30);self.assertTrue(row['tokens_partial'])
+
     def test_cache_resume_partial_line_and_append(self):
         complete=self.event('token_count',1,100);next_line=self.event('token_count',2,130)
         self.log.write_bytes(complete+next_line[:20]);self.sync();self.index.save(force=True)
@@ -61,3 +66,14 @@ class LifetimeTests(unittest.TestCase):
         with patch('codex_taskbar.task_statistics.time.monotonic',side_effect=lambda:next(clock)):self.index.step(budget=.06)
         self.assertFalse(self.index.view()['task']['ready'])
         self.index.step(budget=1);self.assertEqual(self.index.view()['task']['tokens'],9900)
+
+    def test_append_during_slice_waits_for_next_stat_without_resetting_cache(self):
+        initial=self.event('token_count',1,100);self.log.write_bytes(initial)
+        self.index.sync([{'id':'task','path':str(self.log)}]);original=self.index._entry
+        def append_after_stat(key):
+            result=original(key)
+            with self.log.open('ab') as stream:stream.write(self.event('token_count',2,130))
+            return result
+        with patch.object(self.index,'_entry',side_effect=append_after_stat):self.index.step(budget=1)
+        self.assertEqual(self.index.entries['task']['offset'],len(initial));self.assertEqual(self.index.view()['task']['tokens'],100)
+        self.index.step(budget=1);self.assertEqual(self.index.view()['task']['tokens'],130)

@@ -4,12 +4,13 @@ import json
 import math
 from pathlib import Path
 import time
+from collections import deque
 from .preferences import write_json
 from .usage import event_from_line
 
 
 class TaskStatistics:
-    VERSION=1
+    VERSION=2
     CHUNK=256*1024
 
     def __init__(self,path):
@@ -19,7 +20,7 @@ class TaskStatistics:
             if data.get('version')==self.VERSION and isinstance(data.get('entries'),dict):self.entries=data['entries']
         except (OSError,ValueError,AttributeError):pass
         for key,entry in list(self.entries.items()):
-            required=('path','created','identity','offset','prefix_size','prefix','mtime','last','tokens','seconds','seen','starts','start','turn','incomplete','ready')
+            required=('path','created','identity','offset','prefix_size','prefix','mtime','last','tokens','tokens_partial','seconds','seen','starts','start','turn','incomplete','ready')
             valid=isinstance(entry,dict) and all(k in entry for k in required)
             valid=valid and all(type(entry[k]) is int and entry[k]>=0 for k in ('offset','prefix_size','mtime','tokens'))
             valid=valid and entry['prefix_size']<=256 and isinstance(entry['path'],str) and isinstance(entry['prefix'],str) and len(entry['prefix'])==64
@@ -44,7 +45,7 @@ class TaskStatistics:
             with path.open('rb') as stream:prefix=stream.read(min(256,stat.st_size))
             entry={'path':str(path),'created':created,'identity':[stat.st_dev,stat.st_ino],
                    'offset':0,'prefix_size':len(prefix),'prefix':hashlib.sha256(prefix).hexdigest(),
-                   'mtime':stat.st_mtime_ns,'last':None,'tokens':0,'seconds':0.,'seen':set(),'starts':set(),
+                   'mtime':stat.st_mtime_ns,'last':None,'tokens':0,'tokens_partial':False,'seconds':0.,'seen':set(),'starts':set(),
                    'start':None,'turn':None,'incomplete':False,'ready':False,'pending':b''}
             self.entries[key]=entry;self.dirty=True
         entry['checked']=True;entry['missing']=False;self.missing.discard(key)
@@ -58,7 +59,9 @@ class TaskStatistics:
             value=(event.get('usage') or {}).get('total_tokens')
             if type(value) is int and value>=0:
                 previous=entry['last']
-                if original:entry['tokens']+=value if previous is None or value<previous else value-previous
+                if original:
+                    if previous is None and entry['created'] is not None:entry['tokens_partial']=True
+                    else:entry['tokens']+=value if previous is None or value<previous else value-previous
                 entry['last']=value
         elif kind=='task_started' and original:
             identifier=turn or '@'+event['at'].isoformat()
@@ -75,25 +78,23 @@ class TaskStatistics:
         keys=list(self.sources)
         if not keys:return
         deadline=time.monotonic()+budget
-        processed=0;progress=False
-        while time.monotonic()<deadline:
-            key=keys[self.cursor%len(keys)];self.cursor+=1
+        start=self.cursor%len(keys);queue=deque(keys[start:]+keys[:start]);checked={}
+        while queue and time.monotonic()<deadline:
+            key=queue.popleft();self.cursor+=1
             try:
-                path,stat,entry=self._entry(key)
+                if key not in checked:checked[key]=self._entry(key)
+                path,stat,entry=checked[key]
                 if stat.st_size>entry['offset']:
                     with path.open('rb') as stream:
-                        stream.seek(entry['offset']);chunk=stream.read(self.CHUNK)
+                        stream.seek(entry['offset']);chunk=stream.read(min(self.CHUNK,stat.st_size-entry['offset']))
                     data=entry['pending']+chunk;lines=data.split(b'\n');entry['pending']=lines.pop()
                     for line in lines:self.apply(entry,event_from_line(line))
-                    entry['offset']+=len(chunk);entry['mtime']=stat.st_mtime_ns;self.dirty=True;progress=True
+                    entry['offset']+=len(chunk);entry['mtime']=stat.st_mtime_ns;self.dirty=True
                 entry['ready']=entry['offset']>=stat.st_size
+                if not entry['ready']:queue.append(key)
             except (OSError,ValueError,KeyError,TypeError):
                 self.missing.add(key)
                 if key in self.entries:self.entries[key]['missing']=True
-            processed+=1
-            if processed%len(keys)==0:
-                if not progress:break
-                progress=False
         self.save()
 
     def view(self,running=(),now=None):
@@ -108,7 +109,7 @@ class TaskStatistics:
                 if key in running:elapsed+=max(0,now-entry['start'])
                 else:partial=True
             result[key]={'ready':True,'tokens':entry['tokens'],'seconds':int(elapsed) if entry['seen'] else None,
-                         'turns':len(entry['seen']) if entry['seen'] else None,'partial':partial}
+                         'turns':len(entry['seen']) if entry['seen'] else None,'partial':partial,'tokens_partial':entry['tokens_partial']}
         return result
 
     def save(self,force=False):
