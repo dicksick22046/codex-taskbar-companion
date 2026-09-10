@@ -22,7 +22,7 @@ except ImportError:
     raise
 from .provider import Provider
 from .usage import reset_countdown_text, remaining_time_fraction, visible_metrics, quota_window, chart_window, countdown_window
-from .tasks import thread_url, panel_rows, task_category, category_counts, CATEGORY_LABELS, duration_text
+from .tasks import thread_url, panel_rows, task_category, category_counts, CATEGORY_LABELS, STATUS_CATEGORIES, duration_text
 from . import windows
 from . import startup
 from .settings_ui import SettingsDialog, app_icon
@@ -149,13 +149,14 @@ def side_tag(p,x,y,language='en',light=False):
     return width
 
 
-def activity_count(p,x,y,count,color=ACCENT,pulse=True,text_color=None):
+def activity_count(p,x,y,count,color=ACCENT,pulse=True,text_color=None,glyph=None):
     font=face(8);label=str(count)
     width=QFontMetricsF(font).horizontalAdvance(label)+24
     background=QColor(color);background.setAlpha(26)
     p.setPen(Qt.PenStyle.NoPen);p.setBrush(background)
     p.drawRoundedRect(QRectF(x,y-9,width,18),9,9)
-    if pulse:icon(p,'task',x+8,y,color)
+    if glyph:text(p,x+5,y,glyph,face(8),color)
+    elif pulse:icon(p,'task',x+8,y,color)
     else:
         p.setBrush(QColor(color));p.drawEllipse(QPointF(x+8,y),2.5,2.5)
     text(p,x+17,y,label,font,text_color or ('#b0ddca' if pulse else QColor(color).lighter(115)))
@@ -452,7 +453,7 @@ class StatusBar(QWidget):
         right=x-(13 if rotating else 17) if metrics else CONTENT_X
         if not self.settings['show_tasks']:return min(limit,math.ceil(right+12))
         counts=category_counts(self.data);tasks=self.data.get('tasks',[])
-        statuses=[kind for kind in ('running','unread','failed','stopped') if counts[kind]]
+        statuses=[kind for kind in STATUS_CATEGORIES if counts[kind]]
         if not tasks and not statuses:return min(limit,math.ceil(right+12))
         if metrics:x+=7
         font_metrics=QFontMetricsF(face(8));badge_x=x-6
@@ -517,7 +518,7 @@ class StatusBar(QWidget):
 
     def animate(self):
         if self.isVisible() and self.settings['show_tasks']:
-            regions=[r for mode,r,_ in self.hit_regions if mode=='running' or mode=='task' and self.task]
+            regions=[r for mode,r,_ in self.hit_regions if mode=='running' or mode=='task' and self.task and (not self.task.get('needs_input') or self.task_hover)]
             if regions:
                 dirty=QRectF(regions[0])
                 for region in regions[1:]:dirty=dirty.united(region)
@@ -730,7 +731,7 @@ class StatusBar(QWidget):
         minimum=CONTENT_X+sum((25 if self.settings.get('rotate_quotas') else 29)+self.metric_text_width(kind,value) for kind,value,fraction in metrics)
         if self.settings['show_tasks']:
             counts=category_counts(self.data)
-            minimum+=(60 if self.data.get('tasks') else 0)+sum(30+QFontMetricsF(face(8)).horizontalAdvance(str(counts[k])) for k in ('running','unread','failed','stopped') if counts[k])
+            minimum+=(60 if self.data.get('tasks') else 0)+sum(30+QFontMetricsF(face(8)).horizontalAdvance(str(counts[k])) for k in STATUS_CATEGORIES if counts[k])
         if not metrics and not self.settings['show_tasks']:
             self.hide();self.hide_popup(immediate=True);return
         minimum=min(minimum,self.content_width(540))
@@ -787,7 +788,7 @@ class StatusBar(QWidget):
                    self.task_hover,self.position,tuple(self.settings.get(k) for k in DISPLAY_DEFAULTS),self.settings.get('rotate_quotas'))
         if frame_key!=self.frame_key:
             self.frame_key=frame_key;self.update()
-        if self.isVisible() and self.settings['show_tasks'] and (self.task or category_counts(self.data)['running']):
+        if self.isVisible() and self.settings['show_tasks'] and (self.task and (not self.task.get('needs_input') or self.task_hover) or category_counts(self.data)['running']):
             if not self.animation.isActive():self.animation.start(33)
         else:self.animation.stop()
         if self.popup:
@@ -858,14 +859,14 @@ class StatusBar(QWidget):
         self.task_area=QRectF();self.task_rect=QRectF()
         if not self.settings['show_tasks']:finish();return
         counts=category_counts(data)
-        if not self.task and not any(counts[k] for k in ('running','unread','failed','stopped')):finish();return
+        if not self.task and not any(counts[k] for k in STATUS_CATEGORIES):finish();return
         if x>CONTENT_X:separator()
         badge_x=x-6
-        for mode,color in [('running',palette['green']),('unread',palette['amber']),('failed',palette['failed']),('stopped',palette['stopped'])]:
+        for mode,color in [('waiting',palette['amber']),('running',palette['green']),('unread',palette['amber']),('failed',palette['failed']),('stopped',palette['stopped'])]:
             if counts[mode]:
-                width=activity_count(p,badge_x,y,counts[mode],color,pulse=mode=='running',text_color=color if theme=='light' else None)
+                width=activity_count(p,badge_x,y,counts[mode],color,pulse=mode=='running',text_color=color if theme=='light' else None,glyph='?' if mode=='waiting' else None)
                 self.hit_regions.append((mode,QRectF(badge_x-2,0,width+4,self.height()),None));badge_x+=width+6
-        if any(counts[k] for k in ('running','unread','failed','stopped')):x=badge_x+4
+        if any(counts[k] for k in STATUS_CATEGORIES):x=badge_x+4
         if self.task:
             self.task_area=QRectF(x-2,0,0,self.height())
             p.save();p.setClipRect(QRectF(x-2,0,max(0,self.width()-x+2),self.height()))
@@ -890,8 +891,8 @@ class StatusBar(QWidget):
                     text(p,title_x-shift,title_y,label,self.font,palette['text'])
                 elif self.task_blend<1:
                     text(p,title_x,title_y,label,self.font,palette['muted'])
-                else:
-                    running_title(p,title_x-shift,title_y,label,self.font,title_x,min(available,metrics.horizontalAdvance(label)),palette['shimmer'])
+                elif task.get('needs_input'):text(p,title_x-shift,title_y,label,self.font,palette['text'])
+                else:running_title(p,title_x-shift,title_y,label,self.font,title_x,min(available,metrics.horizontalAdvance(label)),palette['shimmer'])
                 p.restore()
             if self.previous_task and self.task_blend<1:
                 task_label(self.previous_task,1-self.task_blend,-22*self.task_blend)
@@ -1195,7 +1196,7 @@ class TaskListPopup(TaskPopup):
         self.animation=QTimer(self);self.animation.timeout.connect(self.animate);self.animation.start(33)
 
     def animate(self):
-        if self.isVisible() and (self.hovered or any(t.get('running') for t in self.rows)):self.update()
+        if self.isVisible() and (self.hovered or any(t.get('running') and not t.get('needs_input') for t in self.rows)):self.update()
 
     def refresh(self,data):
         self.data=data;self.rows=panel_rows(data,self.mode)
@@ -1265,6 +1266,7 @@ class TaskListPopup(TaskPopup):
             elif task.get('status')=='stopped':
                 p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('#8795a5'))
                 p.drawRoundedRect(QRectF(19.5,y-2.5,5,5),.8,.8)
+            elif task.get('needs_input'):text(p,19,y,'?',face(8),AMBER)
             elif task.get('running'):icon(p,'task',22,y)
             else:
                 p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(AMBER if task.get('unread') else '#718096'))

@@ -46,7 +46,7 @@ class InteractionTests(unittest.TestCase):
         with patch('codex_taskbar.app.time.monotonic',return_value=16):self.assertEqual(bar.selected_task(tasks)['id'],'c')
 
     def test_categories_are_exclusive_and_daily_keeps_all_tasks(self):
-        self.assertEqual(category_counts(self.data),dict.fromkeys(['running','unread','failed','stopped','recent'],1))
+        self.assertEqual(category_counts(self.data),{'waiting':0,**dict.fromkeys(['running','unread','failed','stopped','recent'],1)})
         self.assertEqual(len(panel_rows(self.data,'daily')),5)
         for category in ['running','unread','failed','stopped','recent']:
             self.assertEqual([t['id'] for t in panel_rows(self.data,category)],[category])

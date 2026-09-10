@@ -2,11 +2,13 @@
 from uuid import UUID
 from .usage import human_tokens
 
-CATEGORIES = ('running', 'unread', 'failed', 'stopped', 'recent')
-CATEGORY_LABELS = dict(zip(CATEGORIES, ('Running', 'Unread', 'Failed', 'Stopped', 'Recent')))
+CATEGORIES = ('waiting','running', 'unread', 'failed', 'stopped', 'recent')
+STATUS_CATEGORIES=CATEGORIES[:-1]
+CATEGORY_LABELS = dict(zip(CATEGORIES, ('Needs input','Running', 'Unread', 'Failed', 'Stopped', 'Recent')))
 
 
 def task_category(task):
+    if task.get('needs_input') and task.get('running'):return 'waiting'
     if task.get('running'):return 'running'
     if task.get('status') in ('failed', 'stopped'):return task['status']
     if task.get('unread'):return 'unread'

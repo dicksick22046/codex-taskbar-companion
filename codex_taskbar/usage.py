@@ -12,6 +12,20 @@ LIFECYCLE = {"task_started", "task_complete", "turn_aborted"}
 def event_from_line(line):
     try:
         item = json.loads(line)
+        if not isinstance(item,dict):return None
+        payload=item.get('payload') or {}
+        if not isinstance(payload,dict):return None
+        if item.get('type')=='response_item':
+            call=payload.get('call_id')
+            if not isinstance(call,str) or not call:return None
+            kind=payload.get('type')
+            name=payload.get('name')
+            if kind=='function_call' and isinstance(name,str) and name.rsplit('.',1)[-1]=='request_user_input':
+                args=json.loads(payload.get('arguments','{}'));questions=args.get('questions') if isinstance(args,dict) else None
+                if not isinstance(questions,list) or not questions or not all(isinstance(q,dict) and isinstance(q.get('id'),str) and isinstance(q.get('question'),str) and q['question'] for q in questions):return None
+                return {'kind':'input_requested','at':datetime.fromisoformat(item['timestamp'].replace('Z','+00:00')),'turn':None,'call':call}
+            if kind=='function_call_output':return {'kind':'input_resolved','at':datetime.fromisoformat(item['timestamp'].replace('Z','+00:00')),'turn':None,'call':call}
+            return None
         if item.get("type") != "event_msg":
             return None
         payload = item.get("payload", {})
@@ -52,15 +66,22 @@ class UsageCursor:
         self.daily_seconds = 0.
         self.duration_known = False
         self.duration_start = None
+        self.pending_input={}
 
     def apply(self, event):
         if event is None:
             return
         kind = event["kind"]
         original = self.created_after is None or event["at"].timestamp() >= self.created_after
+        if kind in ('input_requested','input_resolved'):
+            if original and self.running:
+                if kind=='input_requested':self.pending_input[event['call']]=event['at'].isoformat()
+                else:self.pending_input.pop(event['call'],None)
+            return
         if original:
             self.activity_at = event["at"].isoformat()
         if kind == "task_started":
+            if not self.running or self.turn!=event['turn']:self.pending_input.clear()
             if not self.running or self.turn != event["turn"] or self.duration_start is None:
                 self.duration_start = event["at"] if original else None
                 self.started_at = event["at"].isoformat()
@@ -72,6 +93,7 @@ class UsageCursor:
             self.run_tokens = 0
         elif kind in ("task_complete", "turn_aborted"):
             if not self.turn or not event["turn"] or event["turn"] == self.turn:
+                self.pending_input.clear()
                 if self.running and self.duration_start is not None:
                     self.daily_seconds += self.seconds_today(self.duration_start,event["at"])
                 self.duration_start = None
