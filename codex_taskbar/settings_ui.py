@@ -5,7 +5,7 @@ from PySide6.QtGui import QIcon, QPainter, QPixmap, QColor, QPen
 from PySide6.QtWidgets import QApplication,QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox, QListView, QSlider, QScrollArea, QWidget, QFrame,QStackedWidget,QGraphicsOpacityEffect
 from .build_info import APP_NAME, VERSION
 from .i18n import LANGUAGE_NAMES
-from . import startup
+from . import startup,windows
 from .motion import Spring
 from .ui_theme import Segments,Navigation,CONTROLS,typeface
 from .diagnostics import diagnostic_text
@@ -172,8 +172,8 @@ class SettingsDialog(QDialog):
     def copy_diagnostics(self):
         try:login=startup.enabled()
         except OSError:login=None
-        bar=self.bar
-        report=diagnostic_text(bar.settings,bar.provider.get(),{'visible':bar.isVisible(),'width':bar.width(),'height':bar.height(),'placement_available':not bar.placement_unavailable,'animations':bar.motion_enabled,'font':bar.font.family(),'startup':login})
+        bar=self.bar;handle=bar.windowHandle();native=bar.native_handle
+        report=diagnostic_text(bar.settings,bar.provider.get(),{'visible':bar.isVisible(),'native_visible':bool(windows.user32.IsWindowVisible(native)) if native else None,'minimized':bool(windows.user32.IsIconic(native)) if native else None,'exposed':bool(handle.isExposed()) if handle else None,'width':bar.width(),'height':bar.height(),'placement_available':not bar.placement_unavailable,'animations':bar.motion_enabled,'font':bar.font.family(),'startup':login})
         QApplication.clipboard().setText(report);self.diagnostics_button.setText(bar.label('Copied'));self.copy_timer.start(2000)
 
     def refresh(self):
