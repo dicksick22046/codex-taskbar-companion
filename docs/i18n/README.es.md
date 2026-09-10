@@ -55,7 +55,9 @@ La cápsula se ajusta al contenido hasta el ancho máximo anterior. Reserva espa
 
 La búsqueda muestra tiempo activo, tokens y turnos acumulados del historial local. Haz clic en una cabecera para ordenar y otra vez para invertir el orden. El historial se procesa por lotes mientras la ventana está abierta y se conserva en caché. El tiempo incluye esperas dentro del turno y excluye pausas entre turnos. `≥` indica un mínimo conocido cuando faltan registros.
 
-Los ajustes se agrupan en Apariencia, Indicadores y General. Una pregunta síncrona sin respuesta aparece como «Requiere respuesta», con un signo de interrogación ámbar. Se responde en Codex. Las preguntas asíncronas, los chats laterales no guardados y las aprobaciones humanas no tienen cobertura completa.
+La barra lateral organiza los ajustes en Apariencia, Indicadores y General. Los cambios se aplican al instante, incluido el ancho de la cápsula. General permite activar avisos de respuesta (desactivados por defecto) y copiar un diagnóstico sin nombres de tareas, cuentas, rutas ni registros.
+
+Una pregunta síncrona sin respuesta aparece como «Requiere respuesta», con un signo de interrogación ámbar. Se responde en Codex. Los avisos agrupan nuevas tareas en espera sin repetir estados sin cambios. Las preguntas asíncronas, los chats laterales no guardados y las aprobaciones humanas no tienen cobertura completa.
 
 ![Ajustes](../images/settings.png)
 

@@ -2,6 +2,8 @@
 
 The reported full-row settings toggle exposed a mismatch between the visible control and its actual target. This audit covers settings, the strip, quota/reset/status popovers, task search, and the context menu. The governing contract is [interaction quality](../specs/interaction-quality.md).
 
+The 0.6.1 pass was insufficient: subsequent user feedback exposed unbalanced control clearance and geometry frozen while settings were open. Acceptance was reopened around complete flows, followed by the [visual rebuild](../specs/visual-refresh.md). Test counts alone did not establish design quality.
+
 ## Findings and corrections
 
 | Step | Severity | Observed problem | Corrected behavior / verification |
@@ -13,11 +15,16 @@ The reported full-row settings toggle exposed a mismatch between the visible con
 | 5. Browse task popovers | Medium | No row keyboard navigation; discrete wheel steps lost precision input. | Up/Down/Home/End and Enter/Escape work; selection stays visible, Home restores the heading, pixel scrolling is preserved. Scrolling cancels pending navigation. |
 | 6. Reverse or disable motion | Medium | Popover transitions restarted motion; switches had no continuous state movement. | Critically damped switches/popovers retain current value and velocity on reversal. Windows reduced-animation settings snap to readable static states; hidden loops stop. |
 | 7. Read empty and focused states | Medium | Empty cycle data could display an invented date range; empty 5h charts lacked explanation. Some controls lacked clear focus feedback. | Localized empty/loading messages, unknown period shown as a dash, control-sized focus/press states, and a consistent tab surface. |
+| 8. Adjust settings continuously | High | Geometry stayed wide while settings were open; first-row spacing and inherited fonts were inconsistent. | Real setting callbacks resize immediately, with balanced control rows, explicit typography and sidebar navigation. |
+| 9. Filter, change units and retry | Medium | User filters retained old scroll positions; units lagged between views; failures could appear successful. | User filtering returns to the top; units synchronize immediately; independent errors persist until their operation recovers. |
+| 10. Interrupt new navigation controls | Medium | Same-index refresh cancelled motion, hidden segments could stay halfway, and rapid navigation restarted fades. | Real callback/hide/retarget tests protect current presentation; keyboard and reduced-motion actions settle without animation. |
+| 11. Notice waiting work and report problems | Medium | A glance-only signal was easy to miss; raw troubleshooting data was difficult to share safely. | Optional deduplicated notices and explicit allowlisted diagnostics, tested with a fake tray and clipboard. |
 
 ## Evidence
 
-- 216 Windows tests pass, including targeted synthetic press/release/cancel, wheel, keyboard, occlusion, motion-reversal and reduced-motion cases. Settings callbacks and navigation are mocked where they have side effects.
-- Native Qt screenshots reviewed before/after at matching sizes: all settings tabs, English/Chinese/Japanese/Spanish compact layouts, light/dark and parallel/rotating strips, cycle/daily/5h/reset/status panels, finder and menu. Switch motion and keyboard focus were also rendered separately. [Current settings example](../images/settings.png) uses controlled data.
+- 234 Windows tests pass; the separate offscreen journey class is skipped in that run and its three visible-widget journeys pass in a dedicated run. Qt window-level test events cover hit routing and wheel propagation; real setting/layout callbacks execute while OS and persistence side effects are isolated.
+- Native Qt screenshots reviewed: all sidebar pages in English/Chinese/Japanese/Spanish, compact layouts, light/dark strips, cycle/daily/5h/reset/status panels, finder and menu. [Current settings example](../images/settings.png) uses controlled data. Screenshots establish specific rendered states, not complete device-level behavior.
+- A separate read-only motion audit found five caller-level issues in new controls. Those were corrected; ring interpolation, quota transition/dwell and the existing data/statistics/reset modules remain unchanged from 0.6.1.
 - Existing tests continue to cover floating drag offset, screen bounds, adaptive width, long reset-history scrolling, search sorting/filtering, and reset confirmation with a fake provider.
 - No real pointer control, foreground activation for test interactions, real task navigation or reset redemption was used.
 

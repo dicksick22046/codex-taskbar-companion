@@ -7,6 +7,8 @@ Windows 11 x64 的单行 Codex 状态工具，支持任务栏与可选悬浮胶�
 | 模块 | 职责 |
 |---|---|
 | app.py、settings_ui.py | Qt 自绘状态条、各弹窗及设置 |
+| ui_theme.py、motion.py | 共用控件材质、分段选择和可中断动效 |
+| attention_notices.py、diagnostics.py | 复用快照的通知去重、主动复制的诊断白名单 |
 | i18n.py | 英文、中文、日语、西班牙语文案与无项目显示占位 |
 | task_finder.py | 内存任务目录搜索、项目筛选与虚拟列表，不独立查询接口 |
 | task_statistics.py | 按需分批整理全历史运行时长、Token与轮次；保存增量位置，不保存对话正文 |

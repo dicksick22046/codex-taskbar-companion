@@ -4,6 +4,15 @@
 
 ## Unreleased
 
+## 0.7.0
+
+- Rebuild settings with a persistent sidebar, clearer typography, balanced rows and direct placement/theme choices.
+- Refresh task search, panel surfaces, unit selection and project labels while retaining the existing ring interpolation and rotation behavior.
+- Apply settings to capsule geometry immediately; synchronize units, reset user-filter scrolling and preserve background selection.
+- Keep interrupted selections continuous, settle hidden controls and honor keyboard/reduced-motion behavior.
+- Add optional, grouped input-needed notices and visible recovery feedback for failed task navigation, startup and settings saves.
+- Add Copy diagnostics with an explicit allowlist that excludes task content, accounts, paths and logs.
+
 ## 0.6.1
 
 - Restrict setting changes to the switch itself; labels and row whitespace no longer toggle preferences.

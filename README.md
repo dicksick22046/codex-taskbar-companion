@@ -49,7 +49,9 @@ Right-click and choose **Find task…** to search recorded tasks by title or pro
 
 Task search also shows local lifetime **run time, tokens and execution turns**. Click a column heading to sort; click again to reverse it. The first history scan runs in small batches while the window is open, then resumes from a cache. Run time includes waits within a turn and excludes gaps between turns. Turns are execution rounds, not individual messages or tool calls. `≥` marks a known lower bound when records are incomplete.
 
-Settings are grouped under **Appearance**, **Indicators** and **General**. Existing preferences still apply immediately.
+Settings use a sidebar for **Appearance**, **Indicators** and **General**. Placement, theme and display changes apply immediately, including the capsule's width.
+
+General includes optional input-needed notifications (off by default) and **Copy diagnostics** for bug reports. Notifications group new waiting tasks and do not repeat unchanged work. Diagnostics exclude task names, account details, paths and log contents.
 
 ![Grouped settings](docs/images/settings.png)
 
