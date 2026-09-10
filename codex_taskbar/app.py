@@ -32,6 +32,7 @@ from .i18n import LANGUAGES, translate, project_label
 PANEL, MUTED, ACCENT, BLUE = "#262b33", "#bac5d2", "#53d5a0", "#79b6f5"
 TITLE_MUTED = "#8797aa"
 ROTATE_SECONDS = 8
+CONTENT_X = 18.
 FONT_FAMILY = None
 LILAC = "#b59bea"
 AMBER = "#ebb45f"
@@ -603,7 +604,7 @@ class StatusBar(QWidget):
         if not any(self.settings[key] for key in DISPLAY_DEFAULTS):
             self.hide();self.hide_popup(immediate=True);return
         metrics=self.displayed_metrics()
-        minimum=12+sum((25 if self.settings.get('rotate_quotas') else 29)+self.metric_text_width(kind,value) for kind,value,fraction in metrics)
+        minimum=CONTENT_X+sum((25 if self.settings.get('rotate_quotas') else 29)+self.metric_text_width(kind,value) for kind,value,fraction in metrics)
         if self.settings['show_tasks']:
             counts=category_counts(self.data)
             minimum+=(60 if self.data.get('tasks') else 0)+sum(30+QFontMetricsF(face(8)).horizontalAdvance(str(counts[k])) for k in ('running','unread','failed','stopped') if counts[k])
@@ -660,7 +661,7 @@ class StatusBar(QWidget):
                 p.drawRoundedRect(box,box.height()/2,box.height()/2)
             for mode,rect,target in self.hit_regions:p.fillRect(rect.toAlignedRect(),QColor(0,0,0,1))
             p.end()
-        x,y=12.,self.height()/2
+        x,y=CONTENT_X,self.height()/2
         def field(kind,value,fraction):
             nonlocal x
             left=x-7
@@ -704,7 +705,7 @@ class StatusBar(QWidget):
         if not self.settings['show_tasks']:finish();return
         counts=category_counts(data)
         if not self.task and not any(counts[k] for k in ('running','unread','failed','stopped')):finish();return
-        if x>12:separator()
+        if x>CONTENT_X:separator()
         badge_x=x-6
         for mode,color in [('running',palette['green']),('unread',palette['amber']),('failed',palette['failed']),('stopped',palette['stopped'])]:
             if counts[mode]:

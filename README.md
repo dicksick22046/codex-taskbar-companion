@@ -37,6 +37,8 @@ Settings include English, Simplified Chinese, Japanese, and Spanish UI selection
 
 ## About the numbers
 
+Capsule colors and background transparency are set manually in Settings. Choose Dark or Light; 0% transparency gives a solid background. Text and ring opacity are unaffected.
+
 - Quota percentages come from the account. Tokens come from task logs on this computer. Token totals cannot be converted into an exact quota percentage or subscription cost.
 - Daily quota usage starts at the day's first available reading. Restarting preserves it. Earlier usage is not reconstructed; a reset during the day is handled as a separate interval.
 - The daily task list includes today's turns. Status panels show the current or latest turn's duration, including time waiting for tools.

@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+## 0.3.3
+
+- Increase left padding inside the capsule so the first ring is clear of its edge.
+
 - Add a fixed capsule background with manual dark/light colors and background transparency controls.
 - Recover native visibility and Qt surface state after an unexpected hide; keep context menus above the strip and taskbar.
 - Hide the taskbar divider when the left-side indicators rotate.
@@ -12,6 +16,7 @@
 - Left-align rotating values in a compact column after their labels, retaining the ring position.
 - Shorten the cycle-usage heading to “Cycle · Tokens” and update the translations.
 - Tighten the rotating slot to the current countdown format, retaining the ring position and stable width between rotations.
+
 ## 0.3.2
 
 - Align rotating values to the right edge so the divider has equal spacing on both sides.

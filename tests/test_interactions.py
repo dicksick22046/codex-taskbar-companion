@@ -479,7 +479,7 @@ class InteractionTests(unittest.TestCase):
             self.bar.quota_kind=kind
             with patch('codex_taskbar.app.text',wraps=app.text) as draw,patch('codex_taskbar.app.icon',wraps=app.icon) as icons:self.bar.grab()
             metric_icon=next(c for c in icons.call_args_list if c.args[1]==kind)
-            self.assertEqual(metric_icon.args[2],12.)
+            self.assertEqual(metric_icon.args[2],app.CONTENT_X)
             if kind=='clock':
                 label=next(c for c in draw.call_args_list if c.args[3]=='Reset')
                 number=next(c for c in draw.call_args_list if c.args[3]=='5d 16h')
