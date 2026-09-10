@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 from codex_taskbar.usage import UsageCursor, event_from_line, quota_windows, daily_quota_text, reset_countdown_text, remaining_time_fraction
 from codex_taskbar.codex_api import project_name
 
@@ -132,17 +133,6 @@ class UsageTests(unittest.TestCase):
         projects=[{'id':'1','name':'项目甲','roots':[{'path':str(Path(self.folder.name)/'repo')}]}]
         self.assertEqual(project_name({'cwd':str(Path(self.folder.name)/'repo'/'sub')},projects),'项目甲')
         self.assertEqual(project_name({'cwd':str(Path(self.folder.name)/'repo-other')},projects),'')
-
-    def test_rotation_allows_eight_seconds_and_pauses_on_hover(self):
-        bar=StatusBar.__new__(StatusBar);bar.current_id=None;bar.rotated_at=0;bar.popup=None;bar.task_hover=False
-        tasks=[{'id':'a'},{'id':'b'},{'id':'c'}]
-        with patch('codex_taskbar.app.time.monotonic',return_value=0):self.assertEqual(bar.selected_task(tasks)['id'],'a')
-        with patch('codex_taskbar.app.time.monotonic',return_value=4):self.assertEqual(bar.selected_task(tasks)['id'],'a')
-        with patch('codex_taskbar.app.time.monotonic',return_value=8):self.assertEqual(bar.selected_task(tasks)['id'],'b')
-        bar.popup=object()
-        with patch('codex_taskbar.app.time.monotonic',return_value=12):self.assertEqual(bar.selected_task(tasks)['id'],'b')
-        bar.popup=None
-        with patch('codex_taskbar.app.time.monotonic',return_value=16):self.assertEqual(bar.selected_task(tasks)['id'],'c')
 
     def test_first_day_starts_from_first_record_and_empty_data_stays_unknown(self):
         midnight=self.now.replace(hour=0,minute=0,second=0,microsecond=0).timestamp()

@@ -34,6 +34,17 @@ class InteractionTests(unittest.TestCase):
         with patch('codex_taskbar.app.time.monotonic',return_value=10):
             self.assertEqual(self.bar.selected_task([{'id':'a'},{'id':'b'}])['id'],'a')
 
+    def test_rotation_allows_eight_seconds_and_pauses_on_hover(self):
+        bar=self.bar;bar.current_id=None;bar.rotated_at=0;bar.popup=None;bar.task_hover=False
+        tasks=[{'id':'a'},{'id':'b'},{'id':'c'}]
+        with patch('codex_taskbar.app.time.monotonic',return_value=0):self.assertEqual(bar.selected_task(tasks)['id'],'a')
+        with patch('codex_taskbar.app.time.monotonic',return_value=4):self.assertEqual(bar.selected_task(tasks)['id'],'a')
+        with patch('codex_taskbar.app.time.monotonic',return_value=8):self.assertEqual(bar.selected_task(tasks)['id'],'b')
+        bar.popup=object()
+        with patch('codex_taskbar.app.time.monotonic',return_value=12):self.assertEqual(bar.selected_task(tasks)['id'],'b')
+        bar.popup=None
+        with patch('codex_taskbar.app.time.monotonic',return_value=16):self.assertEqual(bar.selected_task(tasks)['id'],'c')
+
     def test_categories_are_exclusive_and_daily_keeps_all_tasks(self):
         self.assertEqual(category_counts(self.data),dict.fromkeys(['running','unread','failed','stopped','recent'],1))
         self.assertEqual(len(panel_rows(self.data,'daily')),5)
