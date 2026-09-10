@@ -79,7 +79,7 @@ class PopupInitialFrameTests(unittest.TestCase):
         bar.grab()
         self.assertLess(bar.task_area.right(),bar.width()-100)
         self.assertLess(bar.task_rect.width(),100)
-        with patch.object(bar,'isVisible',return_value=True),patch('codex_taskbar.app.windows.rect',return_value=(0,0,810,30)), \
+        with patch.object(bar,'isVisible',return_value=True),patch('codex_taskbar.app.windows.pointer_over',return_value=True),patch('codex_taskbar.app.windows.rect',return_value=(0,0,810,30)), \
              patch('codex_taskbar.app.windows.user32.GetDpiForWindow',return_value=96),patch('codex_taskbar.app.QTimer.singleShot') as dispatch:
             self.assertFalse(bar.desktop_click(800,15))
             dispatch.assert_not_called()

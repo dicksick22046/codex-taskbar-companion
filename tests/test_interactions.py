@@ -20,12 +20,13 @@ class InteractionTests(unittest.TestCase):
                      {'minutes':300,'remaining':60,'starts_at':now-3600,'resets_at':now+4*3600}],
             'daily_quota':'12%','reset_account':'fixture-account','reset_selected':credit(),'reset_available':3}
         self.provider=Mock();self.provider.get.side_effect=lambda:self.data
-        with patch('codex_taskbar.app.read_settings',return_value={**app.DISPLAY_DEFAULTS,'chart_unit':'M'}), \
+        with patch('codex_taskbar.app.read_settings',return_value={**app.DISPLAY_DEFAULTS,'chart_unit':'M'}),patch('codex_taskbar.app.windows.animations_enabled',return_value=True), \
              patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.RELEASE_REPOSITORY',''),patch('codex_taskbar.app.QSystemTrayIcon'):
             self.bar=app.StatusBar(self.provider)
         self.bar.timer.stop();self.bar.animation.stop();self.bar.update_timer.stop();self.bar.tray.hide()
         self.bar.resize(1200,30);self.bar.data=self.data;self.bar.task=self.data['tasks'][0]
         self.bar.settings=dict(app.DISPLAY_DEFAULTS);self.bar.chart_unit='M';self.bar.grab()
+        pointer=patch('codex_taskbar.app.windows.pointer_over',return_value=True);pointer.start();self.addCleanup(pointer.stop)
 
     def tearDown(self):self.bar.close();self.bar.deleteLater()
 
@@ -123,12 +124,12 @@ class InteractionTests(unittest.TestCase):
         with patch.object(self.bar,'set_chart_unit') as change:
             for kind in (app.SessionPopup,app.ResetPopup):
                 panel=kind(self.bar);panel.refresh(self.data)
-                panel.mousePressEvent(event);panel.mouseMoveEvent(event)
+                self.assertEqual(panel.unit_buttons,{});panel.mouseMoveEvent(event)
                 change.assert_not_called()
                 self.assertEqual(panel.cursor().shape(),app.Qt.CursorShape.ArrowCursor)
                 panel.close();panel.deleteLater()
-            panel=app.TaskPopup(self.bar);panel.refresh(self.data);panel.mousePressEvent(event)
-            change.assert_called_once_with('M');panel.close();panel.deleteLater()
+            panel=app.TaskPopup(self.bar);panel.refresh(self.data);panel.unit_buttons['100M'].click()
+            change.assert_called_once_with('100M');panel.close();panel.deleteLater()
 
     def test_daily_units_refresh_rows_and_total_without_navigation(self):
         self.data['tasks'][0]['tokens']=142700000
@@ -137,7 +138,7 @@ class InteractionTests(unittest.TestCase):
         event=Mock();event.button.return_value=app.Qt.MouseButton.LeftButton
         event.position.return_value=panel.unit_rects()['100M'].center()
         with patch('codex_taskbar.app.write_settings'),patch.object(self.bar,'open_task') as navigate:
-            panel.mousePressEvent(event);panel.mouseReleaseEvent(event)
+            panel.unit_buttons['100M'].click()
             self.assertEqual(panel.values['running'],'1.43')
             with patch.object(panel,'usage_header') as header:panel.grab()
             self.assertEqual(header.call_args.args[2],142704000)
@@ -228,7 +229,7 @@ class InteractionTests(unittest.TestCase):
             self.bar.update_hover_popup(self.hover_point('usage'),0)
             self.bar.update_hover_popup(self.hover_point('usage'),.3);show.assert_not_called()
             self.bar.update_hover_popup(self.hover_point('daily'),.31)
-            self.bar.update_hover_popup(self.hover_point('daily'),.7);show.assert_called_once_with('daily')
+            self.bar.update_hover_popup(self.hover_point('daily'),.7);show.assert_called_once_with('daily',activate=False)
             show.reset_mock()
             self.bar.update_hover_popup(self.hover_point('task'),1)
             self.bar.update_hover_popup(self.hover_point('task'),2)
@@ -264,7 +265,7 @@ class InteractionTests(unittest.TestCase):
             self.assertIsNone(self.bar.hover_suppressed)
             with patch.object(self.bar,'toggle_popup') as show:
                 self.bar.update_hover_popup(self.hover_point('usage'),12);show.assert_not_called()
-                self.bar.update_hover_popup(self.hover_point('usage'),12.4);show.assert_called_once_with('usage')
+                self.bar.update_hover_popup(self.hover_point('usage'),12.4);show.assert_called_once_with('usage',activate=False)
 
     def test_hover_is_suspended_for_settings_and_reset_confirmation(self):
         self.bar.settings['hover_panels']=True

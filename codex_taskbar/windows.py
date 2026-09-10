@@ -29,6 +29,12 @@ user32.GetWindow.argtypes = [w.HWND, ctypes.c_uint]
 user32.GetWindow.restype = w.HWND
 user32.SetWindowLongPtrW.argtypes = [w.HWND, ctypes.c_int, ctypes.c_ssize_t]
 user32.SetWindowLongPtrW.restype = ctypes.c_ssize_t
+user32.WindowFromPoint.argtypes=[w.POINT]
+user32.WindowFromPoint.restype=w.HWND
+
+
+def pointer_over(hwnd,x,y):
+    return user32.WindowFromPoint(w.POINT(round(x),round(y)))==hwnd
 
 
 class ClickHook:
@@ -40,10 +46,10 @@ class ClickHook:
         user32.CallNextHookEx.argtypes=[w.HHOOK,ctypes.c_int,w.WPARAM,w.LPARAM]
         user32.CallNextHookEx.restype=ctypes.c_ssize_t
         def dispatch(code,message,pointer):
-            if code>=0 and message in (0x0201,0x0202,0x0204):
+            if code>=0 and message in (0x0201,0x0202,0x0204,0x0205):
                 point=ctypes.cast(pointer,ctypes.POINTER(MouseInfo)).contents.point
                 try:
-                    button={0x0201:'left',0x0202:'left_up',0x0204:'right'}[message]
+                    button={0x0201:'left',0x0202:'left_up',0x0204:'right',0x0205:'right_up'}[message]
                     if callback(point.x,point.y,button):return 1
                 except Exception:
                     pass
@@ -64,6 +70,12 @@ class ClickHook:
 def dpi_aware():
     user32.SetProcessDpiAwarenessContext.argtypes = [ctypes.c_void_p]
     user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
+
+
+def animations_enabled():
+    value=w.BOOL(True)
+    user32.SystemParametersInfoW.argtypes=[w.UINT,w.UINT,ctypes.c_void_p,w.UINT]
+    return bool(value.value) if user32.SystemParametersInfoW(0x1042,0,ctypes.byref(value),0) else True
 
 
 def rect(hwnd):

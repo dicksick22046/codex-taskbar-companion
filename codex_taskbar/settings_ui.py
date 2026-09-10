@@ -1,7 +1,7 @@
 """Native settings and tray entry; deliberately no general layout editor."""
 from pathlib import Path
 from PySide6.QtCore import Qt,QSize,QRectF
-from PySide6.QtGui import QIcon, QPainter, QPixmap, QColor, QPen,QFontMetricsF
+from PySide6.QtGui import QIcon, QPainter, QPixmap, QColor, QPen
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox, QListView, QSlider, QScrollArea, QWidget, QFrame,QTabWidget,QTabBar
 from .build_info import APP_NAME, VERSION
 from .i18n import LANGUAGE_NAMES
@@ -48,6 +48,7 @@ class Toggle(QCheckBox):
         super().focusInEvent(event);self.update()
     def mousePressEvent(self,event):
         self.keyboard_focus=False;super().mousePressEvent(event);self.update()
+    def hideEvent(self,event):self.motion.snap(float(self.isChecked()));super().hideEvent(event)
     def keyPressEvent(self,event):
         self.keyboard_focus=True;super().keyPressEvent(event);self.update()
     def paintEvent(self,event):
@@ -82,23 +83,27 @@ class SettingsDialog(QDialog):
         self.setStyleSheet('''QDialog,QScrollArea,QScrollArea>QWidget>QWidget{background:#222830;color:#bac5d2;}
             QLabel{color:#bac5d2;} QFrame#settingsCard{background:#2b323c;border:1px solid #39434f;border-radius:8px;}
             QFrame#settingsLine{background:#3b4551;max-height:1px;border:0;}
-            QTabWidget::pane{border:0;} QTabBar::tab{color:#8797aa;background:transparent;padding:10px 18px;border-bottom:2px solid transparent;}
+            QTabWidget::pane{border:0;} QTabBar{background:#222830;}
+            QTabBar::tab{color:#8797aa;background:#222830;border:0;padding:10px 18px;border-bottom:2px solid transparent;}
             QTabBar::tab:selected{color:#c7d8ed;border-bottom-color:#79b6f5;} QTabBar::tab:hover{background:#2b333e;}
-            QPushButton{background:#3a5067;color:#d7e4f3;border:0;border-radius:5px;padding:8px 12px;}
+            QPushButton{background:#3a5067;color:#d7e4f3;border:1px solid transparent;border-radius:5px;padding:8px 12px;}
             QPushButton:hover{background:#45617b;} QPushButton:disabled{background:#323b46;color:#8797aa;}
             QPushButton:pressed{background:#2e4358;}
+            QPushButton:focus{border-color:#86b6e6;}
             QComboBox{background:#343e4b;color:#bac5d2;border:1px solid #465262;border-radius:5px;padding:6px 27px 6px 10px;}
             QComboBox:focus{border-color:#79b6f5;} QComboBox::drop-down{width:24px;border:0;}
             QComboBox::down-arrow{image:url(__CHEVRON__);width:12px;height:8px;}
             QComboBox QAbstractItemView{background:#303843;color:#bac5d2;selection-background-color:#405166;border:1px solid #465262;outline:0;padding:4px;}
             QSlider::groove:horizontal{height:4px;background:#526174;border-radius:2px;}
             QSlider::handle:horizontal{width:12px;margin:-4px 0;background:#8fbdec;border-radius:6px;}
+            QSlider::handle:horizontal:focus{background:#c7e1fa;border:1px solid #edf3fa;}
             QScrollBar:vertical{background:#222830;width:6px;margin:4px 0;}
             QScrollBar::handle:vertical{background:#536170;min-height:28px;border-radius:3px;}
             QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}
             QScrollBar::add-page:vertical,QScrollBar::sub-page:vertical{background:none;}'''.replace('__CHEVRON__',(Path(__file__).resolve().parents[1]/'assets/icons/chevron-down.svg').as_posix()))
         outer=QVBoxLayout(self);outer.setContentsMargins(12,8,12,12);self.tabs=QTabWidget();outer.addWidget(self.tabs)
         self.tabs.setTabBar(SettingsTabBar())
+        self.tabs.tabBar().setDrawBase(False)
         self.tabs.tabBar().setUsesScrollButtons(False);self.tabs.tabBar().setElideMode(Qt.TextElideMode.ElideNone)
         self.pages=[]
         for _ in range(3):
@@ -164,6 +169,8 @@ class SettingsDialog(QDialog):
                 for i,value in enumerate(options):control.setItemText(i,label(value))
             control.setCurrentIndex(max(0,control.findData(self.bar.settings.get(key,{'language':'en','placement':'taskbar','capsule_theme':'dark'}[key]))));control.blockSignals(False)
         self.placement_label.setText(label('Placement'));self.capsule_label.setText(label('Capsule'));self.transparency_label.setText(label('Transparency'))
+        for caption,control in ((self.placement_label,self.placement),(self.capsule_label,self.capsule),(self.transparency_label,self.transparency),(self.language_label,self.language)):
+            caption.setBuddy(control);control.setAccessibleName(caption.text())
         self.topmost.setText(label('Keep on top'));self.topmost.setVisible(self.bar.floating);self.topmost_line.setVisible(self.bar.floating)
         self.topmost.row.setVisible(self.bar.floating)
         self.transparency.blockSignals(True);self.transparency.setValue(self.bar.settings.get('capsule_transparency',0));self.transparency.blockSignals(False);self.transparency_value.setText(f'{self.transparency.value()}%')

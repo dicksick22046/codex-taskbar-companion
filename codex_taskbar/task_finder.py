@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLineEdit,QComboBo
 from .app import face,text,project_tag,side_tag,side_tag_width,chart_number,BLUE,ACCENT,AMBER,FAILED,MUTED
 from .i18n import project_label,task_title,translate
 from .tasks import task_rows,task_category,CATEGORY_LABELS,duration_text
+from .settings_ui import Choice
 
 COLUMNS=(('Project','project_label'),('Task','title'),('Status','status_label'),('Run time','total_seconds'),('Tokens','total_tokens'),('Turns','total_turns'),('Last active','at'))
 
@@ -117,7 +118,9 @@ class TaskDelegate(QStyledItemDelegate):
         row=index.data(Qt.ItemDataRole.UserRole);browser=self.browser;box=QRectF(option.rect);y=box.center().y()
         p.save();p.setClipRect(box);p.setRenderHint(p.RenderHint.Antialiasing)
         if option.state & (QStyle.StateFlag.State_Selected|QStyle.StateFlag.State_MouseOver):
-            p.fillRect(box.adjusted(0,1,0,-1),QColor('#303a47'))
+            selected=bool(option.state&QStyle.StateFlag.State_Selected)
+            pressed=row['id']==browser.pressed_id and bool(option.state&QStyle.StateFlag.State_MouseOver)
+            p.fillRect(box.adjusted(0,1,0,-1),QColor('#40536b' if pressed else '#34465a' if selected else '#2e3845'))
         x=box.left()+12
         column=index.column();right=box.right()-12;font=face(8)
         if column==0:project_tag(p,x,y,row['project'],font,max(0,box.width()-24),browser.bar.language)
@@ -134,6 +137,10 @@ class TaskDelegate(QStyledItemDelegate):
 
 
 class TaskView(QTableView):
+    def mouseReleaseEvent(self,event):
+        super().mouseReleaseEvent(event);self.parent().pressed_id=None;self.viewport().update()
+    def wheelEvent(self,event):
+        self.parent().pressed_id=None;super().wheelEvent(event)
     def keyPressEvent(self,event):
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter):
             self.parent().open_selected();event.accept()
@@ -161,9 +168,9 @@ class TaskFinder(QDialog):
         layout=QVBoxLayout(self);layout.setContentsMargins(16,16,16,12);layout.setSpacing(10)
         controls=QHBoxLayout();self.search=QLineEdit();self.search.setClearButtonEnabled(True)
         self.search.installEventFilter(self)
-        self.projects=QComboBox();self.projects.setMaximumWidth(200);self.projects.setView(QListView());self.projects.addItem('',None)
+        self.projects=Choice();self.projects.setMaximumWidth(200);self.projects.setView(QListView());self.projects.addItem('',None)
         self.projects.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        self.units=QComboBox();self.units.addItems(['M','100M']);self.units.setCurrentText(bar.chart_unit)
+        self.units=Choice();self.units.addItems(['M','100M']);self.units.setCurrentText(bar.chart_unit)
         self.units.currentTextChanged.connect(bar.set_chart_unit)
         controls.addWidget(self.search,1);controls.addWidget(self.projects);controls.addWidget(self.units);layout.addLayout(controls)
         self.view=TaskView(self);self.view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -240,7 +247,8 @@ class TaskFinder(QDialog):
         self.count.setText(self.bar.label('Results: {count}',count=len(rows))+'  ·  '+self.bar.label('Indexing local history: {count}',count=pending) if pending else self.bar.label('Results: {count}',count=len(rows)))
         self.view.viewport().update()
 
-    def remember_press(self,index):self.pressed_id=(index.data(Qt.ItemDataRole.UserRole) or {}).get('id')
+    def remember_press(self,index):
+        self.pressed_id=(index.data(Qt.ItemDataRole.UserRole) or {}).get('id');self.view.viewport().update()
 
     def open_clicked(self,index):
         row=index.data(Qt.ItemDataRole.UserRole)

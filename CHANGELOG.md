@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+- Restrict setting changes to the switch itself; labels and row whitespace no longer toggle preferences.
+- Commit unit, task and menu actions on release, cancel when dragged away, and keep the held task stable during rotation.
+- Prevent passive scrolling from changing settings or task filters; support precision scrolling in popovers.
+- Add keyboard navigation to task popovers, compact focus feedback, and native-window checks for covered strip clicks.
+- Make switches and popovers reverse smoothly from their current motion; respect Windows animation settings and stop hidden animation loops.
+- Refine tabs, pressed states and empty panels while retaining opaque backgrounds and the bundled font.
+
 ## 0.6.0
 
 - Add sortable local lifetime run time, tokens and execution turns to task search, with M / 100M units.
