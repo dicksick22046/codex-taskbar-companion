@@ -30,4 +30,8 @@ The 0.6.1 pass was insufficient: subsequent user feedback exposed unbalanced con
 
 ## Remaining validation limits
 
+0.7.0 is published. Main and version-tag Windows/Linux CI passed, including the dedicated offscreen journeys. The installed executable matches the build; preferences, startup registration, native visibility/hit window and relaunch checks passed. Public installer checksum and download checks passed.
+
+The final desktop capture returned an entirely black screen and no foreground window after an idle period. This is not evidence of a successful installed pixel render. A quiet follow-up is scheduled to inspect only the companion after the desktop is available; it must not wake/unlock the computer or control the user's input.
+
 Synthetic events and native renders do not establish real-device end-to-end accessibility. Screen-reader exposure of custom-painted strip/popover content, real touchpad hardware, mixed-DPI multi-monitor behavior, and other operating systems require separate device testing. This audit does not claim those are complete.
