@@ -29,6 +29,11 @@ class InteractionTests(unittest.TestCase):
 
     def tearDown(self):self.bar.close();self.bar.deleteLater()
 
+    def test_hovering_a_title_pauses_task_rotation(self):
+        self.bar.current_id='a';self.bar.rotated_at=0;self.bar.task_hover=True
+        with patch('codex_taskbar.app.time.monotonic',return_value=10):
+            self.assertEqual(self.bar.selected_task([{'id':'a'},{'id':'b'}])['id'],'a')
+
     def test_categories_are_exclusive_and_daily_keeps_all_tasks(self):
         self.assertEqual(category_counts(self.data),dict.fromkeys(['running','unread','failed','stopped','recent'],1))
         self.assertEqual(len(panel_rows(self.data,'daily')),5)

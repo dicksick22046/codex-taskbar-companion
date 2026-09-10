@@ -3,10 +3,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
 from codex_taskbar.usage import UsageCursor, event_from_line, quota_windows, daily_quota_text, reset_countdown_text, remaining_time_fraction
 from codex_taskbar.codex_api import project_name
-from codex_taskbar.app import StatusBar
 
 
 def record(kind, at, total=None, turn="turn-1"):
@@ -22,11 +20,6 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(remaining_time_fraction(window,1250),.75)
         self.assertEqual(remaining_time_fraction(window,2100),0)
         self.assertIsNone(remaining_time_fraction(None,1250))
-
-    def test_hovering_a_title_pauses_task_rotation(self):
-        bar=StatusBar.__new__(StatusBar);bar.current_id='a';bar.rotated_at=0;bar.popup=None;bar.task_hover=True
-        with patch('codex_taskbar.app.time.monotonic',return_value=10):
-            self.assertEqual(bar.selected_task([{'id':'a'},{'id':'b'}])['id'],'a')
 
     def test_countdown_shows_readable_duration_and_zero_after_reset(self):
         window={'resets_at':100000}
