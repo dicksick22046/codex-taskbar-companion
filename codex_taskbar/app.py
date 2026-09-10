@@ -226,6 +226,7 @@ class StatusBar(QWidget):
         self.hover_target=None;self.hover_since=0.;self.hover_leave_since=None;self.hover_suppressed=None
         self.metrics=[];self.settings_dialog=None;self.placement_unavailable=False
         self.surface_loss_since=None;self.surface_repaired=False
+        self.frame_key=None;self.panel_key=None
         self.settings=read_settings(RUNTIME/'ui_settings.json')
         self.chart_unit=self.settings['chart_unit']
         self.updater=UpdateController(RUNTIME,self);self.updater.changed.connect(self.update_status)
@@ -447,8 +448,12 @@ class StatusBar(QWidget):
             self.quota_progress=0.;self.animate_quota_to(1.)
 
     def animate(self):
-        if self.isVisible() and self.task:
-            self.update()
+        if self.isVisible() and self.settings['show_tasks']:
+            regions=[r for mode,r,_ in self.hit_regions if mode=='running' or mode=='task' and self.task]
+            if regions:
+                dirty=QRectF(regions[0])
+                for region in regions[1:]:dirty=dirty.united(region)
+                self.update(dirty.toAlignedRect())
 
     def set_task_blend(self,value):
         self.task_blend=float(value);self.update()
@@ -542,6 +547,7 @@ class StatusBar(QWidget):
         if kind not in self.ring_values:
             self.ring_values[kind]=target;return
         motion=self.ring_tweens.get(kind)
+        if not motion and self.ring_values[kind]==target:return
         if motion and motion.endValue()==target:return
         if not motion:
             motion=QVariantAnimation(self);motion.setDuration(300)
@@ -600,7 +606,7 @@ class StatusBar(QWidget):
 
     def tick(self):
         self.data=self.provider.get()
-        if self.settings_dialog and self.settings_dialog.isVisible():self.settings_dialog.refresh()
+        if self.settings_dialog and self.settings_dialog.isVisible():self.settings_dialog.refresh_status()
         if not any(self.settings[key] for key in DISPLAY_DEFAULTS):
             self.hide();self.hide_popup(immediate=True);return
         metrics=self.displayed_metrics()
@@ -630,7 +636,6 @@ class StatusBar(QWidget):
         self.ensure_visible()
         windows.follow_taskbar(int(self.winId()))
         self.track_pointer(self.mapFromGlobal(QCursor.pos()))
-        self.data=self.provider.get()
         self.advance_quota()
         previous=self.task;self.task=self.selected_task(self.data.get("tasks",[]) if self.settings['show_tasks'] else [])
         if previous and self.task and previous['id']!=self.task['id']:
@@ -643,8 +648,16 @@ class StatusBar(QWidget):
             if fraction is not None:
                 if kind=='clock':self.ring_values[kind]=fraction
                 else:self.animate_ring(kind,fraction)
-        self.update()
-        if self.popup:self.popup.refresh(self.data)
+        # Keep visibility/interaction checks responsive without repainting unchanged pixels.
+        frame_key=(tuple((kind,value,None if fraction is None else round(fraction,4)) for kind,value,fraction in self.displayed_metrics()),
+                   tuple(category_counts(self.data).items()) if self.settings['show_tasks'] else (),
+                   tuple(self.task.get(k) for k in ('id','project','title','side_chat')) if self.task else None,
+                   self.task_hover,self.position,tuple(self.settings.get(k) for k in DISPLAY_DEFAULTS),self.settings.get('rotate_quotas'))
+        if frame_key!=self.frame_key:
+            self.frame_key=frame_key;self.update()
+        if self.popup:
+            panel_key=(self.popup,id(self.data),int(time.time()),self.position)
+            if panel_key!=self.panel_key:self.panel_key=panel_key;self.popup.refresh(self.data)
         self.update_hover_popup(QCursor.pos())
 
     def paintEvent(self,event):
@@ -1027,7 +1040,7 @@ class TaskListPopup(TaskPopup):
         self.animation=QTimer(self);self.animation.timeout.connect(self.animate);self.animation.start(33)
 
     def animate(self):
-        if self.hovered or any(t.get('running') for t in self.rows):self.update()
+        if self.isVisible() and (self.hovered or any(t.get('running') for t in self.rows)):self.update()
 
     def refresh(self,data):
         self.data=data;self.rows=panel_rows(data,self.mode)

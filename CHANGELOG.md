@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+- Avoid unchanged strip repaints and repeated settings updates; limit running animations to the task area.
+- Write diagnostic snapshots every 30 seconds and on shutdown, while keeping live data and quota/reset persistence unchanged.
+
 ## 0.3.3
 
 - Increase left padding inside the capsule so the first ring is clear of its edge.

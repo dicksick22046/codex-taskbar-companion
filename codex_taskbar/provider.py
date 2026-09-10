@@ -170,10 +170,17 @@ class Provider:
                         event['tokens']=sum(getattr(c,'period_totals',{}).get(event['id'],0) for c in known)
             snapshot['reset_busy']=getattr(self,'reset_busy',False)
             self.snapshot = snapshot
+        self._write_snapshot()
+
+    def _write_snapshot(self,force=False):
+        now=time.monotonic()
+        if not force and now-getattr(self,'snapshot_written_at',float('-inf'))<30:return
+        snapshot=self.get()
         temporary = self.runtime_dir / "snapshot.tmp"
         try:
             temporary.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
             temporary.replace(self.runtime_dir / "snapshot.json")
+            self.snapshot_written_at=now
         except OSError:
             pass  # A diagnostic file reader must not interrupt the live display.
 
@@ -276,6 +283,7 @@ class Provider:
                     self.stop_event.wait(5)
                 self.stop_event.wait(1)
         finally:
+            self._write_snapshot(force=True)
             if api:
                 api.close()
 

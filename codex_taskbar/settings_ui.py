@@ -100,7 +100,15 @@ class SettingsDialog(QDialog):
         self.rotation.setText(label('Rotate left-side indicators'))
         self.hover.setText(label('Open panels on hover'));self.login.setText(label('Start at Windows sign-in'))
         self.login.blockSignals(True);self.login.setChecked(startup.enabled());self.login.blockSignals(False)
+        self.status_key=None;self.refresh_status()
+
+    def refresh_status(self):
+        label=self.bar.label
         data = self.bar.provider.get()
+        key=(self.bar.language,data.get('quota_error'),bool(data.get('quota')),data.get('error'),data.get('loading'),
+             self.bar.placement_unavailable,self.bar.updater.message,self.bar.updater.busy,(self.bar.updater.release or {}).get('version'))
+        if key==getattr(self,'status_key',None):return
+        self.status_key=key
         if data.get('quota_error'): message = 'Showing the last available quota.' if data.get('quota') else 'Quota unavailable. Try again later.'
         elif data.get('error'): message = 'Some data is unavailable. Showing the last available records.'
         elif data.get('loading'): message = 'Connecting to Codex…'
