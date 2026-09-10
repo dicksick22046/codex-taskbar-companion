@@ -35,9 +35,9 @@ Running tasks rotate in the strip. Hovering pauses rotation and scrolls long tit
 
 Settings include English, Simplified Chinese, Japanese, and Spanish UI selection, optional hover-to-open panels, and optional quota rotation. With rotation enabled, all enabled left-side indicators, including the reset countdown, share one fixed-width position.
 
-## About the numbers
-
 Capsule colors and background transparency are set manually in Settings. Choose Dark or Light; 0% transparency gives a solid background. Text and ring opacity are unaffected.
+
+## About the numbers
 
 - Quota percentages come from the account. Tokens come from task logs on this computer. Token totals cannot be converted into an exact quota percentage or subscription cost.
 - Daily quota usage starts at the day's first available reading. Restarting preserves it. Earlier usage is not reconstructed; a reset during the day is handled as a separate interval.

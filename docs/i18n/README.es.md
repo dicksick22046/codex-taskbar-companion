@@ -35,9 +35,9 @@ Las tareas en curso se alternan en la barra. Al pasar el ratón, la rotación se
 
 En los ajustes puedes elegir inglés, chino simplificado, japonés o español, abrir paneles al pasar el ratón y activar la rotación de cuotas. En este modo, todos los indicadores activados de la izquierda, incluida la cuenta atrás, comparten una posición de ancho fijo.
 
-## Qué significan los datos
-
 En Ajustes puedes elegir manualmente el color oscuro o claro de la cápsula y la transparencia del fondo. Un 0% significa fondo opaco; el texto y los anillos no se atenúan.
+
+## Qué significan los datos
 
 - Los porcentajes de cuota proceden de la cuenta; los tokens, de los registros de tareas de este equipo. Los tokens no permiten calcular un porcentaje exacto de cuota ni el coste de la suscripción.
 - El consumo diario parte de la primera lectura disponible del día y se conserva al reiniciar. No reconstruye el consumo anterior. Si la cuota se reinicia durante el día, suma los intervalos por separado.
