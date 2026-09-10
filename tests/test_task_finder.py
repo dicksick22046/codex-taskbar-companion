@@ -115,6 +115,8 @@ class FinderInteractionTests(unittest.TestCase):
         self.finder.choose_sort(4);self.assertEqual([row['id'] for row in self.finder.model.rows],['0','1','2'])
         row=self.finder.model.rows[1];self.assertEqual(cell_text(row,4,'100M'),'1.2 ×100M');self.assertEqual(cell_text(row,3),'≥ 2m')
         self.assertEqual(self.finder.model.headerData(5,Qt.Orientation.Horizontal),'Turns')
+        partial={**row,'total_tokens':160000,'tokens_partial':True}
+        self.assertEqual(cell_text(partial,4,'M'),'≥ 0.1M')
 
     def test_statistics_updates_preserve_selected_task(self):
         self.finder.view.setCurrentIndex(self.finder.model.index(3,1))

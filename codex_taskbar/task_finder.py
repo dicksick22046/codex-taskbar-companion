@@ -68,7 +68,10 @@ def cell_text(row,column,unit='M'):
     value=row[COLUMNS[column][1]]
     if value is None:return '…' if row['indexing'] else '—'
     if column==3:return ('≥ ' if row['partial'] else '')+duration_text(value)
-    if column==4:return ('≥ ' if row.get('tokens_partial') else '')+chart_number(value,unit)+('M' if unit=='M' else ' ×100M')
+    if column==4:
+        if row.get('tokens_partial'):
+            quantum=100000 if unit=='M' else 1000000;value=value//quantum*quantum
+        return ('≥ ' if row.get('tokens_partial') else '')+chart_number(value,unit)+('M' if unit=='M' else ' ×100M')
     return str(value)
 
 
@@ -89,7 +92,12 @@ class TaskModel(QAbstractTableModel):
         if role==Qt.ItemDataRole.UserRole:return row
         if role==Qt.ItemDataRole.DisplayRole:return cell_text(row,index.column(),self.parent().bar.chart_unit)
         if role==Qt.ItemDataRole.AccessibleTextRole:return ', '.join(row[k] for k in ('project_label','title','status_label','stamp') if row[k])
-        if role==Qt.ItemDataRole.ToolTipRole:return '<qt>'+'<br>'.join(escape(row[k]) for k in ('project_label','title','stamp'))+'</qt>'
+        if role==Qt.ItemDataRole.ToolTipRole:
+            lines=[row[k] for k in ('project_label','title','stamp')]
+            if index.column() in (3,4,5):
+                lines.append(self.parent().bar.label('Local recorded totals; run time excludes gaps, and turns count execution starts.'))
+                if row['total_tokens'] is not None:lines.append(('≥ ' if row.get('tokens_partial') else '')+f"{row['total_tokens']:,} Tokens")
+            return '<qt>'+'<br>'.join(escape(line) for line in lines)+'</qt>'
 
     def replace(self,rows):
         if rows==self.rows:return False
