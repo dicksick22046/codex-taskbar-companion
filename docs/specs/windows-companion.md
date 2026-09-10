@@ -22,7 +22,7 @@ The floating capsule is 30 DIP high, with a maximum width of 540 DIP constrained
 
 Both placements fit the enabled metrics, nonempty status counts and task content, with balanced end padding. Keep the existing taskbar space limit and floating 540 DIP limit. Measure every current rotating task and use the longest required width, so switching tasks does not resize the capsule. Retain the quota rotation slot's existing stable width. Long content still elides and scrolls on hover. No extra setting is needed.
 
-Keep the left edge and ring positions fixed when content changes. Defer shrinking while hovering, pressing, dragging, or a panel/menu/settings window is open. Opening a task panel continues to use its own readable minimum width even when the capsule is short.
+Keep the left edge and ring positions fixed when content changes. Defer background-driven shrinking while hovering, pressing, dragging, or a panel/menu is open. A settings window alone never freezes geometry: explicit display, rotation, language and placement changes immediately recompute the capsule, including when other interaction guards are present. Opening a task panel continues to use its own readable minimum width even when the capsule is short.
 
 Floating position records may include a reference width, so resizing content does not change the restored left anchor. Older position records assume the previous 540 DIP reference. Screen changes still constrain the whole capsule. Invalid reference widths are discarded. Dragging saves the actual current width as the reference.
 
