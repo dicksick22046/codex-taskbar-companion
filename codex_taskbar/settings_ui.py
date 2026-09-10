@@ -163,7 +163,7 @@ class SettingsDialog(QDialog):
         else:self.page_motion.snap(1.);self.page_effect.setEnabled(False)
 
     def hideEvent(self,event):
-        self.page_motion.snap(1.);self.page_effect.setEnabled(False);self.copy_timer.stop();super().hideEvent(event)
+        self.page_motion.snap(1.);self.page_effect.setEnabled(False);self.copy_timer.stop();self.diagnostics_button.setText(self.bar.label('Copy diagnostics'));super().hideEvent(event)
 
     def stop_motion(self):
         for motion in self.findChildren(Spring):motion.snap(motion.target)

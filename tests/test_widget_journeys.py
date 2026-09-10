@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import patch
 from PySide6.QtCore import Qt,QEvent,QPointF,QPoint
-from PySide6.QtGui import QMouseEvent,QKeyEvent
+from PySide6.QtTest import QTest
 from codex_taskbar import app
 from tests import test_ui_flows as flows
 
@@ -19,16 +19,16 @@ class WidgetJourneyTests(unittest.TestCase):
         self.assertEqual(app.windows.user32.GetForegroundWindow(),self.foreground)
         flows.UIFlowTests.tearDown(self)
     def mouse(self,widget,kind,point):
-        held=Qt.MouseButton.NoButton if kind==QEvent.Type.MouseButtonRelease else Qt.MouseButton.LeftButton
-        self.application.sendEvent(widget,QMouseEvent(kind,QPointF(point),QPointF(widget.mapToGlobal(point)),Qt.MouseButton.LeftButton,held,Qt.KeyboardModifier.NoModifier));self.application.processEvents()
+        window=widget.window();position=widget.mapTo(window,point)
+        send=QTest.mouseRelease if kind==QEvent.Type.MouseButtonRelease else QTest.mousePress
+        send(window.windowHandle(),Qt.MouseButton.LeftButton,Qt.KeyboardModifier.NoModifier,position);self.application.processEvents()
     def click(self,widget,point=None):
         point=point or widget.rect().center()
         self.mouse(widget,QEvent.Type.MouseButtonPress,point);self.mouse(widget,QEvent.Type.MouseButtonRelease,point)
     def page(self,index):
         nav=self.dialog.navigation;self.click(nav.viewport(),nav.visualItemRect(nav.item(index)).center());self.assertEqual(self.dialog.stack.currentIndex(),index)
     def key(self,widget,key):
-        for kind in (QEvent.Type.KeyPress,QEvent.Type.KeyRelease):self.application.sendEvent(widget,QKeyEvent(kind,key,Qt.KeyboardModifier.NoModifier))
-        self.application.processEvents()
+        QTest.keyClick(widget,key);self.application.processEvents()
 
     def test_settings_pointer_keyboard_cancel_and_reopen_journey(self):
         self.page(1);toggle=self.dialog.checks['show_tasks'];before=dict(self.bar.settings)
@@ -57,3 +57,10 @@ class WidgetJourneyTests(unittest.TestCase):
         focused=self.dialog.focusWidget();self.assertIsNotNone(focused)
         self.assertGreater(self.dialog.scroll_area.verticalScrollBar().value(),0)
         self.assertTrue(self.dialog.scroll_area.viewport().rect().intersects(focused.rect().translated(focused.mapTo(self.dialog.scroll_area.viewport(),QPoint()))))
+
+    def test_wheel_over_choice_scrolls_page_without_changing_preference(self):
+        self.dialog.resize(620,300);self.page(2);choice=self.dialog.language;before=choice.currentData()
+        scroll=self.dialog.scroll_area.verticalScrollBar();self.assertGreater(scroll.maximum(),0)
+        point=choice.rect().center()
+        QTest.wheelEvent(self.dialog.windowHandle(),QPointF(choice.mapTo(self.dialog,point)),QPoint(0,-120));self.application.processEvents()
+        self.assertEqual(choice.currentData(),before);self.assertGreater(scroll.value(),0)
