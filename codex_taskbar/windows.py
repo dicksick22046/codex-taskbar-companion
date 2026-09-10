@@ -106,6 +106,12 @@ def topmost(hwnd):
     user32.SetWindowPos(hwnd, w.HWND(-1), 0, 0, 0, 0, 0x0010 | 0x0001 | 0x0002)
 
 
+def floating_window(hwnd,keep_on_top):
+    """Detach from Explorer; change Z band only on presentation/recovery changes."""
+    if user32.GetWindowLongPtrW(hwnd,-8):user32.SetWindowLongPtrW(hwnd,-8,0)
+    user32.SetWindowPos(hwnd,w.HWND(-1 if keep_on_top else -2),0,0,0,0,0x0010|0x0001|0x0002)
+
+
 def follow_taskbar(hwnd):
     """Keep the strip above its taskbar owner when Windows raises shell surfaces."""
     tray = user32.FindWindowW("Shell_TrayWnd", None)

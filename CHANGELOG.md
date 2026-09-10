@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+- Add an optional floating capsule with drag positioning, screen-relative position restore and a keep-on-top setting.
+- Keep floating panels within the available screen, opening above or below the capsule; scroll long reset histories without moving the action button.
+- Allow settings to scroll on shorter screens.
+
 - Avoid unchanged strip repaints and repeated settings updates; limit running animations to the task area.
 - Write diagnostic snapshots every 30 seconds and on shutdown, while keeping live data and quota/reset persistence unchanged.
 

@@ -64,6 +64,12 @@ def read_settings(path):
     result['capsule_theme'] = data.get('capsule_theme') if data.get('capsule_theme') in ('dark','light') else 'dark'
     transparency=data.get('capsule_transparency',0)
     result['capsule_transparency']=max(0,min(100,transparency)) if type(transparency) is int else 0
+    result['placement']=data.get('placement') if data.get('placement') in ('taskbar','floating') else 'taskbar'
+    result['floating_topmost']=data.get('floating_topmost') is not False
+    position=data.get('floating_position')
+    valid=isinstance(position,dict) and isinstance(position.get('screen'),str) and all(
+        type(position.get(k)) in (int,float) and math.isfinite(position[k]) and 0<=position[k]<=1 for k in ('x','y'))
+    result['floating_position']={k:position[k] for k in ('screen','x','y')} if valid else None
     return result
 
 

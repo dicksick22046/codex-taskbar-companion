@@ -28,6 +28,7 @@ from .settings_ui import SettingsDialog, app_icon
 from .updates import UpdateController, install_after_exit
 from .build_info import VERSION, APP_NAME, RELEASE_REPOSITORY
 from .i18n import LANGUAGES, translate, project_label
+from .presentation import floating_rect,remember_position,clamp_rect,panel_rect
 
 PANEL, MUTED, ACCENT, BLUE = "#262b33", "#bac5d2", "#53d5a0", "#79b6f5"
 TITLE_MUTED = "#8797aa"
@@ -227,6 +228,7 @@ class StatusBar(QWidget):
         self.metrics=[];self.settings_dialog=None;self.placement_unavailable=False
         self.surface_loss_since=None;self.surface_repaired=False
         self.frame_key=None;self.panel_key=None
+        self.host_key=None;self.drag_origin=None;self.dragging=False
         self.settings=read_settings(RUNTIME/'ui_settings.json')
         self.chart_unit=self.settings['chart_unit']
         self.updater=UpdateController(RUNTIME,self);self.updater.changed.connect(self.update_status)
@@ -261,6 +263,14 @@ class StatusBar(QWidget):
 
     def desktop_click(self,x,y,button="left"):
         if self.confirming_reset:return False
+        if self.floating:
+            # Qt supplies normal press/move/release capture. Global interception
+            # would also steal clicks from other windows covering a floating strip.
+            if button=='left_up':return False
+            if self.popup:
+                boxes=[windows.rect(int(widget.winId())) for widget in (self,self.popup) if widget.isVisible()]
+                if not any(box and box[0]<=x<box[2] and box[1]<=y<box[3] for box in boxes):QTimer.singleShot(0,self.hide_popup)
+            return False
         if button=='left_up':
             pressed=self.pressed;self.pressed=None
             if not pressed:return False
@@ -304,12 +314,13 @@ class StatusBar(QWidget):
             self.popup.show()
 
     def update_hover_popup(self,point,now=None):
-        if (not self.settings.get('hover_panels') or not self.isVisible() or self.pressed or self.confirming_reset
+        if (not self.settings.get('hover_panels') or not self.isVisible() or self.pressed or self.drag_origin or self.confirming_reset
                 or self.menu.isVisible() or self.settings_dialog and self.settings_dialog.isVisible()):
             self.hover_target=None;self.hover_leave_since=None;return
         now=time.monotonic() if now is None else now
         local=self.mapFromGlobal(point)
         mode=next((m for m,r,t in self.hit_regions if m!='task' and r.contains(local)),None)
+        if self.floating and QApplication.widgetAt(point) is not self:mode=None
         inside=bool(self.popup and self.popup.isVisible() and self.popup.geometry().contains(point))
         if inside:
             self.hover_target=None;self.hover_leave_since=None
@@ -352,6 +363,24 @@ class StatusBar(QWidget):
         self.settings['hover_panels']=bool(value)
         self.hover_target=None;self.hover_leave_since=None;self.hover_suppressed=None
         self.save_settings()
+
+    @property
+    def floating(self):
+        return self.settings.get('placement')=='floating'
+
+    def set_placement(self,value):
+        if value not in ('taskbar','floating') or self.settings.get('placement')==value:return
+        self.hide_popup(immediate=True);self.pressed=None;self.drag_origin=None;self.dragging=False
+        self.settings['placement']=value;self.position=None;self.host_key=None
+        self.save_settings();self.tick()
+        if self.settings_dialog:self.settings_dialog.refresh()
+
+    def set_floating_topmost(self,value):
+        self.settings['floating_topmost']=bool(value);self.host_key=None;self.save_settings();self.tick()
+
+    def floating_screen(self):
+        position=self.settings.get('floating_position') or {}
+        return next((screen for screen in QApplication.screens() if screen.name()==position.get('screen')),QApplication.primaryScreen())
 
     def set_capsule_theme(self,value):
         if value not in CAPSULE_COLORS:return
@@ -434,7 +463,7 @@ class StatusBar(QWidget):
             self.quota_tween.stop();self.quota_progress=1.;self.quota_previous=None
         if len(kinds)<2:
             self.quota_rotated_at=now;self.quota_paused_at=None;return
-        paused=(self.quota_hover or self.pressed or self.confirming_reset or not self.isVisible()
+        paused=(self.quota_hover or self.pressed or self.drag_origin or self.confirming_reset or not self.isVisible()
                 or self.popup and self.popup.mode in ('usage','daily','session','resets') or self.menu.isVisible()
                 or self.settings_dialog and self.settings_dialog.isVisible())
         if paused:
@@ -454,6 +483,8 @@ class StatusBar(QWidget):
                 dirty=QRectF(regions[0])
                 for region in regions[1:]:dirty=dirty.united(region)
                 self.update(dirty.toAlignedRect())
+                return
+        self.animation.stop()
 
     def set_task_blend(self,value):
         self.task_blend=float(value);self.update()
@@ -488,6 +519,8 @@ class StatusBar(QWidget):
         x=max(bounds.left(),min(QCursor.pos().x(),bounds.right()-size.width()+1))
         bottom=min(self.y(),bounds.bottom()+1)-TaskPopup.GAP
         y=max(bounds.top(),bottom-size.height())
+        if self.floating:
+            box=panel_rect(self.geometry(),bounds,size.width(),size.height(),TaskPopup.GAP);x,y=box.x(),box.y()
         self.menu.popup(QPointF(x,y).toPoint())
 
     def set_startup(self,value):
@@ -562,7 +595,7 @@ class StatusBar(QWidget):
         if self.current_id not in ids:
             self.current_id,self.rotated_at=ids[0],time.monotonic()
             if self.task_hover:self.title_hover_started=self.rotated_at
-        elif not getattr(self,'task_hover',False) and not getattr(self,'pressed',None) and not getattr(self,'confirming_reset',False) and time.monotonic()-self.rotated_at>=ROTATE_SECONDS:
+        elif not getattr(self,'task_hover',False) and not getattr(self,'pressed',None) and not getattr(self,'drag_origin',None) and not getattr(self,'confirming_reset',False) and time.monotonic()-self.rotated_at>=ROTATE_SECONDS:
             self.current_id=ids[(ids.index(self.current_id)+1)%len(ids)];self.rotated_at=time.monotonic()
         return tasks[ids.index(self.current_id)]
 
@@ -575,7 +608,42 @@ class StatusBar(QWidget):
             if self.task_hover:self.rotated_at+=now-self.title_hover_started
             self.task_hover=hovering;self.title_hover_started=now
 
+    def mousePressEvent(self,event):
+        if not self.floating:return super().mousePressEvent(event)
+        if event.button()==Qt.MouseButton.RightButton:
+            self.open_menu();event.accept();return
+        if event.button()!=Qt.MouseButton.LeftButton:return
+        shape=QPainterPath();shape.addRoundedRect(QRectF(1,1,self.width()-2,self.height()-2),(self.height()-2)/2,(self.height()-2)/2)
+        if not shape.contains(event.position()):return
+        hit=next((h for h in self.hit_regions if h[1].contains(event.position())),None)
+        if hit:self.settle_quota(hit[0])
+        self.pressed=hit;self.drag_origin=(event.globalPosition(),self.pos());self.dragging=False
+        event.accept()
+
+    def mouseReleaseEvent(self,event):
+        if not self.floating or event.button()!=Qt.MouseButton.LeftButton or self.drag_origin is None:return
+        hit=self.pressed;dragged=self.dragging
+        self.pressed=None;self.drag_origin=None;self.dragging=False
+        if dragged:
+            screen=QApplication.screenAt(self.geometry().center()) or self.screen()
+            self.settings['floating_position']=remember_position(self.geometry(),screen.availableGeometry(),screen.name())
+            self.save_settings()
+        elif hit and hit[1].contains(event.position()):
+            if hit[0]=='task':self.open_task(hit[2])
+            else:self.toggle_popup(hit[0])
+        elif not hit:self.hide_popup()
+        self.track_pointer(event.position());event.accept()
+
     def mouseMoveEvent(self,event):
+        if self.floating and self.drag_origin is not None:
+            start,position=self.drag_origin;delta=event.globalPosition()-start
+            if self.dragging or delta.manhattanLength()>=QApplication.startDragDistance():
+                if not self.dragging:self.hide_popup(immediate=True)
+                self.dragging=True;self.pressed=None;self.setCursor(Qt.CursorShape.ClosedHandCursor)
+                screen=QApplication.screenAt(event.globalPosition().toPoint()) or self.screen()
+                target=self.geometry();target.moveTopLeft(position+delta.toPoint())
+                target=clamp_rect(target,screen.availableGeometry());self.setGeometry(target)
+                self.position=target.getRect();event.accept();return
         self.track_pointer(event.position())
         self.update_hover_popup(self.mapToGlobal(event.position().toPoint()))
 
@@ -616,7 +684,10 @@ class StatusBar(QWidget):
             minimum+=(60 if self.data.get('tasks') else 0)+sum(30+QFontMetricsF(face(8)).horizontalAdvance(str(counts[k])) for k in ('running','unread','failed','stopped') if counts[k])
         if not metrics and not self.settings['show_tasks']:
             self.hide();self.hide_popup(immediate=True);return
-        placed=windows.placement(minimum_width=minimum)
+        if self.floating:
+            box=self.geometry() if self.drag_origin is not None else floating_rect(self.floating_screen().availableGeometry(),self.settings.get('floating_position'))
+            placed=(*box.getRect(),1,False)
+        else:placed=windows.placement(minimum_width=minimum)
         self.placement_unavailable=placed is None
         if not placed:self.hide();self.hide_popup(immediate=True);return
         hwnd=int(self.winId())
@@ -633,9 +704,15 @@ class StatusBar(QWidget):
             self.hide();self.hide_popup(immediate=True);return
         logical=tuple(round(v/scale) for v in (x,y,w,h))
         if self.position!=logical:self.setGeometry(*logical);self.position=logical
-        self.ensure_visible()
-        windows.follow_taskbar(int(self.winId()))
-        self.track_pointer(self.mapFromGlobal(QCursor.pos()))
+        recovered=self.ensure_visible()
+        if self.floating:
+            host_key=(int(self.winId()),self.settings.get('floating_topmost',True))
+            if recovered or host_key!=self.host_key:
+                windows.floating_window(*host_key);self.host_key=host_key
+        else:windows.follow_taskbar(int(self.winId()))
+        if not self.dragging:
+            point=self.mapFromGlobal(QCursor.pos()) if not self.floating or QApplication.widgetAt(QCursor.pos()) is self else QPointF(-1,-1)
+            self.track_pointer(point)
         self.advance_quota()
         previous=self.task;self.task=self.selected_task(self.data.get("tasks",[]) if self.settings['show_tasks'] else [])
         if previous and self.task and previous['id']!=self.task['id']:
@@ -655,6 +732,9 @@ class StatusBar(QWidget):
                    self.task_hover,self.position,tuple(self.settings.get(k) for k in DISPLAY_DEFAULTS),self.settings.get('rotate_quotas'))
         if frame_key!=self.frame_key:
             self.frame_key=frame_key;self.update()
+        if self.isVisible() and self.settings['show_tasks'] and (self.task or category_counts(self.data)['running']):
+            if not self.animation.isActive():self.animation.start(33)
+        else:self.animation.stop()
         if self.popup:
             panel_key=(self.popup,id(self.data),int(time.time()),self.position)
             if panel_key!=self.panel_key:self.panel_key=panel_key;self.popup.refresh(self.data)
@@ -672,7 +752,13 @@ class StatusBar(QWidget):
                 p.setPen(Qt.PenStyle.NoPen);p.setBrush(background)
                 box=QRectF(1,1,self.width()-2,self.height()-2)
                 p.drawRoundedRect(box,box.height()/2,box.height()/2)
+            if self.floating:
+                shape=QPainterPath();shape.addRoundedRect(QRectF(1,1,self.width()-2,self.height()-2),(self.height()-2)/2,(self.height()-2)/2)
+                p.setClipPath(shape,Qt.ClipOperation.IntersectClip)
             for mode,rect,target in self.hit_regions:p.fillRect(rect.toAlignedRect(),QColor(0,0,0,1))
+            if self.floating and self.hit_regions:
+                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(0,0,0,1))
+                p.drawRoundedRect(QRectF(1,1,self.width()-2,self.height()-2),(self.height()-2)/2,(self.height()-2)/2)
             p.end()
         x,y=CONTENT_X,self.height()/2
         def field(kind,value,fraction):
@@ -818,6 +904,11 @@ class TaskPopup(QWidget):
         top=min(self.owner.y(),round(bounds[1]/self.owner.devicePixelRatioF())) if bounds else self.owner.y()
         return top-self.GAP
 
+    def place_panel(self,width,height):
+        if getattr(self.owner,'floating',False):
+            self.setGeometry(panel_rect(self.owner.geometry(),self.owner.screen().availableGeometry(),width,height,self.GAP))
+        else:self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-height),width,height)
+
     def refresh(self,data):
         self.data=data;now=datetime.now().astimezone()
         week=chart_window(data)
@@ -828,8 +919,8 @@ class TaskPopup(QWidget):
         self.window_summary=quota_window(data,300)
         self.extra=24 if self.window_summary else 0
         self.full_height=158+self.extra+self.TITLE_HEIGHT
-        shown=min(round(self.full_height),max(180,self.owner.y()-16))
-        self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-shown),360,shown)
+        shown=round(self.full_height) if self.owner.floating else min(round(self.full_height),max(180,self.owner.y()-16))
+        self.place_panel(360,shown)
         self.scroll=min(self.scroll,max(0,self.full_height-self.height()));self.update()
 
     def paintEvent(self,event):
@@ -837,6 +928,8 @@ class TaskPopup(QWidget):
         history=self.data.get("history",{});today=datetime.now().astimezone().date()
         values,extremes=chart_values(self.days,history,today)
         self.usage_header(p,f"{self.start:%m.%d} — {self.end:%m.%d %H:%M}",chart_total(values))
+        p.setClipRect(QRectF(0,32+self.TITLE_HEIGHT,self.width(),max(0,self.height()-32-self.TITLE_HEIGHT)))
+        p.translate(0,-self.scroll)
         if self.window_summary:
             window=self.window_summary
             text(p,18,43+self.TITLE_HEIGHT,f"5h  {window['remaining']:g}%   ·   {reset_countdown_text(window)}",face(8),'#51adb4')
@@ -898,7 +991,7 @@ class SessionPopup(TaskPopup):
     mode='session'
 
     def refresh(self,data):
-        self.data=data;self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-174),360,174)
+        self.data=data;self.place_panel(360,174)
         self.update()
 
     def paintEvent(self,event):
@@ -940,7 +1033,7 @@ class ResetPopup(TaskPopup):
     def refresh(self,data):
         self.data=data;self.rows=data.get('reset_events',[])
         self.credits=data.get('reset_credits',[])
-        self.history_height=26*max(1,min(6,len(self.rows)))
+        self.history_height=26*max(1,len(self.rows) if self.owner.floating else min(6,len(self.rows)))
         self.credits_top=76+self.history_height+26
         height=self.credits_top+24+26*max(1,len(self.credits))+46
         self.full_height=height
@@ -952,8 +1045,8 @@ class ResetPopup(TaskPopup):
         unit_width=max([metrics.horizontalAdvance(self.history_parts(row)[1]) for row in self.rows]+[0])
         usage_width=label_width+6+number_width+4+unit_width
         width=max(self.WIDTH,math.ceil(18+date_width+16+usage_width+24+source_width+18))
-        self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-height),width,height)
-        self.button.setGeometry(18,height-48,self.width()-36,32)
+        self.place_panel(width,height)
+        self.button.setGeometry(18,self.height()-48,self.width()-36,32)
         self.history_divider=self.width()-18-source_width-12
         self.token_right=self.history_divider-12
         self.token_left=self.token_right-usage_width
@@ -965,7 +1058,7 @@ class ResetPopup(TaskPopup):
         self.button.setEnabled(eligible and not data.get('reset_busy') and (not data.get('quota_error') or data.get('reset_retry',False)))
         label='Resetting…' if data.get('reset_busy') else 'Retry reset' if data.get('reset_retry') or data.get('reset_state')=='unavailable' else 'Nothing to reset' if data.get('reset_state')=='nothingToReset' else 'Reset quota'
         self.button.setText(self.owner.label(label))
-        self.scroll=min(self.scroll,max(0,len(self.rows)*26-self.history_height))
+        self.scroll=min(self.scroll,self.scroll_limit())
         self.update()
 
     def history_parts(self,row):
@@ -994,11 +1087,13 @@ class ResetPopup(TaskPopup):
         text(p,18,23,self.owner.label('Next reset'),face(8),'#94a2b3')
         value=datetime.fromtimestamp(window['resets_at']).strftime('%m.%d %H:%M') if window and window.get('resets_at') else '—'
         right_label(value,23,BLUE);divider(44)
+        if self.owner.floating:
+            p.save();p.setClipRect(QRectF(0,48,self.width(),max(0,self.height()-104)));p.translate(0,-self.scroll)
         text(p,18,64,self.owner.label('History'),face(8),'#94a2b3')
-        p.save();p.setClipRect(QRectF(18,76,self.width()-36,self.history_height))
+        p.save();p.setClipRect(QRectF(18,76,self.width()-36,self.history_height),Qt.ClipOperation.IntersectClip)
         if not self.rows:text(p,18,89,self.owner.label('No records yet'),face(8),'#94a2b3')
         for i,row in enumerate(self.rows):
-            y=89+i*26-self.scroll
+            y=89+i*26-(0 if self.owner.floating else self.scroll)
             text(p,18,y,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),face(8),MUTED)
             number,unit=self.history_parts(row)
             text(p,self.token_left,y,self.owner.label('Tokens'),face(8),MUTED)
@@ -1020,10 +1115,14 @@ class ResetPopup(TaskPopup):
             text(p,18,y,expiry,face(8),MUTED)
             if selected:right_label(self.owner.label('Default'),y,BLUE,face(7))
         if not self.credits:text(p,18,self.credits_top+26,self.owner.label('No credits') if count==0 else '—',face(8),'#94a2b3')
+        if self.owner.floating:p.restore()
         p.end()
 
+    def scroll_limit(self):
+        return max(0,self.full_height-self.height()) if self.owner.floating else max(0,len(self.rows)*26-self.history_height)
+
     def wheelEvent(self,event):
-        self.scroll=max(0,min(max(0,len(self.rows)*26-self.history_height),self.scroll-event.angleDelta().y()/120*26));self.update()
+        self.scroll=max(0,min(self.scroll_limit(),self.scroll-event.angleDelta().y()/120*26));self.update()
 
 
 class TaskListPopup(TaskPopup):
@@ -1066,10 +1165,12 @@ class TaskListPopup(TaskPopup):
                 self.sections.append((section,y));y+=22;previous=section
             self.row_positions.append(y);y+=self.ROW_HEIGHT
         self.full_height=max(24+self.header_extra+self.ROW_HEIGHT,y)
-        height=min(round(self.full_height+16),500,max(100,self.owner.y()-16))
+        height=min(round(self.full_height+16),500) if self.owner.floating else min(round(self.full_height+16),500,max(100,self.owner.y()-16))
         screen=self.owner.screen().availableGeometry()
         left=max(screen.left(),min(self.owner.x(),screen.right()-width+1))
-        self.setGeometry(left,max(screen.top(),self.anchor_bottom()-height),width,height)
+        if self.owner.floating:
+            self.place_panel(width,height);height=self.height()
+        else:self.setGeometry(left,max(screen.top(),self.anchor_bottom()-height),width,height)
         self.scroll=min(self.scroll,max(0,self.full_height-(height-16)))
         self.track_hover(self.mapFromGlobal(QCursor.pos()))
         self.update()

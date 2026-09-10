@@ -1,6 +1,6 @@
 # 开发与架构
 
-Windows 11 x64 的单行 Codex 任务栏工具。现行交互见[交互规范](specs/interaction.md)，安装约束见[分发规范](specs/release.md)，操作步骤见[发布流程](publishing.md)。历史变化统一放在 CHANGELOG，不另存按轮次追加的交接流水账。
+Windows 11 x64 的单行 Codex 状态工具，支持任务栏与可选悬浮胶囊。当前里程碑见[Windows companion](specs/windows-companion.md)，现行交互见[交互规范](specs/interaction.md)，安装约束见[分发规范](specs/release.md)，操作步骤见[发布流程](publishing.md)。历史变化统一放在 CHANGELOG，不另存按轮次追加的交接流水账。
 
 ## 源码职责
 
@@ -15,6 +15,7 @@ Windows 11 x64 的单行 Codex 任务栏工具。现行交互见[交互规范](s
 | side_chats.py | 只读关联临时侧边聊天及生命周期 |
 | preferences.py、unread.py | 本机设置、旧数据迁移与未读状态 |
 | windows.py、startup.py | 任务栏布局、鼠标命中和用户启动项 |
+| presentation.py | 悬浮位置与面板的屏幕边界计算，使用Qt逻辑坐标 |
 | updates.py、build_info.py | GitHub 更新及唯一版本来源 |
 
 以上模块均在 codex_taskbar/。根目录 app.py 仅负责启动，start.ps1 和 PyInstaller 共用它；测试位于 tests/。

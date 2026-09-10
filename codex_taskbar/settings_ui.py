@@ -2,7 +2,7 @@
 from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap, QColor, QPen
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox, QListView, QSlider
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox, QListView, QSlider, QScrollArea, QWidget, QFrame
 from .build_info import APP_NAME, VERSION
 from .i18n import LANGUAGE_NAMES
 from . import startup
@@ -43,7 +43,16 @@ class SettingsDialog(QDialog):
             QSlider::groove:horizontal {height:4px;background:#475361;border-radius:2px;}
             QSlider::handle:horizontal {width:12px;margin:-4px 0;background:#8fbdec;border-radius:6px;}'''.replace(
                 '__CHEVRON__',(Path(__file__).resolve().parents[1]/'assets/icons/chevron-down.svg').as_posix()))
-        layout = QVBoxLayout(self); layout.setContentsMargins(24, 20, 24, 20); layout.setSpacing(8)
+        outer=QVBoxLayout(self);outer.setContentsMargins(0,0,0,0)
+        self.scroll_area=QScrollArea();self.scroll_area.setWidgetResizable(True);self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area.setStyleSheet('''QScrollArea,QScrollArea>QWidget>QWidget{background:#242930;}
+            QScrollBar:vertical{background:#242930;width:6px;margin:4px 0;}
+            QScrollBar::handle:vertical{background:#536170;min-height:28px;border-radius:3px;}
+            QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}
+            QScrollBar::add-page:vertical,QScrollBar::sub-page:vertical{background:none;}''')
+        body=QWidget();self.body=body;self.scroll_area.setWidget(body);outer.addWidget(self.scroll_area)
+        layout = QVBoxLayout(body); layout.setContentsMargins(24, 20, 24, 20); layout.setSpacing(8)
+        layout.setSizeConstraint(QVBoxLayout.SizeConstraint.SetMinimumSize)
         language_row=QHBoxLayout();self.language_label=QLabel();language_row.addWidget(self.language_label)
         self.language=QComboBox()
         for code,name in LANGUAGE_NAMES:self.language.addItem(name,code)
@@ -51,8 +60,17 @@ class SettingsDialog(QDialog):
         self.language.setCurrentIndex(self.language.findData(bar.settings.get('language','en')))
         self.language.currentIndexChanged.connect(lambda:bar.set_language(self.language.currentData()))
         language_row.addStretch();language_row.addWidget(self.language);layout.addLayout(language_row)
+        placement_row=QHBoxLayout();self.placement_label=QLabel();placement_row.addWidget(self.placement_label)
+        self.placement=QComboBox();self.placement.addItem('','taskbar');self.placement.addItem('','floating');self.placement.setView(QListView())
+        self.placement.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self.placement.setCurrentIndex(self.placement.findData(bar.settings.get('placement','taskbar')))
+        self.placement.currentIndexChanged.connect(lambda:bar.set_placement(self.placement.currentData()))
+        placement_row.addStretch();placement_row.addWidget(self.placement);layout.addLayout(placement_row)
+        self.topmost=QCheckBox();self.topmost.setChecked(bar.settings.get('floating_topmost',True))
+        self.topmost.toggled.connect(bar.set_floating_topmost);layout.addWidget(self.topmost)
         theme_row=QHBoxLayout();self.capsule_label=QLabel();theme_row.addWidget(self.capsule_label)
         self.capsule=QComboBox();self.capsule.addItem('','dark');self.capsule.addItem('','light');self.capsule.setView(QListView())
+        self.capsule.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.capsule.setCurrentIndex(self.capsule.findData(bar.settings.get('capsule_theme','dark')))
         self.capsule.currentIndexChanged.connect(lambda:bar.set_capsule_theme(self.capsule.currentData()))
         theme_row.addStretch();theme_row.addWidget(self.capsule);layout.addLayout(theme_row)
@@ -82,6 +100,13 @@ class SettingsDialog(QDialog):
         self.update_button = QPushButton(); self.update_button.clicked.connect(bar.update_clicked); layout.addWidget(self.update_button)
         version = QLabel(f'{APP_NAME}  {VERSION}'); version.setStyleSheet('color:#8797aa;font-size:12px;'); layout.addWidget(version)
         self.refresh()
+        self.resize(self.sizeHint())
+
+    def sizeHint(self):
+        if not hasattr(self,'body'):return super().sizeHint()
+        size=self.body.sizeHint();size.setWidth(max(340,size.width()+16))
+        size.setHeight(min(size.height(),max(240,self.screen().availableGeometry().height()-48)))
+        return size
 
     def refresh(self):
         label=self.bar.label
@@ -90,6 +115,10 @@ class SettingsDialog(QDialog):
         self.language.blockSignals(True)
         self.language.setCurrentIndex(self.language.findData(self.bar.settings.get('language','en')))
         self.language.blockSignals(False)
+        self.placement_label.setText(label('Placement'));self.placement.blockSignals(True)
+        self.placement.setItemText(0,label('Taskbar'));self.placement.setItemText(1,label('Floating'))
+        self.placement.setCurrentIndex(self.placement.findData(self.bar.settings.get('placement','taskbar')));self.placement.blockSignals(False)
+        self.topmost.setText(label('Keep on top'));self.topmost.setVisible(self.bar.floating)
         self.capsule_label.setText(label('Capsule'));self.transparency_label.setText(label('Transparency'))
         self.capsule.blockSignals(True)
         self.capsule.setItemText(0,label('Dark'));self.capsule.setItemText(1,label('Light'))
@@ -101,6 +130,9 @@ class SettingsDialog(QDialog):
         self.hover.setText(label('Open panels on hover'));self.login.setText(label('Start at Windows sign-in'))
         self.login.blockSignals(True);self.login.setChecked(startup.enabled());self.login.blockSignals(False)
         self.status_key=None;self.refresh_status()
+        self.body.layout().activate()
+        self.setMinimumWidth(max(340,self.body.minimumSizeHint().width()+12))
+        self.resize(self.sizeHint())
 
     def refresh_status(self):
         label=self.bar.label

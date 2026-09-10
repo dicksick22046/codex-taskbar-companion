@@ -20,7 +20,8 @@ class InteractionTests(unittest.TestCase):
                      {'minutes':300,'remaining':60,'starts_at':now-3600,'resets_at':now+4*3600}],
             'daily_quota':'12%','reset_account':'fixture-account','reset_selected':credit(),'reset_available':3}
         self.provider=Mock();self.provider.get.side_effect=lambda:self.data
-        with patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.RELEASE_REPOSITORY',''),patch('codex_taskbar.app.QSystemTrayIcon'):
+        with patch('codex_taskbar.app.read_settings',return_value={**app.DISPLAY_DEFAULTS,'chart_unit':'M'}), \
+             patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.RELEASE_REPOSITORY',''),patch('codex_taskbar.app.QSystemTrayIcon'):
             self.bar=app.StatusBar(self.provider)
         self.bar.timer.stop();self.bar.animation.stop();self.bar.update_timer.stop();self.bar.tray.hide()
         self.bar.resize(1200,30);self.bar.data=self.data;self.bar.task=self.data['tasks'][0]
