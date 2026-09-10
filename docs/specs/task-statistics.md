@@ -12,6 +12,8 @@ The existing daily and reset-period statistics keep their scope. They must not b
 
 Replace the long ungrouped form with a compact settings window organized into Appearance, Indicators, and General. Reuse Qt and existing fonts/colors, with aligned rows, subtle group surfaces and clear switch states. Position/theme options remain immediate; show topmost only for floating mode. Keep language, startup and update controls together in General. Preserve every existing preference and callback; no new account actions or telemetry. Layout must fit shorter screens through scrolling, and all four languages must remain readable.
 
+Setting captions and row whitespace are not toggle targets. Only the separate right-hand switch changes a boolean setting on pointer release inside the switch. Pressing a caption then releasing on a switch, or dragging out of a pressed switch, must not change a preference. Keyboard Tab and Space remain supported; the focus cue is confined to the switch and appears for keyboard interaction, never as a selected-row outline after mouse clicks. Scrolling over collapsed choices, sliders or tabs must not alter settings or switch pages. Updates have no implicit dialog-default action.
+
 ## References and boundaries
 
 - [Microsoft settings guidelines](https://learn.microsoft.com/en-us/windows/apps/design/app-settings/guidelines-for-app-settings): grouped related options, right-aligned controls and immediate feedback. Apply the layout principles in Qt without migrating frameworks.
