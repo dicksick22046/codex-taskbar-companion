@@ -105,6 +105,7 @@ class SettingsDialog(QDialog):
         self.tabs.setTabBar(SettingsTabBar())
         self.tabs.tabBar().setDrawBase(False)
         self.tabs.tabBar().setUsesScrollButtons(False);self.tabs.tabBar().setElideMode(Qt.TextElideMode.ElideNone)
+        self.feedback=QLabel();self.feedback.setWordWrap(True);self.feedback.setStyleSheet('color:#ebb45f;padding:4px 8px;');self.feedback.hide();outer.addWidget(self.feedback)
         self.pages=[]
         for _ in range(3):
             scroll=QScrollArea();scroll.setFrameShape(QFrame.Shape.NoFrame);scroll.setWidgetResizable(True)
@@ -112,18 +113,18 @@ class SettingsDialog(QDialog):
             page.setSizeConstraint(QVBoxLayout.SizeConstraint.SetMinimumSize);scroll.setWidget(body);self.pages.append(scroll);self.tabs.addTab(scroll,'')
         appearance=self.pages[0].widget().layout();indicators=self.pages[1].widget().layout();general=self.pages[2].widget().layout()
         def card(parent):
-            frame=QFrame();frame.setObjectName('settingsCard');items=QVBoxLayout(frame);items.setContentsMargins(14,6,14,6);items.setSpacing(0);parent.addWidget(frame);return items
+            frame=QFrame();frame.setObjectName('settingsCard');items=QVBoxLayout(frame);items.setContentsMargins(14,0,14,0);items.setSpacing(0);parent.addWidget(frame);return items
         def line(parent):
             result=QFrame();result.setObjectName('settingsLine');result.setFixedHeight(1);parent.addWidget(result);return result
         def row(parent,label,control):
-            widget=QWidget();layout=QHBoxLayout(widget);layout.setContentsMargins(0,5,0,5);widget.setMinimumHeight(42)
+            widget=QWidget();layout=QHBoxLayout(widget);layout.setContentsMargins(0,8,0,8);widget.setMinimumHeight(48)
             layout.addWidget(label);layout.addStretch();layout.addWidget(control);parent.addWidget(widget)
         def combo(values,current,callback):
             control=Choice();control.setView(QListView());control.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
             for text,value in values:control.addItem(text,value)
             control.setCurrentIndex(control.findData(current));control.currentIndexChanged.connect(lambda:callback(control.currentData()));return control
         def toggle(parent):
-            container=QWidget();container.setMinimumHeight(42);items=QHBoxLayout(container);items.setContentsMargins(0,0,0,0)
+            container=QWidget();container.setMinimumHeight(48);items=QHBoxLayout(container);items.setContentsMargins(0,8,0,8)
             caption=QLabel();caption.setTextFormat(Qt.TextFormat.PlainText);caption.setWordWrap(True);caption.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
             control=Toggle(caption);control.row=container;caption.setBuddy(control)
             items.addWidget(caption,1);items.addSpacing(16);items.addWidget(control);parent.addWidget(container);return control
@@ -181,6 +182,7 @@ class SettingsDialog(QDialog):
 
     def refresh_status(self):
         label=self.bar.label;data=self.bar.provider.get()
+        error=getattr(self.bar,'settings_error','');self.feedback.setText(label(error) if error else '');self.feedback.setVisible(bool(error))
         key=(self.bar.language,data.get('quota_error'),bool(data.get('quota')),data.get('error'),data.get('loading'),self.bar.placement_unavailable,self.bar.updater.message,self.bar.updater.busy,(self.bar.updater.release or {}).get('version'))
         if key==getattr(self,'status_key',None):return
         self.status_key=key

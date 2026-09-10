@@ -1,0 +1,85 @@
+from contextlib import ExitStack
+from unittest.mock import patch
+import unittest
+from PySide6.QtCore import QPointF,Qt
+from codex_taskbar import app
+from codex_taskbar.task_finder import TaskFinder
+from tests import test_interactions as fixtures
+
+
+class UIFlowTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):cls.application=app.QApplication.instance() or app.QApplication([])
+    def setUp(self):
+        fixtures.InteractionTests.setUp(self);self.stack=ExitStack();self.addCleanup(self.stack.close)
+        for name,value in [('placement',(100,800,540,30,1,False)),('follow_taskbar',None),('floating_window',None)]:self.stack.enter_context(patch('codex_taskbar.app.windows.'+name,return_value=value))
+        self.stack.enter_context(patch('codex_taskbar.app.windows.user32.IsWindow',return_value=True))
+        self.stack.enter_context(patch.object(self.bar,'ensure_visible',return_value=False))
+        self.stack.enter_context(patch.object(self.bar,'underMouse',return_value=False))
+        self.save=self.stack.enter_context(patch('codex_taskbar.app.write_settings'))
+        self.stack.enter_context(patch('codex_taskbar.settings_ui.startup.enabled',return_value=False))
+        self.dialog=app.SettingsDialog(self.bar);self.bar.settings_dialog=self.dialog
+        self.stack.enter_context(patch.object(self.dialog,'isVisible',return_value=True))
+        self.bar.setGeometry(100,800,540,30);self.bar.position=(100,800,540,30)
+    def tearDown(self):fixtures.InteractionTests.tearDown(self)
+
+    def layout(self):self.dialog.grab();self.application.processEvents();self.dialog.grab()
+
+    def test_every_settings_row_has_balanced_control_clearance(self):
+        for language in app.LANGUAGES:
+            self.bar.set_language(language)
+            for page,controls in ((0,[self.dialog.placement,self.dialog.capsule,self.dialog.transparency.parentWidget()]),(1,list(self.dialog.checks.values())),(2,[self.dialog.language,self.dialog.update_button,self.dialog.login])):
+                self.dialog.tabs.setCurrentIndex(page);self.layout()
+                for control in controls:
+                    row=control.parentWidget();top=control.y();bottom=row.height()-control.y()-control.height()
+                    with self.subTest(language=language,control=control.accessibleName()):
+                        self.assertGreaterEqual(top,8);self.assertGreaterEqual(bottom,8);self.assertLessEqual(abs(top-bottom),1)
+
+    def test_settings_changes_resize_real_layout_without_closing_dialog(self):
+        self.dialog.tabs.setCurrentIndex(1);self.layout()
+        for placement in ('taskbar','floating'):
+            self.dialog.placement.setCurrentIndex(self.dialog.placement.findData(placement))
+            for key in ('show_tasks','show_week','show_session','show_countdown','show_daily'):
+                control=self.dialog.checks[key]
+                for enabled in (False,True,False):
+                    control.setChecked(enabled)
+                    if any(self.bar.settings[k] for k in app.DISPLAY_DEFAULTS):
+                        self.assertEqual(self.bar.width(),self.bar.content_width(self.bar.content_limit),(placement,key,enabled))
+            self.dialog.checks['show_daily'].setChecked(True)
+            self.dialog.checks['show_countdown'].setChecked(True)
+            for enabled in (True,False,True):
+                self.dialog.rotation.setChecked(enabled)
+                self.assertEqual(self.bar.width(),self.bar.content_width(self.bar.content_limit))
+            self.bar.set_language('zh-CN');self.assertEqual(self.bar.width(),self.bar.content_width(self.bar.content_limit))
+        self.assertTrue(self.dialog.isVisible());self.provider.stop.assert_not_called()
+
+    def test_startup_failure_restores_actual_state_and_explains_failure(self):
+        with patch('codex_taskbar.app.startup.set_enabled',side_effect=OSError('fixture')),patch('builtins.print'):
+            self.dialog.login.setChecked(True)
+        self.assertFalse(self.dialog.login.isChecked())
+        self.assertFalse(self.dialog.feedback.isHidden());self.assertIn('startup',self.dialog.feedback.text().lower())
+
+    def test_save_failure_remains_visible_when_status_refreshes(self):
+        self.save.side_effect=OSError('fixture')
+        with patch('builtins.print'):self.dialog.capsule.setCurrentIndex(self.dialog.capsule.findData('light'))
+        self.dialog.tabs.setCurrentIndex(2);self.dialog.refresh_status()
+        self.assertFalse(self.dialog.feedback.isHidden());self.assertIn('save',self.dialog.feedback.text().lower())
+        self.save.side_effect=None;self.dialog.capsule.setCurrentIndex(self.dialog.capsule.findData('dark'))
+        self.assertTrue(self.dialog.feedback.isHidden())
+
+    def test_search_filter_scroll_and_cross_view_units_are_immediate(self):
+        self.data['catalog']=[{'id':str(i),'title':f'Task {i}','project':str(i%2),'updated_at':1000-i} for i in range(80)]
+        self.data['task_statistics']={str(i):{'ready':True,'tokens':120000000,'seconds':200,'turns':3} for i in range(80)}
+        finder=TaskFinder(self.bar);self.bar.task_finder=finder;finder.resize(900,300);finder.grab();self.application.processEvents()
+        finder.view.verticalScrollBar().setValue(finder.view.verticalScrollBar().maximum());self.assertGreater(finder.view.verticalScrollBar().value(),0)
+        finder.search.setText('Task');self.assertEqual(finder.view.verticalScrollBar().value(),0)
+        finder.view.verticalScrollBar().setValue(10);finder.refresh(dict(self.data));self.assertEqual(finder.view.verticalScrollBar().value(),10)
+        finder.projects.setCurrentIndex(1);self.assertEqual(finder.view.verticalScrollBar().value(),0)
+        self.bar.set_chart_unit('100M')
+        self.assertEqual(finder.units.currentText(),'100M');self.assertIn('100M',finder.model.index(0,4).data(Qt.ItemDataRole.AccessibleTextRole))
+
+    def test_press_feedback_tracks_leaving_and_returning_to_target(self):
+        self.bar.grab();hit=next(h for h in self.bar.hit_regions if h[0]=='daily');self.bar.begin_press(hit)
+        self.bar.track_pointer(QPointF(-5,-5));self.assertFalse(self.bar.press_inside)
+        self.bar.track_pointer(hit[1].center());self.assertTrue(self.bar.press_inside)
+        self.bar.release_press();self.assertFalse(self.bar.press_inside)

@@ -3,6 +3,8 @@
 LANGUAGE_NAMES = (('en','English'),('zh-CN','简体中文'),('ja','日本語'),('es','Español'))
 LANGUAGES = tuple(code for code,name in LANGUAGE_NAMES)
 COPY = {
+    'Could not save settings. Changes apply until restart.':'设置未能保存，当前修改仅在本次运行中生效。',
+    'Could not change startup. The previous setting is retained.':'无法修改开机启动，已保留原设置。',
     'No tasks':'暂无任务',
     'All local history':'本机全部历史',
     'Needs input':'待回答',
@@ -49,6 +51,8 @@ COPY = {
 }
 
 TRANSLATIONS = {'zh-CN': COPY, 'ja': {
+    'Could not save settings. Changes apply until restart.':'設定を保存できませんでした。変更は再起動まで有効です。',
+    'Could not change startup. The previous setting is retained.':'自動起動を変更できませんでした。以前の設定を保持します。',
     'No tasks':'タスクはありません',
     'All local history':'ローカルの全履歴',
     'Needs input':'回答待ち',
@@ -93,6 +97,8 @@ TRANSLATIONS = {'zh-CN': COPY, 'ja': {
     'Update to {version}': '{version}に更新',
     'Version {version} is available. Update from Settings.': 'バージョン{version}が公開されました。設定から更新できます。',
 }, 'es': {
+    'Could not save settings. Changes apply until restart.':'No se pudo guardar. Los cambios duran hasta reiniciar.',
+    'Could not change startup. The previous setting is retained.':'No se pudo cambiar el inicio automático. Se conserva el ajuste anterior.',
     'No tasks':'No hay tareas',
     'All local history':'Todo el historial local',
     'Needs input':'Requiere respuesta',

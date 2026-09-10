@@ -240,7 +240,7 @@ class StatusBar(QWidget):
         self.hit_regions=[];self.pressed=None;self.confirming_reset=False
         self.pressed_local=None;self.press_inside=False;self.right_pressed=None
         self.hover_target=None;self.hover_since=0.;self.hover_leave_since=None;self.hover_suppressed=None
-        self.metrics=[];self.settings_dialog=None;self.task_finder=None;self.placement_unavailable=False
+        self.metrics=[];self.settings_dialog=None;self.task_finder=None;self.placement_unavailable=False;self.settings_error=''
         self.surface_loss_since=None;self.surface_repaired=False
         self.frame_key=None;self.panel_key=None
         self.host_key=None;self.drag_origin=None;self.dragging=False
@@ -407,7 +407,7 @@ class StatusBar(QWidget):
         if self.popup:
             self.popup.setWindowTitle('Codex · '+self.label('Tasks' if isinstance(self.popup,TaskListPopup) else 'Usage'))
             self.popup.refresh(self.data)
-        self.update()
+        self.tick(resize=True)
 
     def set_hover_panels(self,value):
         self.settings['hover_panels']=bool(value)
@@ -420,9 +420,9 @@ class StatusBar(QWidget):
 
     def set_placement(self,value):
         if value not in ('taskbar','floating') or self.settings.get('placement')==value:return
-        self.hide_popup(immediate=True);self.pressed=None;self.drag_origin=None;self.dragging=False
+        self.hide_popup(immediate=True);self.release_press();self.drag_origin=None;self.dragging=False
         self.settings['placement']=value;self.position=None;self.host_key=None
-        self.save_settings();self.tick()
+        self.save_settings();self.tick(resize=True)
         if self.settings_dialog:self.settings_dialog.refresh()
 
     def set_floating_topmost(self,value):
@@ -445,7 +445,7 @@ class StatusBar(QWidget):
         self.settings['rotate_quotas']=bool(value)
         self.quota_kind=None;self.quota_paused_at=None;self.quota_rotated_at=time.monotonic()
         self.quota_tween.stop();self.quota_progress=1.;self.quota_previous=None
-        self.save_settings();self.hide_popup(immediate=True);self.tick()
+        self.save_settings();self.hide_popup(immediate=True);self.tick(resize=True)
 
     def quota_choices(self):
         metrics={kind:(value,fraction) for kind,value,fraction in visible_metrics(self.data,self.settings)}
@@ -505,11 +505,10 @@ class StatusBar(QWidget):
             right=max(right,end+QFontMetricsF(self.font).horizontalAdvance(task_title(task,self.language)))
         return min(limit,math.ceil(right+12))
 
-    def fitted_width(self,limit):
+    def fitted_width(self,limit,resize=False):
         target=self.content_width(limit)
-        interacting=(self.underMouse() or self.pressed or self.drag_origin or self.popup or self.menu.isVisible()
-                     or self.settings_dialog and self.settings_dialog.isVisible())
-        if interacting and self.position:target=max(target,self.width())
+        interacting=self.underMouse() or self.pressed or self.drag_origin or self.popup or self.menu.isVisible()
+        if not resize and interacting and self.position:target=max(target,self.width())
         return min(limit,target)
 
     def set_quota_progress(self,value):
@@ -575,16 +574,21 @@ class StatusBar(QWidget):
         self.chart_unit=unit
         self.save_settings()
         if self.popup:self.popup.refresh(self.data)
+        if self.task_finder:self.task_finder.refresh(self.data)
 
     def save_settings(self):
         self.settings['chart_unit']=self.chart_unit
-        try:write_settings(RUNTIME/'ui_settings.json',self.settings)
-        except OSError as exc:print('Settings:',exc)
+        error='Could not save settings. Changes apply until restart.'
+        try:
+            write_settings(RUNTIME/'ui_settings.json',self.settings)
+            if self.settings_error==error:self.settings_error=''
+        except OSError as exc:self.settings_error=error;print('Settings:',exc)
+        if self.settings_dialog:self.settings_dialog.refresh_status()
 
     def set_display(self,key,value):
         if key not in DISPLAY_DEFAULTS:return
         self.quota_tween.stop();self.quota_previous=None;self.quota_progress=1.
-        self.settings[key]=bool(value);self.save_settings();self.hide_popup(immediate=True);self.tick()
+        self.settings[key]=bool(value);self.save_settings();self.hide_popup(immediate=True);self.tick(resize=True)
 
     def open_settings(self):
         self.hide_popup(immediate=True)
@@ -613,8 +617,12 @@ class StatusBar(QWidget):
         self.menu.popup(QPointF(x,y).toPoint())
 
     def set_startup(self,value):
-        try:startup.set_enabled(value)
-        except OSError as exc:print('Startup:',exc)
+        error='Could not change startup. The previous setting is retained.'
+        try:
+            startup.set_enabled(value)
+            if self.settings_error==error:self.settings_error=''
+        except OSError as exc:self.settings_error=error;print('Startup:',exc)
+        if self.settings_dialog:self.settings_dialog.refresh()
 
     def update_status(self):
         if self.settings_dialog:self.settings_dialog.refresh()
@@ -680,13 +688,14 @@ class StatusBar(QWidget):
             self.ring_tweens[kind]=motion
         motion.stop();motion.setStartValue(self.ring_values[kind]);motion.setEndValue(target);motion.start()
 
-    def selected_task(self, tasks):
+    def selected_task(self, tasks,advance=True):
         if not tasks:self.current_id=None;return None
         ids=[t["id"] for t in tasks]
         if self.current_id not in ids:
-            self.current_id,self.rotated_at=ids[0],time.monotonic()
+            self.current_id=ids[0]
+            if advance:self.rotated_at=time.monotonic()
             if self.task_hover:self.title_hover_started=self.rotated_at
-        elif not getattr(self,'task_hover',False) and not getattr(self,'pressed',None) and not getattr(self,'drag_origin',None) and not getattr(self,'confirming_reset',False) and time.monotonic()-self.rotated_at>=ROTATE_SECONDS:
+        elif advance and not getattr(self,'task_hover',False) and not getattr(self,'pressed',None) and not getattr(self,'drag_origin',None) and not getattr(self,'confirming_reset',False) and time.monotonic()-self.rotated_at>=ROTATE_SECONDS:
             self.current_id=ids[(ids.index(self.current_id)+1)%len(ids)];self.rotated_at=time.monotonic()
         return tasks[ids.index(self.current_id)]
 
@@ -777,7 +786,7 @@ class StatusBar(QWidget):
         self.show();windows.hide_border(int(self.winId()));self.update()
         return True
 
-    def tick(self):
+    def tick(self,resize=False):
         if not (self.pressed and self.pressed[0]=='task'):self.data=self.provider.get()
         if self.settings_dialog and self.settings_dialog.isVisible():self.settings_dialog.refresh_status()
         if self.task_finder and self.task_finder.isVisible():self.task_finder.refresh(self.data)
@@ -811,7 +820,7 @@ class StatusBar(QWidget):
             self.hide();self.hide_popup(immediate=True);return
         logical=tuple(round(v/scale) for v in (x,y,w,h))
         if self.drag_origin is None:self.content_limit=logical[2]
-        width=self.fitted_width(self.content_limit)
+        width=self.fitted_width(self.content_limit,resize=resize)
         if self.floating and self.drag_origin is None:
             logical=floating_rect(self.floating_screen().availableGeometry(),self.settings.get('floating_position'),width).getRect()
         elif self.drag_origin is None:logical=(logical[0],logical[1],width,logical[3])
@@ -827,7 +836,7 @@ class StatusBar(QWidget):
             self.track_pointer(point)
         self.advance_quota()
         previous=self.task
-        if not (self.pressed and self.pressed[0]=='task'):self.task=self.selected_task(self.data.get("tasks",[]) if self.settings['show_tasks'] else [])
+        if not (self.pressed and self.pressed[0]=='task'):self.task=self.selected_task(self.data.get("tasks",[]) if self.settings['show_tasks'] else [],advance=not resize)
         if previous and self.task and previous['id']!=self.task['id'] and self.motion_enabled:
             self.previous_task=previous;self.task_tween.stop()
             self.task_tween.setStartValue(0.);self.task_tween.setEndValue(1.);self.task_tween.start()

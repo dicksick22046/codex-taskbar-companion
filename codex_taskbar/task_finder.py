@@ -236,11 +236,14 @@ class TaskFinder(QDialog):
         if format_changed and self.model.rows:self.model.dataChanged.emit(self.model.index(0,0),self.model.index(len(self.model.rows)-1,len(COLUMNS)-1))
 
     def apply_filter(self,*args):
+        criteria=(self.search.text(),self.projects.currentData());changed=criteria!=getattr(self,'filter_criteria',None);self.filter_criteria=criteria
         current=self.view.currentIndex().data(Qt.ItemDataRole.UserRole) or {};selected=current.get('id')
-        scroll=self.view.verticalScrollBar().value();rows=sort_rows(filter_rows(self.rows,self.search.text(),self.projects.currentData()),self.sort_column,self.sort_descending)
+        scroll=self.view.verticalScrollBar().value();rows=sort_rows(filter_rows(self.rows,*criteria),self.sort_column,self.sort_descending)
         if self.model.replace(rows):
             index=next((i for i,row in enumerate(rows) if row['id']==selected),0)
             self.view.setCurrentIndex(self.model.index(index,0));self.view.verticalScrollBar().setValue(scroll)
+        if changed:
+            self.pressed_id=None;self.view.setCurrentIndex(self.model.index(0,0));self.view.verticalScrollBar().setValue(0)
         self.view.setVisible(bool(rows));self.empty.setVisible(not rows)
         self.empty.setText(self.bar.label('Connecting to Codex…' if self.loading else 'No matching tasks'))
         pending=sum(row['indexing'] for row in rows)
