@@ -99,3 +99,9 @@ class FinderInteractionTests(unittest.TestCase):
         self.assertIn('&lt;b&gt;',self.finder.model.index(1,0).data(Qt.ItemDataRole.ToolTipRole))
         self.finder.search.setText('not found');self.assertEqual(self.finder.empty.text(),'没有匹配的任务')
         self.assertEqual(self.finder.count.text(),'结果：0')
+
+    def test_accessible_row_includes_localized_status_and_time(self):
+        self.data['tasks']=[{'id':'0','title':'Task 0','project':'Docs','running':True}]
+        self.bar.settings['language']='zh-CN';self.finder.refresh(self.data)
+        spoken=self.finder.model.index(0,0).data(Qt.ItemDataRole.AccessibleTextRole)
+        self.assertIn('进行中',spoken);self.assertIn(self.finder.model.rows[0]['stamp'],spoken)

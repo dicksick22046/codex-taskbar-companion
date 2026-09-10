@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt,QAbstractListModel,QModelIndex,QSize,QRectF,QEvent
 from PySide6.QtGui import QColor,QFontMetricsF
 from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLineEdit,QComboBox,QListView,QLabel,QStyledItemDelegate,QAbstractItemView,QStyle
 from .app import face,text,project_tag,side_tag,side_tag_width,BLUE,ACCENT,AMBER,FAILED,MUTED
-from .i18n import project_label,task_title
+from .i18n import project_label,task_title,translate
 from .tasks import task_rows,task_category,CATEGORY_LABELS
 
 
@@ -34,6 +34,7 @@ def finder_rows(data,language):
         project=task.get('project') or '';title=task_title(task,language)
         rows.append({'id':task['id'],'title':title,'project':project,'project_label':project_label(project,language),
                      'kind':kind if kind!='recent' else '', 'side_chat':bool((state or {}).get('side_chat')),
+                     'status_label':translate(language,CATEGORY_LABELS[kind]) if kind and kind!='recent' else '',
                      'at':at,'stamp':stamp,'search':(project_label(project,language)+' '+title).casefold()})
     return sorted(rows,key=lambda row:(-row['at'],row['id']))
 
@@ -50,7 +51,8 @@ class TaskModel(QAbstractListModel):
         if not index.isValid() or not 0<=index.row()<len(self.rows):return None
         row=self.rows[index.row()]
         if role==Qt.ItemDataRole.UserRole:return row
-        if role in (Qt.ItemDataRole.DisplayRole,Qt.ItemDataRole.AccessibleTextRole):return row['project_label']+' · '+row['title']
+        if role==Qt.ItemDataRole.DisplayRole:return row['project_label']+' · '+row['title']
+        if role==Qt.ItemDataRole.AccessibleTextRole:return ', '.join(row[k] for k in ('project_label','title','status_label','stamp') if row[k])
         if role==Qt.ItemDataRole.ToolTipRole:return '<qt>'+'<br>'.join(escape(row[k]) for k in ('project_label','title','stamp'))+'</qt>'
 
     def replace(self,rows):
@@ -73,7 +75,7 @@ class TaskDelegate(QStyledItemDelegate):
         right=box.right()-12;font=face(8);metrics=QFontMetricsF(font)
         text(p,right-metrics.horizontalAdvance(row['stamp']),y,row['stamp'],font,'#8797aa')
         status_right=right-browser.stamp_width-14
-        status=browser.bar.label(CATEGORY_LABELS[row['kind']]) if row['kind'] else ''
+        status=row['status_label']
         colors={'running':ACCENT,'unread':AMBER,'failed':FAILED,'stopped':'#8795a5'}
         if status:text(p,status_right-metrics.horizontalAdvance(status),y,status,font,colors[row['kind']])
         title_right=status_right-browser.status_width-14
