@@ -56,7 +56,7 @@ class LifetimeTests(unittest.TestCase):
 
     def test_missing_file_and_corrupt_cache_remain_unknown(self):
         self.sync();self.assertEqual(self.index.view()['task'],{'ready':False,'missing':True})
-        self.cache.write_text(json.dumps({'version':1,'entries':{'bad':42,'broken':{'offset':0}}}))
+        self.cache.write_text(json.dumps({'version':TaskStatistics.VERSION,'entries':{'bad':42,'broken':{'offset':0}}}))
         self.assertEqual(TaskStatistics(self.cache).entries,{})
 
     def test_budget_can_yield_and_resume_without_losing_counts(self):
