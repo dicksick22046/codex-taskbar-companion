@@ -22,6 +22,8 @@ The strip sits on the left of the primary taskbar. If there is not enough space,
 
 Choose **Placement → Floating** in Settings to move the capsule away from the taskbar. Drag it to a convenient position; that position is remembered. **Keep on top** is optional, and panels open above or below it to fit the screen. Switch back to **Taskbar** at any time.
 
+**Auto** prefers the primary taskbar and uses a floating capsule when there is not enough room. It waits for stable availability before switching back and avoids automatic overlays over fullscreen foreground apps. **Floating display** can follow primary or pin a display; disconnecting it temporarily uses primary, and reconnecting restores the saved relative position. This does not add secondary-taskbar embedding or claim validation on other Windows versions.
+
 ![Floating capsule](docs/images/floating.png)
 
 *Floating mode with sample data; the panel and capsule use the same controls as taskbar mode.*

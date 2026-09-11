@@ -23,6 +23,17 @@
 
 ## 3. Product review and next decisions
 
+### Windows placement compatibility — current delivery
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Auto taskbar/floating fallback and recovery | Implemented | Stable-availability policy, fullscreen and interaction-lock tests |
+| Floating display choice and disconnect/reconnect | Implemented | Legacy preferences, primary following, pinned/negative-origin screen fixtures and retained positions |
+| Screen-bound menus, panels and utility windows | Implemented | Resolved-display bounds tests |
+| Compact multilingual settings and real control flow | Verified in controlled environment | Four-language renders and offscreen window-level input |
+| Primary-display installed build, CI and release | Pending | One coherent release including earlier selection fixes |
+| Mixed-DPI multi-monitor hardware / Windows 10 / ARM64 | Not verified | Requires actual target devices; do not infer support from fixtures |
+
 Evaluate whether each addition reduces missed work, prevents mistakes or improves recovery enough to justify its permanent complexity. Record a disposition and evidence for each candidate before implementation.
 
 Current review selects two small additions: clarify remaining/consumed quota in tooltips without widening the strip, and provide user-initiated, allowlisted support diagnostics for recurring visibility/startup reports. Neither needs a new collector or server. Keep the ring animation, stable rotation and shared Provider. Other-platform claims and broad approval detection remain gated on actual evidence; a mobile backend is not a prerequisite for a useful desktop companion.

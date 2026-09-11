@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+## 0.8.0
+
+- Add Auto placement: prefer the primary taskbar, fall back to floating when space is unavailable, and return after availability stabilizes.
+- Add floating-display selection, primary-display following and disconnected-display recovery without losing the saved relative position.
+- Keep panels, menus and new utility windows on the resolved display; avoid automatic overlays over fullscreen foreground apps.
+
 - Balance strip selection padding around rings and text, keep feedback inside clickable targets, and emphasize status pills without a second enclosing box.
 
 ## 0.7.0

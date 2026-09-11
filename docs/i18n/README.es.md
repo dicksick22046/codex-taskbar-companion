@@ -24,6 +24,8 @@ Elige **Ubicación → Flotante** en los ajustes para mover la cápsula arrastr�
 
 ![Cápsula flotante](../images/floating.png)
 
+**Auto** prefiere la barra de tareas principal y usa el modo flotante si falta espacio. Vuelve cuando el espacio se estabiliza y evita superponerse a la aplicación en primer plano si está a pantalla completa. **Pantalla flotante** permite seguir la principal o fijar una pantalla; al desconectarla usa la principal temporalmente y restaura la posición relativa al reconectarla. No añade integración en barras de tareas secundarias ni implica pruebas físicas en otras versiones de Windows.
+
 *Datos de ejemplo. El modo flotante comparte los controles y paneles del modo de barra de tareas.*
 
 ## Uso
