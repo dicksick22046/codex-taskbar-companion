@@ -40,9 +40,10 @@ def finder_rows(data,language):
         rows.append({'id':task['id'],'title':title,'project':project,'project_label':project_label(project,language),
                      'kind':kind if kind!='recent' else '', 'side_chat':bool((state or {}).get('side_chat')),
                      'status_label':translate(language,CATEGORY_LABELS[kind]) if kind and kind!='recent' else '',
-                     'total_tokens':stats.get('tokens') if ready else None,'total_seconds':stats.get('seconds') if ready else None,
-                     'total_turns':stats.get('turns') if ready else None,'partial':stats.get('partial',False),
+                     'total_tokens':stats.get('tokens'),'total_seconds':stats.get('seconds'),
+                     'total_turns':stats.get('turns'),'partial':stats.get('partial',False),
                      'tokens_partial':stats.get('tokens_partial',False),
+                     'turns_partial':stats.get('turns_partial',False),'indexed_bytes':stats.get('indexed_bytes',0),'total_bytes':stats.get('total_bytes',0),
                      'indexing':bool(stats) and not ready and not stats.get('missing'),
                      'at':at,'stamp':stamp,'search':(project_label(project,language)+' '+title).casefold()})
     return sorted(rows,key=lambda row:(-row['at'],row['id']))
@@ -74,7 +75,7 @@ def cell_text(row,column,unit='M'):
         if row.get('tokens_partial'):
             quantum=100000 if unit=='M' else 1000000;value=value//quantum*quantum
         return ('≥ ' if row.get('tokens_partial') else '')+chart_number(value,unit)+('M' if unit=='M' else ' ×100M')
-    return str(value)
+    return ('≥ ' if row.get('turns_partial') else '')+str(value)
 
 
 class TaskModel(QAbstractTableModel):
@@ -250,6 +251,8 @@ class TaskFinder(QDialog):
         self.empty.setText(self.bar.label('Connecting to Codex…' if self.loading else 'No matching tasks'))
         pending=sum(row['indexing'] for row in rows)
         self.count.setText(self.bar.label('Results: {count}',count=len(rows))+'  ·  '+self.bar.label('Indexing local history: {count}',count=pending) if pending else self.bar.label('Results: {count}',count=len(rows)))
+        total=sum(row['total_bytes'] for row in rows);done=sum(row['indexed_bytes'] for row in rows)
+        if pending and total:self.count.setText(self.count.text()+f' · {min(99,int(done/total*100))}%')
         self.view.viewport().update()
 
     def remember_press(self,index):

@@ -131,3 +131,14 @@ class FinderInteractionTests(unittest.TestCase):
         self.assertEqual(self.finder.model.rows[3]['total_tokens'],100)
         self.assertIn('<0.1M',self.finder.model.index(3,4).data(Qt.ItemDataRole.AccessibleTextRole))
         self.assertEqual(self.finder.scope.text(),'All local history')
+
+    def test_indexing_shows_known_lower_bounds_and_byte_progress(self):
+        self.data['catalog']=self.data['catalog'][:1]
+        self.data['task_statistics']={'0':{'ready':False,'tokens':120000000,'seconds':120,'turns':9,
+            'partial':True,'tokens_partial':True,'turns_partial':True,'indexed_bytes':25,'total_bytes':100}}
+        self.finder.refresh(self.data);row=self.finder.model.rows[0]
+        self.assertEqual(cell_text(row,3),'≥ 2m');self.assertEqual(cell_text(row,4,'100M'),'≥ 1.2 ×100M')
+        self.assertEqual(cell_text(row,5),'≥ 9');self.assertIn('25%',self.finder.count.text())
+        self.data['task_statistics']={'0':dict(self.data['task_statistics']['0'],ready=True,partial=False,tokens_partial=False,turns_partial=False,indexed_bytes=100)}
+        self.finder.refresh(self.data)
+        self.assertEqual(cell_text(self.finder.model.rows[0],5),'9');self.assertNotIn('Indexing',self.finder.count.text())

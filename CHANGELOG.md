@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+- Show partial task totals and indexing progress while local history is being processed; retain cached work across restarts.
+- Skip unrelated log payloads when indexing lifetime statistics, reducing processing time for large task histories without increasing the polling frequency.
+
 ## 0.8.0
 
 - Add Auto placement: prefer the primary taskbar, fall back to floating when space is unavailable, and return after availability stabilizes.

@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from codex_taskbar.task_statistics import TaskStatistics
+from codex_taskbar.usage import event_from_line
 from tests.test_usage import record
 
 
@@ -77,3 +78,41 @@ class LifetimeTests(unittest.TestCase):
         with patch.object(self.index,'_entry',side_effect=append_after_stat):self.index.step(budget=1)
         self.assertEqual(self.index.entries['task']['offset'],len(initial));self.assertEqual(self.index.view()['task']['tokens'],100)
         self.index.step(budget=1);self.assertEqual(self.index.view()['task']['tokens'],130)
+
+    def test_partial_values_are_lower_bounds_without_extending_old_open_turn(self):
+        first=self.event('task_started',0)+self.event('token_count',1,100)
+        self.log.write_bytes(first+self.event('task_complete',10))
+        self.index.sync([{'id':'task','path':str(self.log)}]);_,_,entry=self.index._entry('task')
+        self.index.consume(entry,first);entry['offset']=len(first)
+        row=self.index.view(['task'],now=self.start.timestamp()+86400)['task']
+        self.assertEqual((row['tokens'],row['seconds'],row['turns']),(100,0,1))
+        self.assertFalse(row['ready']);self.assertTrue(row['tokens_partial']);self.assertTrue(row['turns_partial'])
+        self.index.step(budget=1);row=self.index.view()['task']
+        self.assertEqual((row['tokens'],row['seconds'],row['turns']),(100,10,1))
+        self.assertFalse(row['partial']);self.assertFalse(row['turns_partial'])
+
+    def test_large_irrelevant_record_resumes_after_restart_without_payload_cache(self):
+        for kind in ('response_item','event_msg'):
+            with self.subTest(kind=kind):
+                first=self.event('token_count',1,100)
+                ignored=json.dumps({'timestamp':self.start.isoformat(),'type':kind,
+                                    'payload':{'type':'agent_message','text':'private-text'*10000}}).encode()+b'\n'
+                self.log.write_bytes(first+ignored+self.event('token_count',2,130))
+                self.index=TaskStatistics(self.cache);self.index.sync([{'id':'task','path':str(self.log)}])
+                _,_,entry=self.index._entry('task');chunk=(first+ignored)[:len(first)+1024]
+                self.index.consume(entry,chunk);entry['offset']=len(chunk);self.index.save(force=True)
+                self.assertTrue(entry['discarding']);self.assertEqual(entry['pending'],b'')
+                self.assertNotIn('private-text',self.cache.read_text())
+                self.index=TaskStatistics(self.cache)
+                with patch('codex_taskbar.task_statistics.event_from_line',wraps=event_from_line) as parser:
+                    self.sync();self.assertEqual(parser.call_count,1)
+                self.assertEqual(self.index.view()['task']['tokens'],130)
+
+    def test_unfamiliar_envelopes_use_parser_and_old_cache_is_retained(self):
+        event=json.loads(self.event('token_count',1,100))
+        self.log.write_bytes((json.dumps({'payload':event['payload'],'type':event['type'],'timestamp':event['timestamp']})+'\n').encode())
+        self.sync();self.index.save(force=True)
+        saved=json.loads(self.cache.read_text());saved['entries']['task'].pop('discarding');saved['entries']['task'].pop('size')
+        self.cache.write_text(json.dumps(saved));self.index=TaskStatistics(self.cache)
+        with patch.object(TaskStatistics,'apply') as apply:self.sync();apply.assert_not_called()
+        self.assertEqual(self.index.view()['task']['tokens'],100)
