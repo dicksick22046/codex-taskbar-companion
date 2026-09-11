@@ -3,6 +3,11 @@
 LANGUAGE_NAMES = (('en','English'),('zh-CN','简体中文'),('ja','日本語'),('es','Español'))
 LANGUAGES = tuple(code for code,name in LANGUAGE_NAMES)
 COPY = {
+    'Auto':'自动','Floating display':'悬浮显示器','Primary display':'主显示器','Display {number}':'显示器 {number}',
+    'Display unavailable':'显示器未连接',
+    'The saved display is disconnected. Using primary temporarily.':'原显示器未连接，暂时使用主显示器。',
+    'Use floating mode when taskbar space is unavailable.':'任务栏空间不足时使用悬浮窗。',
+    'Taskbar space unavailable. Using floating mode.':'任务栏空间不足，已使用悬浮窗。',
     'Support':'支持','Copy diagnostics':'复制诊断信息','Copied':'已复制',
     'Weekly quota remaining':'本周剩余额度',"Today's quota consumption":'今日额度消耗',
     '5-hour quota remaining':'5 小时窗口剩余额度','Next quota reset':'下次额度重置',
@@ -60,6 +65,11 @@ COPY = {
 }
 
 TRANSLATIONS = {'zh-CN': COPY, 'ja': {
+    'Auto':'自動','Floating display':'表示先','Primary display':'メインディスプレイ','Display {number}':'ディスプレイ {number}',
+    'Display unavailable':'画面が未接続',
+    'The saved display is disconnected. Using primary temporarily.':'保存した画面が未接続のため、一時的にメイン画面を使います。',
+    'Use floating mode when taskbar space is unavailable.':'タスクバーに空きがない場合はフローティング表示を使います。',
+    'Taskbar space unavailable. Using floating mode.':'タスクバーに空きがないためフローティング表示中です。',
     'Support':'サポート','Copy diagnostics':'診断情報をコピー','Copied':'コピー済み',
     'Weekly quota remaining':'週間の残りクォータ',"Today's quota consumption":'本日のクォータ使用量',
     '5-hour quota remaining':'5 時間枠の残りクォータ','Next quota reset':'次のクォータリセット',
@@ -115,6 +125,11 @@ TRANSLATIONS = {'zh-CN': COPY, 'ja': {
     'Update to {version}': '{version}に更新',
     'Version {version} is available. Update from Settings.': 'バージョン{version}が公開されました。設定から更新できます。',
 }, 'es': {
+    'Auto':'Auto','Floating display':'Pantalla flotante','Primary display':'Pantalla principal','Display {number}':'Pantalla {number}',
+    'Display unavailable':'Pantalla no disponible',
+    'The saved display is disconnected. Using primary temporarily.':'La pantalla guardada está desconectada. Se usa la principal temporalmente.',
+    'Use floating mode when taskbar space is unavailable.':'Usar modo flotante cuando no haya espacio en la barra de tareas.',
+    'Taskbar space unavailable. Using floating mode.':'Sin espacio en la barra de tareas. Se usa el modo flotante.',
     'Support':'Soporte','Copy diagnostics':'Copiar diagnóstico','Copied':'Copiado',
     'Weekly quota remaining':'Cuota semanal restante',"Today's quota consumption":'Consumo de cuota de hoy',
     '5-hour quota remaining':'Cuota restante de 5 horas','Next quota reset':'Próximo reinicio de cuota',

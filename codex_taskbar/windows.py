@@ -31,6 +31,15 @@ user32.SetWindowLongPtrW.argtypes = [w.HWND, ctypes.c_int, ctypes.c_ssize_t]
 user32.SetWindowLongPtrW.restype = ctypes.c_ssize_t
 user32.WindowFromPoint.argtypes=[w.POINT]
 user32.WindowFromPoint.restype=w.HWND
+user32.GetClassNameW.argtypes=[w.HWND,w.LPWSTR,ctypes.c_int]
+
+
+class MonitorInfo(ctypes.Structure):
+    _fields_=[('size',w.DWORD),('monitor',w.RECT),('work',w.RECT),('flags',w.DWORD)]
+
+
+user32.MonitorFromWindow.argtypes=[w.HWND,w.DWORD];user32.MonitorFromWindow.restype=w.HANDLE
+user32.GetMonitorInfoW.argtypes=[w.HANDLE,ctypes.POINTER(MonitorInfo)]
 
 
 def pointer_over(hwnd,x,y):
@@ -83,6 +92,19 @@ def rect(hwnd):
     if not user32.GetWindowRect(hwnd, ctypes.byref(box)):
         return None
     return box.left, box.top, box.right, box.bottom
+
+
+def foreground_fullscreen():
+    hwnd=user32.GetForegroundWindow()
+    if not hwnd or hwnd in (user32.GetShellWindow(),user32.GetDesktopWindow()):return False
+    class_name=ctypes.create_unicode_buffer(128);user32.GetClassNameW(hwnd,class_name,128)
+    if class_name.value in ('Shell_TrayWnd','Shell_SecondaryTrayWnd'):return False
+    bounds=rect(hwnd)
+    if not bounds:return False
+    info=MonitorInfo();info.size=ctypes.sizeof(info)
+    if not user32.GetMonitorInfoW(user32.MonitorFromWindow(hwnd,2),ctypes.byref(info)):return False
+    screen=info.monitor
+    return bounds[0]<=screen.left and bounds[1]<=screen.top and bounds[2]>=screen.right and bounds[3]>=screen.bottom
 
 
 def placement(minimum_width=240):

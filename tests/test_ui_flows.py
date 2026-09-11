@@ -27,9 +27,10 @@ class UIFlowTests(unittest.TestCase):
     def layout(self):self.dialog.grab();self.application.processEvents();self.dialog.grab()
 
     def test_every_settings_row_has_balanced_control_clearance(self):
+        self.bar.set_placement('auto')
         for language in app.LANGUAGES:
             self.bar.set_language(language)
-            for page,controls in ((0,[self.dialog.placement,self.dialog.capsule,self.dialog.transparency.parentWidget()]),(1,list(self.dialog.checks.values())),(2,[self.dialog.language,self.dialog.update_button,self.dialog.login])):
+            for page,controls in ((0,[self.dialog.placement,self.dialog.display,self.dialog.topmost,self.dialog.capsule,self.dialog.transparency.parentWidget()]),(1,list(self.dialog.checks.values())),(2,[self.dialog.language,self.dialog.update_button,self.dialog.login])):
                 self.dialog.navigation.setCurrentRow(page);self.layout()
                 for control in controls:
                     row=control.parentWidget();top=control.y();bottom=row.height()-control.y()-control.height()

@@ -154,7 +154,7 @@ class TaskFinder(QDialog):
     def __init__(self,bar):
         super().__init__();self.bar=bar;self.rows=[];self.input_key=None;self.pressed_id=None
         self.sort_column=6;self.sort_descending=True
-        bounds=bar.screen().availableGeometry();max_width=max(320,bounds.width()-32);max_height=max(240,bounds.height()-48)
+        bounds=(bar.floating_screen() if bar.floating else bar.screen()).availableGeometry();max_width=max(320,bounds.width()-32);max_height=max(240,bounds.height()-48)
         self.setFont(bar.font);self.setMinimumSize(min(760,max_width),min(300,max_height))
         self.setStyleSheet(('QWidget{font-family:"'+bar.font.family()+'";} '+CONTROLS+'''QDialog,QTableView{background:#24262c;color:#d7dfe9;}
             QLineEdit{background:#30343c;color:#e1e5ec;border:1px solid #484f5c;border-radius:9px;padding:10px 12px;}

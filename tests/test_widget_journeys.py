@@ -64,3 +64,14 @@ class WidgetJourneyTests(unittest.TestCase):
         point=choice.rect().center()
         QTest.wheelEvent(self.dialog.windowHandle(),QPointF(choice.mapTo(self.dialog,point)),QPoint(0,-120));self.application.processEvents()
         self.assertEqual(choice.currentData(),before);self.assertGreater(scroll.value(),0)
+
+    def test_auto_placement_and_display_choice_use_real_controls(self):
+        self.page(0)
+        with patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.windows.foreground_fullscreen',return_value=False):
+            self.click(self.dialog.placement.items[2][0]);self.assertEqual(self.bar.settings['placement'],'auto');self.assertTrue(self.bar.floating)
+            self.assertFalse(self.dialog.display_row.isHidden())
+            combo=self.dialog.display;combo.showPopup();self.application.processEvents()
+            combo.view().setCurrentIndex(combo.model().index(1,0));self.key(combo.view(),Qt.Key.Key_Return)
+            self.assertEqual(self.bar.settings['floating_display'],combo.currentData())
+            self.click(self.dialog.placement.items[1][0]);self.assertEqual(self.bar.settings['placement'],'floating')
+        self.click(self.dialog.placement.items[0][0]);self.assertFalse(self.bar.floating);self.assertTrue(self.dialog.display_row.isHidden())

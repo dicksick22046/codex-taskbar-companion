@@ -118,8 +118,11 @@ class SettingsDialog(QDialog):
             control=Toggle(caption);control.row=container;caption.setBuddy(control)
             items.addWidget(caption,1);items.addSpacing(16);items.addWidget(control);parent.addWidget(container);return control
         position=card(appearance);self.placement_label=QLabel()
-        self.placement=combo([('','taskbar'),('','floating')],bar.settings.get('placement','taskbar'),bar.set_placement,segmented=True)
+        self.placement=combo([('','taskbar'),('','floating'),('','auto')],bar.settings.get('placement','taskbar'),bar.set_placement,segmented=True)
         row(position,self.placement_label,self.placement);self.topmost_line=line(position)
+        self.display_label=QLabel();self.display_label.setWordWrap(True);self.display=Choice();self.display.setView(QListView());self.display.setMaximumWidth(230)
+        self.display.currentIndexChanged.connect(lambda:bar.set_floating_display(self.display.currentData()))
+        row(position,self.display_label,self.display);self.display_row=self.display.parentWidget();self.display_line=line(position);self.display_key=None
         self.topmost=toggle(position);self.topmost.setChecked(bar.settings.get('floating_topmost',True));self.topmost.toggled.connect(bar.set_floating_topmost)
         colors=card(appearance);self.capsule_label=QLabel()
         self.capsule=combo([('','dark'),('','light')],bar.settings.get('capsule_theme','dark'),bar.set_capsule_theme,segmented=True);row(colors,self.capsule_label,self.capsule);line(colors)
@@ -147,12 +150,15 @@ class SettingsDialog(QDialog):
         self.connection=QLabel();self.connection.setWordWrap(True);self.connection.setStyleSheet('color:#8797aa;font-size:12px;');general.addWidget(self.connection)
         general.addStretch()
         self.refresh();self.navigation.setCurrentRow(0);self.resize(self.sizeHint())
+        screen=bar.floating_screen() if bar.floating else bar.screen();self.move(screen.availableGeometry().center()-self.rect().center())
 
     @property
     def scroll_area(self):return self.pages[self.stack.currentIndex()]
     @property
     def body(self):return self.scroll_area.widget()
-    def sizeHint(self):return QSize(min(700,self.screen().availableGeometry().width()-32),min(540,max(300,self.screen().availableGeometry().height()-48)))
+    def sizeHint(self):
+        bounds=(self.bar.floating_screen() if self.bar.floating else self.bar.screen()).availableGeometry()
+        return QSize(min(700,bounds.width()-32),min(540,max(300,bounds.height()-48)))
 
     def select_page(self,index):
         self.stack.setCurrentIndex(index)
@@ -173,7 +179,7 @@ class SettingsDialog(QDialog):
         try:login=startup.enabled()
         except OSError:login=None
         bar=self.bar;handle=bar.windowHandle();native=bar.native_handle
-        report=diagnostic_text(bar.settings,bar.provider.get(),{'visible':bar.isVisible(),'native_visible':bool(windows.user32.IsWindowVisible(native)) if native else None,'minimized':bool(windows.user32.IsIconic(native)) if native else None,'exposed':bool(handle.isExposed()) if handle else None,'width':bar.width(),'height':bar.height(),'placement_available':not bar.placement_unavailable,'animations':bar.motion_enabled,'font':bar.font.family(),'startup':login})
+        report=diagnostic_text(bar.settings,bar.provider.get(),{'visible':bar.isVisible(),'native_visible':bool(windows.user32.IsWindowVisible(native)) if native else None,'minimized':bool(windows.user32.IsIconic(native)) if native else None,'exposed':bool(handle.isExposed()) if handle else None,'width':bar.width(),'height':bar.height(),'placement_available':not bar.placement_unavailable,'effective_placement':'floating' if bar.floating else 'taskbar','animations':bar.motion_enabled,'font':bar.font.family(),'startup':login})
         QApplication.clipboard().setText(report);self.diagnostics_button.setText(bar.label('Copied'));self.copy_timer.start(2000)
 
     def refresh(self):
@@ -182,16 +188,19 @@ class SettingsDialog(QDialog):
             self.navigation.item(i).setText(label(name));self.headings[i].setText(label(name))
         self.language_label.setText(label('Language'));self.behavior_title.setText(label('Interaction'));self.update_label.setText(label('Updates'))
         self.support_label.setText(label('Support'));self.diagnostics_button.setText(label('Copied' if self.copy_timer.isActive() else 'Copy diagnostics'))
-        for control,key,options in ((self.language,'language',None),(self.placement,'placement',('Taskbar','Floating')),(self.capsule,'capsule_theme',('Dark','Light'))):
+        for control,key,options in ((self.language,'language',None),(self.placement,'placement',('Taskbar','Floating','Auto')),(self.capsule,'capsule_theme',('Dark','Light'))):
             control.blockSignals(True)
             if options:
                 for i,value in enumerate(options):control.setItemText(i,label(value))
             control.setCurrentIndex(max(0,control.findData(self.bar.settings.get(key,{'language':'en','placement':'taskbar','capsule_theme':'dark'}[key]))));control.blockSignals(False)
         self.placement_label.setText(label('Placement'));self.capsule_label.setText(label('Capsule'));self.transparency_label.setText(label('Transparency'))
-        for caption,control in ((self.placement_label,self.placement),(self.capsule_label,self.capsule),(self.transparency_label,self.transparency),(self.language_label,self.language)):
+        for caption,control in ((self.placement_label,self.placement),(self.display_label,self.display),(self.capsule_label,self.capsule),(self.transparency_label,self.transparency),(self.language_label,self.language)):
             caption.setBuddy(control);control.setAccessibleName(caption.text())
-        self.topmost.setText(label('Keep on top'));self.topmost.setVisible(self.bar.floating);self.topmost_line.setVisible(self.bar.floating)
-        self.topmost.row.setVisible(self.bar.floating)
+        floating_options=self.bar.settings.get('placement') in ('auto','floating')
+        self.topmost.setText(label('Keep on top'));self.topmost.setVisible(floating_options);self.topmost_line.setVisible(floating_options)
+        self.topmost.row.setVisible(floating_options);self.display_row.setVisible(floating_options);self.display_line.setVisible(floating_options)
+        self.display_label.setText(label('Floating display'));self.display.setAccessibleName(label('Floating display'));self.refresh_displays()
+        self.placement.items[2][0].setToolTip(label('Use floating mode when taskbar space is unavailable.'))
         self.transparency.blockSignals(True);self.transparency.setValue(self.bar.settings.get('capsule_transparency',0));self.transparency.blockSignals(False);self.transparency_value.setText(f'{self.transparency.value()}%')
         for key,source in DISPLAY_LABELS.items():self.checks[key].setText(label(source))
         self.rotation.setText(label('Rotate left-side indicators'));self.hover.setText(label('Open panels on hover'));self.login.setText(label('Start at Windows sign-in'))
@@ -201,14 +210,33 @@ class SettingsDialog(QDialog):
 
     def refresh_status(self):
         label=self.bar.label;data=self.bar.provider.get()
+        self.refresh_displays()
         errors=tuple(sorted(self.bar.settings_errors))
-        key=(errors,self.bar.language,data.get('quota_error'),bool(data.get('quota')),data.get('error'),data.get('loading'),self.bar.placement_unavailable,self.bar.updater.message,self.bar.updater.busy,(self.bar.updater.release or {}).get('version'))
+        fallback=self.bar.settings.get('placement')=='auto' and self.bar.floating
+        key=(fallback,errors,self.bar.language,data.get('quota_error'),bool(data.get('quota')),data.get('error'),data.get('loading'),self.bar.placement_unavailable,self.bar.updater.message,self.bar.updater.busy,(self.bar.updater.release or {}).get('version'))
         if key==getattr(self,'status_key',None):return
         self.status_key=key
         self.feedback.setText('\n'.join(label(error) for error in errors));self.feedback.setVisible(bool(errors))
         if data.get('quota_error'):message='Showing the last available quota.' if data.get('quota') else 'Quota unavailable. Try again later.'
         elif data.get('error'):message='Some data is unavailable. Showing the last available records.'
         elif data.get('loading'):message='Connecting to Codex…'
+        elif fallback:message='Taskbar space unavailable. Using floating mode.'
         elif self.bar.placement_unavailable and any(self.bar.settings.get(k) for k in DISPLAY_LABELS):message='Not enough taskbar space. Settings are available in the system tray.'
         else:message='Connected to Codex'
         self.connection.setText(label(message));self.update_button.setText(label(self.bar.updater.message,version=(self.bar.updater.release or {}).get('version','')));self.update_button.setEnabled(not self.bar.updater.busy)
+
+    def refresh_displays(self):
+        screens=QApplication.screens();position=self.bar.settings.get('floating_position') or {}
+        selected=self.bar.settings.get('floating_display',position.get('screen'))
+        entries=[(screen.name(),round(screen.size().width()*screen.devicePixelRatio()),round(screen.size().height()*screen.devicePixelRatio())) for screen in screens]
+        key=(self.bar.language,selected,tuple(entries))
+        if key==self.display_key:return
+        self.display_key=key;self.display.blockSignals(True);self.display.clear();self.display.addItem(self.bar.label('Primary display'),None)
+        for index,(name,width,height) in enumerate(entries):
+            self.display.addItem(f'{index+1} · {width} × {height}',name)
+            description=self.bar.label('Display {number}',number=index+1)+f' · {width} × {height}'
+            self.display.setItemData(index+1,description,Qt.ItemDataRole.ToolTipRole);self.display.setItemData(index+1,description,Qt.ItemDataRole.AccessibleTextRole)
+        if selected and selected not in [entry[0] for entry in entries]:
+            self.display.addItem(self.bar.label('Display unavailable'),selected);self.display.model().item(self.display.count()-1).setEnabled(False)
+        self.display.setCurrentIndex(max(0,self.display.findData(selected)));self.display.blockSignals(False)
+        self.display.setToolTip(self.bar.label('The saved display is disconnected. Using primary temporarily.') if selected and selected not in [entry[0] for entry in entries] else self.display.currentText())

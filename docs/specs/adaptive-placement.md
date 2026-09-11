@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Add Auto beside Taskbar and Floating. Preserve existing saved placement and keep Taskbar as the default. Auto prefers the existing primary-taskbar location, falls back to the existing floating capsule when usable space is unavailable, and returns when space recovers. A changed availability result must persist for one second to avoid layout chatter; explicit settings changes and the initial decision resolve immediately. Defer background mode switches during a press, drag, menu or reset confirmation. Never rewrite the user's chosen mode or floating position as a consequence of fallback.
+Add Auto beside Taskbar and Floating. Preserve existing saved placement and keep Taskbar as the default. Auto prefers the existing primary-taskbar location, falls back to the existing floating capsule when usable space is unavailable, and returns when space recovers. A changed availability result must persist for one second to avoid layout chatter; explicit settings changes and the initial decision resolve immediately. Defer background mode switches during a press, drag, open panel, menu or reset confirmation. Never rewrite the user's chosen mode or floating position as a consequence of fallback.
 
 An intentionally hidden taskbar/fullscreen result must not cause a new overlay. Auto's floating fallback is hidden while the foreground application covers its monitor; manual Floating retains the existing keep-on-top behavior. Reuse the current 150 ms UI check and existing data Provider; add no collection thread or network request.
 

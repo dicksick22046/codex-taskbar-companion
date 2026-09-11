@@ -30,7 +30,7 @@ from .settings_ui import SettingsDialog, Toggle, app_icon
 from .updates import UpdateController, install_after_exit
 from .build_info import VERSION, APP_NAME, RELEASE_REPOSITORY
 from .i18n import LANGUAGES, translate, project_label, task_title
-from .presentation import floating_rect,remember_position,clamp_rect,panel_rect
+from .presentation import floating_rect,remember_position,clamp_rect,panel_rect,AutoPlacement
 from .motion import Spring
 from .attention_notices import AttentionNotices
 
@@ -248,6 +248,7 @@ class StatusBar(QWidget):
         self.frame_key=None;self.panel_key=None
         self.host_key=None;self.drag_origin=None;self.dragging=False
         self.content_limit=None
+        self.auto_placement=AutoPlacement()
         self.motion_enabled=windows.animations_enabled()
         self.settings=read_settings(RUNTIME/'ui_settings.json')
         self.chart_unit=self.settings['chart_unit']
@@ -441,12 +442,13 @@ class StatusBar(QWidget):
 
     @property
     def floating(self):
-        return self.settings.get('placement')=='floating'
+        return self.settings.get('placement')=='floating' or self.settings.get('placement')=='auto' and self.auto_placement.floating
 
     def set_placement(self,value):
-        if value not in ('taskbar','floating') or self.settings.get('placement')==value:return
+        if value not in ('auto','taskbar','floating') or self.settings.get('placement')==value:return
         self.hide_popup(immediate=True);self.release_press();self.drag_origin=None;self.dragging=False
         self.settings['placement']=value;self.position=None;self.host_key=None
+        self.auto_placement=AutoPlacement()
         self.save_settings();self.tick(resize=True)
         if self.settings_dialog:self.settings_dialog.refresh()
 
@@ -455,7 +457,20 @@ class StatusBar(QWidget):
 
     def floating_screen(self):
         position=self.settings.get('floating_position') or {}
-        return next((screen for screen in QApplication.screens() if screen.name()==position.get('screen')),QApplication.primaryScreen())
+        selected=self.settings.get('floating_display',position.get('screen'))
+        return next((screen for screen in QApplication.screens() if screen.name()==selected),QApplication.primaryScreen())
+
+    def set_floating_display(self,name):
+        screens=QApplication.screens();target=QApplication.primaryScreen() if name is None else next((screen for screen in screens if screen.name()==name),None)
+        if target is None:return
+        position=self.settings.get('floating_position')
+        if name==self.settings.get('floating_display',(position or {}).get('screen')):return
+        self.hide_popup(immediate=True);self.release_press();self.drag_origin=None;self.dragging=False
+        if position:position={**position,'screen':target.name()}
+        else:position=remember_position(floating_rect(target.availableGeometry()),target.availableGeometry(),target.name())
+        self.settings.update(floating_display=name,floating_position=position);self.position=None
+        self.save_settings();self.tick(resize=True)
+        if self.settings_dialog:self.settings_dialog.refresh_displays()
 
     def set_capsule_theme(self,value):
         if value not in CAPSULE_COLORS:return
@@ -633,7 +648,7 @@ class StatusBar(QWidget):
 
     def open_menu(self):
         self.hide_popup(immediate=True);self.menu.ensurePolished()
-        bounds=self.screen().availableGeometry();size=self.menu.sizeHint()
+        bounds=(self.floating_screen() if self.floating else self.screen()).availableGeometry();size=self.menu.sizeHint()
         x=max(bounds.left(),min(QCursor.pos().x(),bounds.right()-size.width()+1))
         bottom=min(self.y(),bounds.bottom()+1)-TaskPopup.GAP
         y=max(bounds.top(),bottom-size.height())
@@ -768,6 +783,7 @@ class StatusBar(QWidget):
         if dragged:
             screen=QApplication.screenAt(self.geometry().center()) or self.screen()
             self.settings['floating_position']=remember_position(self.geometry(),screen.availableGeometry(),screen.name())
+            if self.settings.get('floating_display') is not None or screen is not QApplication.primaryScreen():self.settings['floating_display']=screen.name()
             self.save_settings()
         elif hit and hit[1].contains(event.position()):
             if hit[0]=='task':self.open_task(hit[2])
@@ -828,10 +844,17 @@ class StatusBar(QWidget):
         if not metrics and not self.settings['show_tasks']:
             self.hide();self.hide_popup(immediate=True);return
         minimum=min(minimum,self.content_width(540))
+        placed=windows.placement(minimum_width=minimum) if self.settings.get('placement')!='floating' else None
+        if self.settings.get('placement')=='auto':
+            before=self.floating
+            locked=bool(self.pressed or self.drag_origin or self.popup or self.menu.isVisible() or self.confirming_reset)
+            self.auto_placement.resolve(placed is not None,time.monotonic(),immediate=resize,locked=locked)
+            if before!=self.floating:self.hide_popup(immediate=True);self.position=None;self.host_key=None
         if self.floating:
-            box=self.geometry() if self.drag_origin is not None else floating_rect(self.floating_screen().availableGeometry(),self.settings.get('floating_position'))
-            placed=(*box.getRect(),1,False)
-        else:placed=windows.placement(minimum_width=minimum)
+            screen=self.floating_screen()
+            box=self.geometry() if self.drag_origin is not None else floating_rect(screen.availableGeometry(),self.settings.get('floating_position')) if screen else None
+            hidden=self.settings.get('placement')=='auto' and (bool(placed and placed[-1]) or windows.foreground_fullscreen())
+            placed=(*box.getRect(),1,hidden) if box else None
         self.placement_unavailable=placed is None
         if not placed:self.hide();self.hide_popup(immediate=True);return
         hwnd=int(self.winId())
@@ -1087,7 +1110,7 @@ class TaskPopup(QWidget):
 
     def place_panel(self,width,height):
         if getattr(self.owner,'floating',False):
-            self.setGeometry(panel_rect(self.owner.geometry(),self.owner.screen().availableGeometry(),width,height,self.GAP))
+            self.setGeometry(panel_rect(self.owner.geometry(),self.owner.floating_screen().availableGeometry(),width,height,self.GAP))
         else:self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-height),width,height)
 
     def refresh(self,data):
@@ -1354,7 +1377,7 @@ class TaskListPopup(TaskPopup):
             self.row_positions.append(y);y+=self.ROW_HEIGHT
         self.full_height=max(24+self.header_extra+self.ROW_HEIGHT,y)
         height=min(round(self.full_height+16),500) if self.owner.floating else min(round(self.full_height+16),500,max(100,self.owner.y()-16))
-        screen=self.owner.screen().availableGeometry()
+        screen=(self.owner.floating_screen() if self.owner.floating else self.owner.screen()).availableGeometry()
         left=max(screen.left(),min(self.owner.x(),screen.right()-width+1))
         if self.owner.floating:
             self.place_panel(width,height);height=self.height()

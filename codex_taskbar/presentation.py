@@ -2,6 +2,18 @@
 from PySide6.QtCore import QRect
 
 
+class AutoPlacement:
+    def __init__(self):self.floating=False;self.initialized=False;self.candidate=None;self.since=0.
+    def resolve(self,available,now,immediate=False,locked=False):
+        desired=not available
+        if immediate or not self.initialized:
+            self.floating=desired;self.initialized=True;self.candidate=None
+        elif desired==self.floating:self.candidate=None
+        elif desired!=self.candidate:self.candidate=desired;self.since=now
+        elif now-self.since>=1. and not locked:self.floating=desired;self.candidate=None
+        return self.floating
+
+
 def clamp_rect(rect,bounds):
     width=min(rect.width(),bounds.width());height=min(rect.height(),bounds.height())
     return QRect(max(bounds.left(),min(rect.x(),bounds.right()-width+1)),
