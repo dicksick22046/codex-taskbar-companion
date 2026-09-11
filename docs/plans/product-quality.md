@@ -11,7 +11,7 @@
 | 1.5 Independently audit motion and verify interruption/reduced motion/hidden timers | Verified in 0.7.0 | Five vetted caller-level findings corrected; ring and quota motion retained |
 | 1.6 Verify multi-step flows, install, restart, preferences, CI and release | Automated gates passed; published 0.7.0 | 234 tests, three window-level offscreen journeys, installed hash/relaunch/startup/preferences and main/tag CI |
 | 1.7 Inspect installed strip pixels on an available desktop | Completed; follow-up paused | Desktop capture recovered; the installed 0.7.0 strip rendered with quota text, rings, counts and task content. Native hit/foreground checks passed. This confirms rendering, not that every interaction is defect-free; the reported selection issue is tracked below. |
-| 1.8 Correct selection clearance across strip entries | Source verified; local build pending | Approximately 5 DIP optical padding, complete nonoverlapping targets, existing-pill status emphasis and capsule end clearance. Normal/open/press/cancel renders checked in both themes and layout modes; no release for this small fix alone. |
+| 1.8 Correct selection clearance across strip entries | Local fix installed; source pushed, not separately released | Approximately 5 DIP optical padding, complete nonoverlapping targets, existing-pill status emphasis and consistent short/elided-title end clearance. 237 tests and Windows/Linux CI passed; normal/open/press/cancel renders checked in both themes and layout modes. Local 0.7.0 build includes b12ecd1; published 0.7.0 remains unchanged. |
 
 ## 2. Actionable attention and failures
 
