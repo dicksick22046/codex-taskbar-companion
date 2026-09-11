@@ -89,7 +89,7 @@ class PopupInitialFrameTests(unittest.TestCase):
             dispatch.assert_called_once()
         task['title']='A long task title '*40
         bar.grab()
-        self.assertEqual(bar.task_area.right(),bar.width())
+        self.assertEqual(bar.task_area.right(),bar.width()-5)
         bar.task=None;bar.data={'tasks':[]};bar.grab()
         self.assertTrue(bar.task_area.isEmpty())
         self.assertEqual(sum(mode=='daily' for mode,rect,target in bar.hit_regions),1)

@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Balance strip selection padding around rings and text, keep feedback inside clickable targets, and emphasize status pills without a second enclosing box.
+
 ## 0.7.0
 
 - Rebuild settings with a persistent sidebar, clearer typography, balanced rows and direct placement/theme choices.

@@ -34,4 +34,6 @@ The 0.6.1 pass was insufficient: subsequent user feedback exposed unbalanced con
 
 The final desktop capture returned an entirely black screen and no foreground window after an idle period. This is not evidence of a successful installed pixel render. A quiet follow-up is scheduled to inspect only the companion after the desktop is available; it must not wake/unlock the computer or control the user's input.
 
+Follow-up: desktop capture is now available. The installed 0.7.0 strip rendered correctly in a private, strip-only capture; its native hit window and unchanged foreground were confirmed. The periodic follow-up is paused. User feedback separately exposed selection padding: a ring had less than 1 DIP clearance on its left while text had much more on its right. The correction gives metrics approximately 5 DIP optical padding, preserves ring/layout coordinates, aligns targets with their feedback, and emphasizes status pills directly. It is tracked as an unreleased local fix; the original release is not rewritten.
+
 Synthetic events and native renders do not establish real-device end-to-end accessibility. Screen-reader exposure of custom-painted strip/popover content, real touchpad hardware, mixed-DPI multi-monitor behavior, and other operating systems require separate device testing. This audit does not claim those are complete.

@@ -153,10 +153,10 @@ def side_tag(p,x,y,language='en',light=False):
     return width
 
 
-def activity_count(p,x,y,count,color=ACCENT,pulse=True,text_color=None,glyph=None):
+def activity_count(p,x,y,count,color=ACCENT,pulse=True,text_color=None,glyph=None,emphasis=0):
     font=face(8);label=str(count)
     width=QFontMetricsF(font).horizontalAdvance(label)+24
-    background=QColor(color);background.setAlpha(26)
+    background=QColor(color);background.setAlpha(26+16*emphasis)
     p.setPen(Qt.PenStyle.NoPen);p.setBrush(background)
     p.drawRoundedRect(QRectF(x,y-9,width,18),9,9)
     if glyph:text(p,x+5,y,glyph,face(8),color)
@@ -893,16 +893,18 @@ class StatusBar(QWidget):
     def paintEvent(self,event):
         p=painter(self);data=self.data
         theme=self.settings.get('capsule_theme','dark');palette=CAPSULE_COLORS[theme]
-        self.hit_regions=[]
+        self.hit_regions=[];self.feedback_regions={}
+        def emphasis(mode):
+            if self.pressed and self.pressed[0]==mode and self.press_inside:return 2
+            return int(bool(self.popup and self.popup.mode==mode and self.popup.reveal_target==1.))
         def finish():
             # Windows passes mouse messages through alpha-zero pixels in layered windows.
             p.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOver)
-            for mode,region,_ in self.hit_regions:
-                pressed=bool(self.pressed and self.pressed[0]==mode and self.press_inside)
-                opened=bool(self.popup and self.popup.mode==mode and self.popup.reveal_target==1.)
-                if pressed or opened:
-                    color=QColor('#ffffff' if theme=='dark' else '#22354b');color.setAlpha(25 if pressed else 14)
-                    p.setPen(Qt.PenStyle.NoPen);p.setBrush(color);p.drawRoundedRect(region.adjusted(0,4,0,-4),5,5)
+            for mode,region in self.feedback_regions.items():
+                state=emphasis(mode)
+                if state:
+                    color=QColor('#ffffff' if theme=='dark' else '#22354b');color.setAlpha(25 if state==2 else 14)
+                    p.setPen(Qt.PenStyle.NoPen);p.setBrush(color);p.drawRoundedRect(region,7,7)
             if self.hit_regions:
                 background=QColor(palette['background']);background.setAlpha(round(255*(1-self.settings.get('capsule_transparency',0)/100)))
                 p.setPen(Qt.PenStyle.NoPen);p.setBrush(background)
@@ -919,7 +921,6 @@ class StatusBar(QWidget):
         x,y=CONTENT_X,self.height()/2
         def field(kind,value,fraction):
             nonlocal x
-            left=x-7
             colors=palette['rings']
             color=QColor(colors[kind]);width=self.metric_text_width(kind,value)
             def draw_value(value,line_y):
@@ -946,9 +947,11 @@ class StatusBar(QWidget):
                 p.restore()
             else:draw_value(value,y)
             icon(p,kind,x,y,color,fraction=current_fraction)
+            feedback=QRectF(x-11,4,width+28,self.height()-8)
             x+=12+width+(13 if self.settings.get('rotate_quotas') else 17)
             mode={'quota':'usage','session':'session','spent':'daily','clock':'resets'}[hit_kind]
-            self.hit_regions.append((mode,QRectF(left,0,x-left-8,self.height()),None))
+            self.hit_regions.append((mode,QRectF(feedback.x(),0,feedback.width(),self.height()),None))
+            self.feedback_regions[mode]=feedback
         def separator():
             nonlocal x
             if not self.settings.get('rotate_quotas'):
@@ -964,7 +967,7 @@ class StatusBar(QWidget):
         badge_x=x-6
         for mode,color in [('waiting',palette['amber']),('running',palette['green']),('unread',palette['amber']),('failed',palette['failed']),('stopped',palette['stopped'])]:
             if counts[mode]:
-                width=activity_count(p,badge_x,y,counts[mode],color,pulse=mode=='running' and self.motion_enabled,text_color=color if theme=='light' else None,glyph='?' if mode=='waiting' else None)
+                width=activity_count(p,badge_x,y,counts[mode],color,pulse=mode=='running' and self.motion_enabled,text_color=color if theme=='light' else None,glyph='?' if mode=='waiting' else None,emphasis=emphasis(mode))
                 self.hit_regions.append((mode,QRectF(badge_x-2,0,width+4,self.height()),None));badge_x+=width+6
         if any(counts[k] for k in STATUS_CATEGORIES):x=badge_x+4
         if self.task:
@@ -998,6 +1001,9 @@ class StatusBar(QWidget):
                 task_label(self.previous_task,1-self.task_blend,-22*self.task_blend)
             task_label(self.task,self.task_blend,22*(1-self.task_blend),current=True);p.restore()
             shown=self.previous_task if self.previous_task and self.task_blend<.5 else self.task
+            feedback=self.task_area.adjusted(-4,4,0,-4).intersected(QRectF(5,4,self.width()-10,self.height()-8))
+            self.feedback_regions['task']=feedback
+            self.task_area=QRectF(feedback.x(),0,feedback.width(),self.height())
             self.hit_regions.append(('task',QRectF(self.task_area),dict(shown)))
         finish()
 

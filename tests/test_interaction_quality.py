@@ -121,3 +121,33 @@ class InteractionQualityTests(unittest.TestCase):
         for _ in range(120):
             value,velocity=critical_step(value,velocity,1,1/60);values.append(value)
         self.assertEqual(values,sorted(values));self.assertTrue(all(0<=x<=1 for x in values))
+
+    def test_metric_feedback_has_optical_padding_and_distinct_complete_targets(self):
+        for rotated in (False,True):
+            self.bar.settings['rotate_quotas']=rotated
+            for language in app.LANGUAGES:
+                self.bar.settings['language']=language
+                for kind,_,_ in self.bar.quota_choices():
+                    self.bar.quota_kind=kind
+                    with patch('codex_taskbar.app.icon',wraps=app.icon) as icons:self.bar.grab()
+                    metrics=[c for c in icons.call_args_list if c.args[1] in ('quota','session','spent','clock')]
+                    for call in metrics:
+                        name,x=call.args[1:3];mode={'quota':'usage','session':'session','spent':'daily','clock':'resets'}[name]
+                        box=self.bar.feedback_regions[mode];target=next(r for m,r,t in self.bar.hit_regions if m==mode)
+                        self.assertGreaterEqual(x-6.2-box.left(),4.5)
+                        self.assertGreaterEqual(self.bar.height()/2-6.2-box.top(),4.5)
+                        self.assertTrue(target.contains(box));self.assertGreaterEqual(box.left(),5)
+                    for i,(_,rect,_) in enumerate(self.bar.hit_regions):
+                        for _,other,_ in self.bar.hit_regions[i+1:]:self.assertFalse(rect.intersects(other))
+
+    def test_count_selection_uses_its_own_pill_and_does_not_shift_content(self):
+        self.bar.grab();before=[(m,app.QRectF(r)) for m,r,t in self.bar.hit_regions]
+        panel=self.panel('running');panel.reveal_target=1.
+        with patch('codex_taskbar.app.activity_count',wraps=app.activity_count) as counts:self.bar.grab()
+        self.assertEqual([(m,r) for m,r,t in self.bar.hit_regions],before)
+        self.assertNotIn('running',self.bar.feedback_regions)
+        self.assertEqual(counts.call_args_list[0].kwargs['emphasis'],1)
+        hit=next(h for h in self.bar.hit_regions if h[0]=='running');self.bar.begin_press(hit)
+        with patch('codex_taskbar.app.activity_count',wraps=app.activity_count) as counts:self.bar.grab()
+        self.assertEqual(counts.call_args_list[0].kwargs['emphasis'],2)
+        self.bar.track_pointer(app.QPointF(-1,-1));self.assertFalse(self.bar.press_inside)

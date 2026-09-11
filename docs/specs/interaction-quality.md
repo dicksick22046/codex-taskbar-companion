@@ -14,6 +14,8 @@ Quota unit tabs follow the same press/release/cancel contract. Unit targets cann
 
 Use the existing typography and manual colors, with subtle filled press/open states, rounded control groups and consistent spacing. Keep the established opaque popovers. Apple-style refinement means predictable, brief, interruptible feedback, not decorative bounce or renewed background blur.
 
+Strip feedback uses content padding, not the old raw hit rectangle: metric rings and text have approximately 5 DIP of optical clearance, with unchanged ring coordinates and metric spacing. Targets cover the visible feedback background and do not overlap neighboring targets. Task feedback respects the rounded capsule's end padding. Status counts emphasize their existing pill instead of adding a second enclosing rectangle. Inspect normal, pressed, open and transitioning states in both themes and rotation modes.
+
 Switch and popover transitions start from the current presented value and retain velocity when reversed; use critically damped motion without oscillation. Rotation must not change the visible task beneath a held pointer. Floating drag remains one-to-one and retains its grab offset. Closed/hidden content does not run continuous paint timers. Respect the Windows client-area animation preference: retain static status indicators and readable labels while disabling nonessential movement.
 
 ## Content and scrolling
