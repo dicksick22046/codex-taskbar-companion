@@ -1,5 +1,6 @@
 """Task-list ordering and labels, independent of the window implementation."""
 from uuid import UUID
+from datetime import datetime
 from .usage import human_tokens
 
 CATEGORIES = ('waiting','running', 'unread', 'failed', 'stopped', 'recent')
@@ -42,7 +43,10 @@ def task_rows(data):
             if task["id"] not in seen:
                 tasks.append(task)
                 seen.add(task["id"])
-    tasks.sort(key=lambda t: (bool(t.get('running')),t.get("activity_at") or t.get("started_at") or ""), reverse=True)
+    def order(task):
+        at=task.get('activity_at') or task.get('started_at')
+        return bool(task.get('running')),datetime.fromisoformat(at).timestamp() if at else 0
+    tasks.sort(key=order, reverse=True)
     return tasks
 
 

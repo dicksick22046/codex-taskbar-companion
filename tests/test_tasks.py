@@ -172,6 +172,15 @@ class TaskTests(unittest.TestCase):
         self.assertIsNone(publish(None)['unread'])
         provider.side_rows[0]['completion_kind']='turn_aborted'
         self.assertFalse(publish({'side'})['unread'])
+        provider.side_rows[0]['completion_kind']='session_idle'
+        self.assertTrue(publish({'side'})['unread'])
+        self.assertFalse(publish(set())['unread'])
+        self.assertEqual(category_counts(provider.snapshot)['running'],0)
+
+    def test_task_activity_order_compares_instants_across_offsets(self):
+        data={'tasks':[{'id':'older','running':True,'activity_at':'2026-09-11T09:00:00+08:00'},
+                       {'id':'newer','running':True,'activity_at':'2026-09-11T05:00:00+00:00'}]}
+        self.assertEqual([t['id'] for t in task_rows(data)],['newer','older'])
 
     def test_side_unread_survives_parent_running_then_finishing_without_double_counting(self):
         from unittest.mock import Mock

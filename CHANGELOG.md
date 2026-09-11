@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+- Clear stale running side chats when Codex reports session inactivity, including when no completion notification appears. Preserve explicit interruption and native unread state.
+- Compare task activity timestamps by instant so side chats with different timezone offsets cannot displace newer main-task activity.
+
 - Show partial task totals and indexing progress while local history is being processed; retain cached work across restarts.
 - Skip unrelated log payloads when indexing lifetime statistics, reducing processing time for large task histories without increasing the polling frequency.
 

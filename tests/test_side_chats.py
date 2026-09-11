@@ -89,3 +89,35 @@ class SideChatTests(unittest.TestCase):
             self.assertFalse(cache.exists())
             self.assertTrue(reader.update([{'id':'main'}])[0]['running'])
             self.assertTrue(cache.exists())
+
+    def idle(self,at=120,thread='side'):
+        stamp=datetime.fromtimestamp(at,timezone.utc).isoformat()
+        return f'{stamp} info [browser-session-registry] IAB_LIFECYCLE ended browser use session activity conversationId={thread} disposeAfterSessionActivity=false windowId=1\n'
+
+    def test_idle_without_notification_stops_side_and_restart_replays_it(self):
+        with patch('codex_taskbar.side_chats.process_alive',return_value=True):
+            self.assertTrue(self.reader.update([{'id':'main'}])[0]['running'])
+            with self.log.open('a',encoding='utf-8') as f:f.write(self.idle())
+            row=self.reader.update([{'id':'main'}])[0]
+            self.assertFalse(row['running']);self.assertEqual(row['completion_kind'],'session_idle')
+            self.assertEqual((row['started_at'],row['ended_at']),(102,120))
+            restarted=SideChats(self.root,self.core,self.state)
+            self.assertEqual(restarted.update([{'id':'main'}]),[row])
+            with self.log.open('a',encoding='utf-8') as f:f.write(self.response(140,'side','turn/start','next'))
+            row=restarted.update([{'id':'main'}])[0]
+            self.assertTrue(row['running']);self.assertEqual(row['started_at'],140);self.assertIsNone(row['completion_kind'])
+
+    def test_idle_cleanup_preserves_explicit_completion_and_interrupt(self):
+        for terminal,expected in [(self.response(120,'side','turn/interrupt','stop'),'turn_aborted'),
+             ('1970-01-01T00:02:00+00:00 info [electron-message-handler] [desktop-notifications] show turn-complete conversationId=side turnId=turn\n','task_complete')]:
+            with self.subTest(expected=expected),patch('codex_taskbar.side_chats.process_alive',return_value=True):
+                self.log.write_text(self.response(102,'side','turn/start','start')+self.response(100,'main','thread/fork','fork-request')+terminal+self.idle(121),encoding='utf-8')
+                row=SideChats(self.root,self.core,self.state).update([{'id':'main'}])[0]
+                self.assertEqual(row['completion_kind'],expected);self.assertEqual(row['ended_at'],120)
+
+    def test_unrelated_activity_or_old_idle_does_not_stop_current_side(self):
+        with self.log.open('a',encoding='utf-8') as f:
+            f.write(self.idle(101)+self.idle(120,'another-side'))
+            f.write('1970-01-01T00:02:00+00:00 info [electron-message-handler] thread_stream_view_activity_changed active=false conversationId=side\n')
+        with patch('codex_taskbar.side_chats.process_alive',return_value=True):
+            self.assertTrue(self.reader.update([{'id':'main'}])[0]['running'])

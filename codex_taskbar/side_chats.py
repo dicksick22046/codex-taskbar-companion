@@ -69,11 +69,12 @@ class SideChats:
                 line=raw.decode('utf-8',errors='replace')
                 response=bool(re.match(r'^\S+ info \[AppServerConnection\] response_routed ',line))
                 completed=bool(re.match(r'^\S+ info \[electron-message-handler\] \[desktop-notifications\] show turn-complete ',line))
-                if not response and not completed:continue
+                idle=bool(re.match(r'^\S+ info \[browser-session-registry\] IAB_LIFECYCLE ended browser use session activity ',line))
+                if not response and not completed and not idle:continue
                 values=dict(re.findall(r'([A-Za-z]+)=([^\s]+)',line))
                 if response and (values.get('errorCode')!='null' or values.get('method') not in ('thread/fork','turn/start','turn/interrupt')):continue
                 at=datetime.fromisoformat(line.split(' ',1)[0].replace('Z','+00:00')).timestamp()
-                events.append((at,'complete' if completed else values['method'],values))
+                events.append((at,'complete' if completed else 'idle' if idle else values['method'],values))
         for at,kind,values in sorted(events,key=lambda e:e[0]):
             thread=values.get('conversationId')
             if not thread or thread=='null':continue
@@ -82,8 +83,10 @@ class SideChats:
             else:
                 previous=self.states.get(thread)
                 if previous and previous['activity_at']>=at:continue
+                # Cleanup confirms inactivity but cannot replace a known terminal reason.
+                if kind=='idle' and previous and not previous['running']:continue
                 self.states[thread]={'id':thread,'running':kind=='turn/start',
-                    'completion_kind':'task_complete' if kind=='complete' else 'turn_aborted' if kind=='turn/interrupt' else None,
+                    'completion_kind':'task_complete' if kind=='complete' else 'turn_aborted' if kind=='turn/interrupt' else 'session_idle' if kind=='idle' else None,
                     'started_at':at if kind=='turn/start' else (previous or {}).get('started_at'),
                     'ended_at':None if kind=='turn/start' else at,'activity_at':at}
         if self.forks and self.core_db.exists() and self.state_db.exists():

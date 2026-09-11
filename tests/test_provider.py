@@ -80,6 +80,35 @@ class ProviderFailureTests(unittest.TestCase):
 
 
 class SideChatAggregationTests(unittest.TestCase):
+    def test_idle_side_removes_stale_count_without_stopping_active_parent(self):
+        from datetime import timedelta,timezone
+        from unittest.mock import Mock
+        from codex_taskbar.tasks import category_counts,panel_rows
+        from codex_taskbar.task_finder import finder_rows
+        now=datetime.now(timezone.utc)
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);path=root/'parent.jsonl'
+            path.write_bytes(record('task_started',now-timedelta(seconds=60)))
+            cursor=UsageCursor(path);cursor.update()
+            provider=Provider.__new__(Provider);provider.runtime_dir=root;provider.lock=threading.Lock()
+            provider.quota_history=[];provider.unread_state=Mock();provider.unread_state.read.return_value=set();provider.boot_time=now.timestamp()-1000
+            provider.side_rows=[dict(id='side',parent_id='main',running=False,completion_kind='session_idle',
+                started_at=now.timestamp()-600,ended_at=now.timestamp()-500,activity_at=now.timestamp()-500)]
+            threads=[dict(id='main',name='Parent task')]
+            provider._publish(threads,[],{'main':cursor},[],None,None,{'main':{'id':cursor.turn,'status':'interrupted'}})
+            self.assertEqual(category_counts(provider.snapshot)['running'],1)
+            row=provider.snapshot['tasks'][0];self.assertFalse(row.get('side_chat',False))
+            self.assertEqual(datetime.fromisoformat(row['activity_at']).timestamp(),datetime.fromisoformat(cursor.activity_at).timestamp())
+            with path.open('ab') as f:f.write(record('task_complete',now))
+            cursor.update();provider._publish(threads,[],{'main':cursor},[],None,None)
+            self.assertEqual(provider.snapshot['tasks'],[]);self.assertEqual(category_counts(provider.snapshot)['running'],0)
+            self.assertEqual(panel_rows(provider.snapshot,'running'),[])
+            self.assertEqual(finder_rows(provider.snapshot,'en')[0]['kind'],'')
+            provider.unread_state.read.return_value={'side'}
+            provider._publish(threads,[],{'main':cursor},[],None,None)
+            self.assertEqual(category_counts(provider.snapshot)['unread'],1)
+            self.assertEqual(finder_rows(provider.snapshot,'en')[0]['kind'],'unread')
+
     def test_side_only_activity_counts_parent_once_and_restores_parent_after_completion(self):
         from datetime import timedelta
         from unittest.mock import patch
