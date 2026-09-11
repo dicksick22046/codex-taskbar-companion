@@ -6,9 +6,9 @@ Help people notice what their AI tasks need and return to the right task, with q
 
 The first-level goals below are governed by the concrete second-level checklist in [product quality execution](plans/product-quality.md). Completing a single item is not the end of the work. Reconcile unfinished items before reporting completion or beginning another milestone.
 
-1. **Rebuild the desktop experience — active.** Redesign settings, search, popovers and strip as one coherent interface; retain proven ring interpolation and stable rotation. Complete multi-step interaction and installed-build checks.
-2. **Make attention and failures actionable — next.** Finish context-specific failure feedback and verify optional, deduplicated input-needed notifications using existing state. Do not claim broad human-approval detection.
-3. **Reassess the product after delivery — queued.** Review glanceability, return-to-task time, accidental changes, background cost, recovery and supportability. Implement verified high-value improvements in small batches; keep speculative expansion explicit.
+1. **Desktop experience, attention and product review — delivered.** 0.7.0 and the subsequent local selection fix are recorded in the execution checklist.
+2. **Windows placement compatibility — active.** Deliver automatic taskbar/floating placement and explicit floating-display selection, including disconnect/reconnect handling. See [the contract](specs/adaptive-placement.md).
+3. **Broader platforms and signals — conditional.** Retain the recorded evidence requirements; do not claim untested operating systems or broad human-approval detection.
 
 ## 1. Reliable Windows companion — 0.4.0
 
