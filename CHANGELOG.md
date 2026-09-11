@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+## 0.8.1
+
 - Show Main tasks and Side chats independently, with separate status counts and durations; Side entries return to their parent task.
 - Read current Codex unread records for the signed-in identity and local host, while retaining support for the legacy format.
 
