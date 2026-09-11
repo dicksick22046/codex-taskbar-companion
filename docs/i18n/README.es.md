@@ -39,7 +39,7 @@ Elige **Ubicación → Flotante** en los ajustes para mover la cápsula arrastr�
 | Punto de estado y cantidad | Tareas de ese estado, con la duración del turno actual o más reciente |
 | Nombre de una tarea | Esa tarea en Codex |
 
-Las tareas en curso se alternan en la barra. Al pasar el ratón, la rotación se detiene y los nombres largos se desplazan. Los resultados sin leer, las tareas detenidas y los fallos tienen indicadores separados. Un chat lateral activo cuenta como actividad de su tarea principal, sin duplicarla.
+Las tareas en curso se alternan en la barra. Al pasar el ratón, la rotación se detiene y los nombres largos se desplazan. Las tareas principales y los chats laterales tienen recuentos, estados y tiempos separados: una tarea principal en curso puede aparecer junto a un resultado lateral sin leer. Al seleccionar el chat lateral se abre su tarea principal. Las tareas detenidas y los fallos tienen indicadores propios.
 
 En los ajustes puedes elegir inglés, chino simplificado, japonés o español, abrir paneles al pasar el ratón y activar la rotación de cuotas. En este modo, todos los indicadores activados de la izquierda, incluida la cuenta atrás, comparten una posición de ancho fijo.
 

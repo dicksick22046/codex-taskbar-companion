@@ -17,3 +17,9 @@ The subsequent user request replaces parent aggregation with separate Main and S
 The live desktop had removed its legacy unread field. Its current identity-and-host-keyed records were verified against installed source: hash the native identity fields and select the local execution host. The Provider obtains only the identity hash from an in-memory auth-status response on its existing thirty-second cadence. Tests cover identity changes with unchanged file contents, local/remote separation, unread clearing, unsupported formats, and no fallback to migration snapshots. A live read-only check successfully resolved the current native unread set.
 
 261 native tests and four offscreen journeys passed, followed by 74 focused checks after role-label alignment. Hidden native Qt renders in all four languages were inspected; Main and Side have equal badge widths and aligned titles. No real pointer input, task execution or quota reset was used for these checks.
+
+## Installed verification
+
+Source `e19f701` passed Windows and portable-core GitHub CI. The local installed executable matches the build, retains settings and bundled assets, and relaunches visibly without changing foreground focus. A fresh installed snapshot reported two running main tasks and no running side chats; those two IDs matched the desktop's active tasks. The previously stale side chats were absent from Running. Category panels and task-search classifications matched the snapshot counts, and the strip capture/native hit check passed.
+
+This batch is installed locally on the 0.8.0 baseline and pushed as Unreleased source; published release assets and tags are unchanged. Side-chat waiting prompts and detailed failures remain limited by available metadata; they are not inherited from the parent or inferred from inactivity.

@@ -21,6 +21,7 @@
 | 2.1 Audit task-navigation, startup, saving and update failure feedback | Delivered and tested | Independent failures persist until their own recovery; search remains open on navigation failure |
 | 2.2 Optional input-needed notification, grouped and deduplicated | Delivered and tested | Default off, no startup backlog; one-second grouping; fake-tray click tests |
 | 2.3 Recheck input/approval evidence boundaries and documentation | Reviewed; boundary retained | Asynchronous/ephemeral questions and human approval remain unclaimed; no hook routing changed |
+| 2.4 Reconcile stale Side state and separate Main / Side | Locally delivered; source pushed | Native idle replay, current identity-scoped unread, independent counts/durations/navigation; 60 state combinations, 261 native tests, four offscreen journeys and installed state comparison. See [verification](../qa/side-chat-idle.md). Agent children and unobservable Side waiting/failure reasons remain outside coverage. |
 
 ## 3. Product review and next decisions
 

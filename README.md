@@ -39,7 +39,7 @@ Choose **Placement → Floating** in Settings to move the capsule away from the 
 | Status dot and count | Tasks in that state, with the current or latest turn's duration |
 | Task title | That task in Codex |
 
-Running tasks rotate in the strip. Hovering pauses rotation and scrolls long titles. Unread results, stopped tasks, and failed tasks have separate indicators. An active side chat marks its parent task as running; the parent is counted once.
+Running tasks rotate in the strip. Hovering pauses rotation and scrolls long titles. Main tasks and Side chats have separate counts, states and timers: a running main task can appear alongside an unread side result. Side entries return to their parent task. Stopped and failed tasks have their own indicators.
 
 Settings include English, Simplified Chinese, Japanese, and Spanish UI selection, optional hover-to-open panels, and optional quota rotation. With rotation enabled, all enabled left-side indicators, including the reset countdown, share one fixed-width position.
 
