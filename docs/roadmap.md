@@ -7,7 +7,7 @@ Help people notice what their AI tasks need and return to the right task, with q
 The first-level goals below are governed by the concrete second-level checklist in [product quality execution](plans/product-quality.md). Completing a single item is not the end of the work. Reconcile unfinished items before reporting completion or beginning another milestone.
 
 1. **Desktop experience, attention and product review — delivered.** 0.7.0 and the subsequent local selection fix are recorded in the execution checklist.
-2. **Windows placement compatibility — active.** Deliver automatic taskbar/floating placement and explicit floating-display selection, including disconnect/reconnect handling. See [the contract](specs/adaptive-placement.md).
+2. **Windows placement compatibility — delivered in 0.8.0.** Automatic taskbar/floating placement and floating-display selection, including disconnect/reconnect handling. Primary-display installed checks and controlled topology tests pass; mixed-DPI multi-monitor hardware remains unverified. See [the contract](specs/adaptive-placement.md).
 3. **Broader platforms and signals — conditional.** Retain the recorded evidence requirements; do not claim untested operating systems or broad human-approval detection.
 
 ## 1. Reliable Windows companion — 0.4.0

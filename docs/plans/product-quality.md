@@ -11,7 +11,7 @@
 | 1.5 Independently audit motion and verify interruption/reduced motion/hidden timers | Verified in 0.7.0 | Five vetted caller-level findings corrected; ring and quota motion retained |
 | 1.6 Verify multi-step flows, install, restart, preferences, CI and release | Automated gates passed; published 0.7.0 | 234 tests, three window-level offscreen journeys, installed hash/relaunch/startup/preferences and main/tag CI |
 | 1.7 Inspect installed strip pixels on an available desktop | Completed; follow-up paused | Desktop capture recovered; the installed 0.7.0 strip rendered with quota text, rings, counts and task content. Native hit/foreground checks passed. This confirms rendering, not that every interaction is defect-free; the reported selection issue is tracked below. |
-| 1.8 Correct selection clearance across strip entries | Local fix installed; source pushed, not separately released | Approximately 5 DIP optical padding, complete nonoverlapping targets, existing-pill status emphasis and consistent short/elided-title end clearance. 237 tests and Windows/Linux CI passed; normal/open/press/cancel renders checked in both themes and layout modes. Local 0.7.0 build includes b12ecd1; published 0.7.0 remains unchanged. |
+| 1.8 Correct selection clearance across strip entries | Included in 0.8.0 | Approximately 5 DIP optical padding, complete nonoverlapping targets, existing-pill status emphasis and consistent short/elided-title end clearance. Originally delivered as local fix b12ecd1; now included in the coherent 0.8.0 release. Published 0.7.0 remains unchanged. |
 
 ## 2. Actionable attention and failures
 
@@ -31,7 +31,7 @@
 | Floating display choice and disconnect/reconnect | Implemented | Legacy preferences, primary following, pinned/negative-origin screen fixtures and retained positions |
 | Screen-bound menus, panels and utility windows | Implemented | Resolved-display bounds tests |
 | Compact multilingual settings and real control flow | Verified in controlled environment | Four-language renders and offscreen window-level input |
-| Primary-display installed build, CI and release | Pending | One coherent release including earlier selection fixes |
+| Primary-display installed build, CI and release | Delivered in 0.8.0 | 246 tests, four offscreen journeys, primary-display Auto/taskbar and floating owner/visibility checks, settings restoration, main/tag CI and public asset checks |
 | Mixed-DPI multi-monitor hardware / Windows 10 / ARM64 | Not verified | Requires actual target devices; do not infer support from fixtures |
 
 Evaluate whether each addition reduces missed work, prevents mistakes or improves recovery enough to justify its permanent complexity. Record a disposition and evidence for each candidate before implementation.
