@@ -14,6 +14,10 @@ from tests import test_interactions as fixtures
 
 
 class CatalogTests(unittest.TestCase):
+    def test_unread_identity_request_does_not_refresh_credentials(self):
+        api=CodexApi.__new__(CodexApi);api.call=Mock(return_value={'authMethod':None,'requiresOpenaiAuth':True})
+        self.assertIsNone(api.unread_identity())
+        api.call.assert_called_once_with('getAuthStatus',{'includeToken':True,'refreshToken':False})
     def test_explicit_sources_paginate_deduplicate_and_exclude_children(self):
         api=CodexApi.__new__(CodexApi)
         api.call=Mock(side_effect=[{'data':[]},{'data':[{'id':'a'},{'id':'child','parentThreadId':'a'}],'nextCursor':'next'},
@@ -142,3 +146,17 @@ class FinderInteractionTests(unittest.TestCase):
         self.data['task_statistics']={'0':dict(self.data['task_statistics']['0'],ready=True,partial=False,tokens_partial=False,turns_partial=False,indexed_bytes=100)}
         self.finder.refresh(self.data)
         self.assertEqual(cell_text(self.finder.model.rows[0],5),'9');self.assertNotIn('Indexing',self.finder.count.text())
+
+    def test_main_and_side_keep_distinct_selection_and_navigate_side_to_parent(self):
+        for language in ('en','zh-CN','ja','es'):
+            self.assertEqual(app.side_tag_width(language,'Main'),app.side_tag_width(language,'Side'))
+        parent='00000000-0000-4000-8000-000000000001';side='00000000-0000-4000-8000-000000000002'
+        self.data['catalog']=[]
+        self.data['tasks']=[dict(id=parent,title='Shared title',project='App',running=True,task_role='main'),
+                            dict(id=side,parent_id=parent,navigation_id=parent,title='Shared title',project='App',running=True,task_role='side',side_chat=True)]
+        self.finder.refresh(self.data);self.assertEqual(self.finder.model.rowCount(),2)
+        self.assertIn('Main',self.finder.model.index(0,0).data(Qt.ItemDataRole.AccessibleTextRole))
+        self.assertIn('Side',self.finder.model.index(1,0).data(Qt.ItemDataRole.AccessibleTextRole))
+        row=self.finder.model.rows[1]
+        with patch('codex_taskbar.app.os.startfile') as opened:
+            self.assertTrue(self.bar.open_task(row));opened.assert_called_once_with('codex://threads/'+parent)

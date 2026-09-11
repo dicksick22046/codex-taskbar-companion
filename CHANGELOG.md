@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+- Show Main tasks and Side chats independently, with separate status counts and durations; Side entries return to their parent task.
+- Read current Codex unread records for the signed-in identity and local host, while retaining support for the legacy format.
+
 - Clear stale running side chats when Codex reports session inactivity, including when no completion notification appears. Preserve explicit interruption and native unread state.
 - Compare task activity timestamps by instant so side chats with different timezone offsets cannot displace newer main-task activity.
 

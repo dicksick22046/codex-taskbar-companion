@@ -6,6 +6,7 @@ import queue
 import subprocess
 import threading
 import time
+from .unread import identity_key
 
 
 class CodexApi:
@@ -86,6 +87,9 @@ class CodexApi:
         turn=next(iter(result.get('data',[])),None)
         if not turn:return None
         return {key:turn.get(key) for key in ('id','status','error','completedAt')}
+
+    def unread_identity(self):
+        return identity_key(self.call('getAuthStatus',{'includeToken':True,'refreshToken':False}))
 
     def close(self):
         if self.process.poll() is None:

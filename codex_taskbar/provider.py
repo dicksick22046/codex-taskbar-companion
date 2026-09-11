@@ -135,34 +135,24 @@ class Provider:
                               "unread": (cursor.completion_kind == 'task_complete' and not running and not failed
                                          and thread['id'] in unread_ids) if unread_ids is not None else None}
             sides=[s for s in getattr(self,'side_rows',[]) if s['parent_id']==thread['id']]
-            active=[s for s in sides if s['running']]
-            unread_sides=[s for s in sides if not s['running'] and s.get('completion_kind') in ('task_complete','session_idle')
-                          and unread_ids is not None and s['id'] in unread_ids]
-            if unread_sides:
-                task['side_chat']=True
-                latest=max(unread_sides,key=lambda s:s['activity_at'])
-                primary_at=datetime.fromisoformat(task['activity_at']).timestamp() if task['activity_at'] else 0
-                if not running and (latest['activity_at']>=primary_at or status=='idle'):
-                    use_side_time=not task['unread'] or latest['activity_at']>=primary_at
-                    task.update(unread=True,status='idle')
-                    if use_side_time:
-                        start,end=latest.get('started_at'),latest.get('ended_at')
-                        task['started_at']=datetime.fromtimestamp(start).astimezone().isoformat() if start is not None else None
-                        task['ended_at']=datetime.fromtimestamp(end).astimezone().isoformat() if end is not None else None
-                        task['round_seconds']=max(0,int(end-start)) if start is not None and end is not None else None
-            if sides:
-                activity=[at for at in [task['activity_at']]+[datetime.fromtimestamp(s['activity_at']).astimezone().isoformat() for s in sides] if at]
-                task['activity_at']=max(activity,key=lambda at:datetime.fromisoformat(at).timestamp())
-            if active:
-                task.update(running=True,status='running',unread=False,side_chat=True)
-                if not running:
-                    start=min(s['started_at'] for s in active if s.get('started_at') is not None)
-                    task['started_at']=datetime.fromtimestamp(start).astimezone().isoformat()
-                    task['ended_at']=None;task['round_seconds']=max(0,int(time.time()-start))
+            if sides:task['task_role']='main'
             if task['running']:
                 tasks.append(task)
             elif task['activity_at'] and datetime.fromisoformat(task['activity_at']).astimezone().date() == datetime.now().astimezone().date():
                 recent.append(task)
+            for side in sides:
+                active=side['running'];start=side.get('started_at');end=side.get('ended_at')
+                completion=side.get('completion_kind')
+                stamp=lambda at:datetime.fromtimestamp(at).astimezone().isoformat() if at is not None else None
+                side_task={'id':side['id'],'parent_id':thread['id'],'navigation_id':thread['id'],
+                    'title':task['title'],'project':task['project'],'task_role':'side','side_chat':True,
+                    'running':active,'status':'running' if active else 'stopped' if completion=='turn_aborted' else 'idle',
+                    'needs_input':False,'tokens':None,'run_tokens':None,'daily_seconds':None,'usage_at':None,
+                    'started_at':stamp(start),'ended_at':stamp(end),'activity_at':stamp(side['activity_at']),
+                    'round_seconds':max(0,int((time.time() if active else end)-start)) if start is not None and (active or end is not None) else None,
+                    'unread':(not active and completion in ('task_complete','session_idle') and side['id'] in unread_ids) if unread_ids is not None else None}
+                if active:tasks.append(side_task)
+                elif datetime.fromtimestamp(side['activity_at']).astimezone().date()==datetime.now().astimezone().date():recent.append(side_task)
         tasks.sort(key=lambda t: (t["project"], t["started_at"] or "", t["id"]))
         from .usage import daily_quota_text
         week = next((w for w in quota if w["label"] == "周"), None)
@@ -222,6 +212,8 @@ class Provider:
                     self.refresh_event.clear()
                     if refresh or now - quota_at_mono >= 30:
                         stage='quota';quota_at_mono=time.monotonic()
+                        try:self.unread_state.set_identity(api.unread_identity())
+                        except (RuntimeError,TimeoutError,ValueError):self.unread_state.set_identity(None)
                         try:
                             raw=api.call("account/rateLimits/read")
                             received=quota_windows(raw)

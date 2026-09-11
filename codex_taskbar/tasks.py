@@ -8,6 +8,10 @@ STATUS_CATEGORIES=CATEGORIES[:-1]
 CATEGORY_LABELS = dict(zip(CATEGORIES, ('Needs input','Running', 'Unread', 'Failed', 'Stopped', 'Recent')))
 
 
+def task_role_label(task):
+    return 'Side' if task.get('side_chat') else 'Main' if task.get('task_role')=='main' else None
+
+
 def task_category(task):
     if task.get('needs_input') and task.get('running'):return 'waiting'
     if task.get('running'):return 'running'

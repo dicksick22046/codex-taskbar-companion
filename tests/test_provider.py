@@ -39,6 +39,7 @@ class ProviderFailureTests(unittest.TestCase):
                     if self.turn_calls==2 and failure=='turn_timeout':raise TimeoutError('turn fixture')
                     return None
                 def close(self):self.closed+=1
+                def unread_identity(self):return None
             api=Api();provider=Provider.__new__(Provider)
             provider.runtime_dir=root;provider.quota_history_path=root/'quota_history.json';provider.quota_history=[]
             provider.lock=threading.Lock();provider.stop_event=stop;provider.refresh_event=threading.Event()
@@ -103,13 +104,13 @@ class SideChatAggregationTests(unittest.TestCase):
             cursor.update();provider._publish(threads,[],{'main':cursor},[],None,None)
             self.assertEqual(provider.snapshot['tasks'],[]);self.assertEqual(category_counts(provider.snapshot)['running'],0)
             self.assertEqual(panel_rows(provider.snapshot,'running'),[])
-            self.assertEqual(finder_rows(provider.snapshot,'en')[0]['kind'],'')
+            self.assertTrue(all(row['kind']=='' for row in finder_rows(provider.snapshot,'en')))
             provider.unread_state.read.return_value={'side'}
             provider._publish(threads,[],{'main':cursor},[],None,None)
             self.assertEqual(category_counts(provider.snapshot)['unread'],1)
-            self.assertEqual(finder_rows(provider.snapshot,'en')[0]['kind'],'unread')
+            self.assertEqual(next(row for row in finder_rows(provider.snapshot,'en') if row['id']=='side')['kind'],'unread')
 
-    def test_side_only_activity_counts_parent_once_and_restores_parent_after_completion(self):
+    def test_two_active_sides_count_separately_without_copying_parent_usage(self):
         from datetime import timedelta
         from unittest.mock import patch
         now=datetime.now().astimezone()
@@ -124,9 +125,13 @@ class SideChatAggregationTests(unittest.TestCase):
             with patch('codex_taskbar.provider.time.time',return_value=now.timestamp()):
                 provider._publish(threads,[],{'main':cursor},[],None,None)
             tasks=provider.snapshot['tasks']
-            self.assertEqual(len(tasks),1);self.assertEqual(tasks[0]['id'],'main');self.assertTrue(tasks[0]['side_chat'])
-            self.assertEqual(tasks[0]['tokens'],100);self.assertEqual(tasks[0]['round_seconds'],20)
+            self.assertEqual(len(tasks),2);self.assertEqual({t['id'] for t in tasks},{'0','1'})
+            self.assertTrue(all(t['side_chat'] and t['parent_id']=='main' for t in tasks))
+            self.assertTrue(all(t['tokens'] is None for t in tasks));self.assertEqual(tasks[0]['round_seconds'],20)
+            self.assertEqual(provider.snapshot['totals']['total_tokens'],100)
+            self.assertEqual(provider.snapshot['recent_tasks'][0]['tokens'],100)
             for side in provider.side_rows:side.update(running=False,ended_at=now.timestamp(),activity_at=now.timestamp())
             provider._publish(threads,[],{'main':cursor},[],None,None)
             self.assertEqual(provider.snapshot['tasks'],[])
-            self.assertFalse(provider.snapshot['recent_tasks'][0].get('side_chat',False))
+            self.assertEqual(len(provider.snapshot['recent_tasks']),3)
+            self.assertFalse(next(t for t in provider.snapshot['recent_tasks'] if t['id']=='main').get('side_chat',False))

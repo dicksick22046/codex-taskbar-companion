@@ -16,6 +16,8 @@ Reuse the existing five-second catalog collection and single Provider. Publish a
 
 Explicitly query recorded `cli`, `vscode`, `appServer` and `exec` sources, excluding child threads using the existing parent rule. Deduplicate by task ID. These are local persisted Codex sources; no remote aggregation or live client subscription is implied. Additional previously omitted execution tasks can contribute their recorded local usage through the existing cursor logic.
 
+Associated ephemeral Side chats appear as separate state rows alongside Main tasks, using distinct IDs and the same real parent title/project. Keep the parent navigation target and neutral, equally sized role labels. Side rows without their own saved log have unknown lifetime metrics; never copy the parent's totals. This does not add Agent children to the persisted catalog.
+
 Render with a virtualized list. Reuse the UI tick while visible and avoid model resets when relevant data is unchanged. Filter without API calls. Browser actions never start/resume/interrupt tasks, approve commands or consume reset credits.
 
 ## Waiting/approval evidence boundary

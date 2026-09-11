@@ -23,7 +23,7 @@ except ImportError:
     raise
 from .provider import Provider
 from .usage import reset_countdown_text, remaining_time_fraction, visible_metrics, quota_window, chart_window, countdown_window
-from .tasks import thread_url, panel_rows, task_category, category_counts, CATEGORY_LABELS, STATUS_CATEGORIES, duration_text
+from .tasks import thread_url, panel_rows, task_category, category_counts, CATEGORY_LABELS, STATUS_CATEGORIES, duration_text,task_role_label
 from . import windows
 from . import startup
 from .settings_ui import SettingsDialog, Toggle, app_icon
@@ -141,15 +141,17 @@ def project_tag(p,x,y,value,font,available,language='en',color=BLUE,muted='#8795
     return width
 
 
-def side_tag_width(language='en'):
-    return QFontMetricsF(face(7)).horizontalAdvance(translate(language,'Side'))+10
+def side_tag_width(language='en',role='Side'):
+    metrics=QFontMetricsF(face(7))
+    return max(metrics.horizontalAdvance(translate(language,label)) for label in ('Main','Side'))+10
 
 
-def side_tag(p,x,y,language='en',light=False):
-    width=side_tag_width(language)
+def side_tag(p,x,y,language='en',light=False,role='Side'):
+    width=side_tag_width(language,role)
     p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('#dce3ec' if light else '#3b424d'))
     p.drawRoundedRect(QRectF(x,y-7,width,14),3,3)
-    text(p,x+5,y,translate(language,'Side'),face(7),'#465a72' if light else '#a6b2c0')
+    label=translate(language,role);left=x+(width-QFontMetricsF(face(7)).horizontalAdvance(label))/2
+    text(p,left,y,label,face(7),'#465a72' if light else '#a6b2c0')
     return width
 
 
@@ -541,7 +543,7 @@ class StatusBar(QWidget):
         for task in tasks:
             project=font_metrics.elidedText(project_label(task['project'],self.language),Qt.TextElideMode.ElideRight,max(0,self.project_available(x,limit)-12))
             end=x+font_metrics.horizontalAdvance(project)+12+10
-            if task.get('side_chat'):end+=side_tag_width(self.language)+7
+            if task_role_label(task):end+=side_tag_width(self.language,task_role_label(task))+7
             right=max(right,end+QFontMetricsF(self.font).horizontalAdvance(task_title(task,self.language)))
         return min(limit,math.ceil(right+12))
 
@@ -683,7 +685,7 @@ class StatusBar(QWidget):
 
     def open_task(self,task):
         try:
-            os.startfile(thread_url(task['id']))
+            os.startfile(thread_url(task.get('navigation_id') or task['id']))
         except (OSError,ValueError) as exc:
             print(f'Task navigation: {exc}',file=sys.stderr)
             self.notification_kind='navigation';self.tray.showMessage(APP_NAME,self.label('Could not open Codex. Open Codex and try again.'))
@@ -901,7 +903,7 @@ class StatusBar(QWidget):
         # Keep visibility/interaction checks responsive without repainting unchanged pixels.
         frame_key=(tuple((kind,value,None if fraction is None else round(fraction,4)) for kind,value,fraction in self.displayed_metrics()),
                    tuple(category_counts(self.data).items()) if self.settings['show_tasks'] else (),
-                   tuple(self.task.get(k) for k in ('id','project','title','side_chat')) if self.task else None,
+                   tuple(self.task.get(k) for k in ('id','project','title','side_chat','task_role')) if self.task else None,
                    self.task_hover,self.position,tuple(self.settings.get(k) for k in DISPLAY_DEFAULTS),self.settings.get('rotate_quotas'))
         if frame_key!=self.frame_key:
             self.frame_key=frame_key;self.update()
@@ -999,7 +1001,7 @@ class StatusBar(QWidget):
             def task_label(task,opacity,offset,current=False):
                 p.save();p.setOpacity(opacity);p.translate(0,offset)
                 title_x=x+project_tag(p,x,y,task['project'],face(8),self.project_available(x),self.language,color=palette['link'],muted=palette['muted'])+10
-                if task.get('side_chat'):title_x+=side_tag(p,title_x,y,self.language,light=theme=='light')+7
+                if task_role_label(task):title_x+=side_tag(p,title_x,y,self.language,light=theme=='light',role=task_role_label(task))+7
                 available=max(0,self.width()-title_x-12)
                 label=task_title(task,self.language)
                 metrics=QFontMetricsF(self.font)
@@ -1342,7 +1344,7 @@ class TaskListPopup(TaskPopup):
 
     def sync_animation(self):
         hovered=next((t for t in self.rows if t['id']==self.hovered),None)
-        extra=side_tag_width(self.owner.language)+7 if hovered and hovered.get('side_chat') else 0
+        extra=side_tag_width(self.owner.language,task_role_label(hovered))+7 if hovered and task_role_label(hovered) else 0
         marquee=hovered and QFontMetricsF(face()).horizontalAdvance(task_title(hovered,self.owner.language))>self.TITLE_WIDTH-extra
         needed=self.isVisible() and getattr(self.owner,'motion_enabled',True) and (any(t.get('running') and not t.get('needs_input') for t in self.rows) or marquee)
         if needed and not self.animation.isActive():self.animation.start(33)
@@ -1358,7 +1360,7 @@ class TaskListPopup(TaskPopup):
         self.project_width=min(80,max([metrics.horizontalAdvance(project_label(t['project'],self.owner.language))+12 for t in self.rows]+[44]))
         self.TITLE_X=33+self.project_width+10
         title_metrics=QFontMetricsF(face())
-        longest=max([title_metrics.horizontalAdvance(task_title(task,self.owner.language))+(side_tag_width(self.owner.language)+7 if task.get('side_chat') else 0) for task in self.rows]+[0])
+        longest=max([title_metrics.horizontalAdvance(task_title(task,self.owner.language))+(side_tag_width(self.owner.language,task_role_label(task))+7 if task_role_label(task) else 0) for task in self.rows]+[0])
         self.values={t['id']:chart_number(t.get('tokens'),self.owner.chart_unit) if self.mode=='daily' else duration_text(t.get('round_seconds')) for t in self.rows}
         info_width=max([metrics.horizontalAdvance(value) for value in self.values.values()]+[24])
         width=min(getattr(self.owner,'content_limit',None) or self.owner.width(),max(260,math.ceil(self.TITLE_X+longest+24+info_width+18)))
@@ -1433,7 +1435,7 @@ class TaskListPopup(TaskPopup):
                 p.drawEllipse(QPointF(22,y),2.4,2.4)
             project_tag(p,33,y,task['project'],face(8),self.project_width,self.owner.language)
             title_x=self.TITLE_X
-            if task.get('side_chat'):title_x+=side_tag(p,title_x,y,self.owner.language)+7
+            if task_role_label(task):title_x+=side_tag(p,title_x,y,self.owner.language,role=task_role_label(task))+7
             title_width=max(0,self.TITLE_WIDTH-(title_x-self.TITLE_X))
             title=task_title(task,self.owner.language);metrics=QFontMetricsF(face());shift=0.
             if task['id']==self.hovered and getattr(self.owner,'motion_enabled',True):

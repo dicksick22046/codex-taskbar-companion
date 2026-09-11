@@ -149,7 +149,7 @@ class TaskTests(unittest.TestCase):
         self.assertEqual(thread_url(value),'codex://threads/'+value)
         with self.assertRaises(ValueError):thread_url('https://example.com')
 
-    def test_side_completion_unread_uses_child_id_and_clears_when_codex_marks_read(self):
+    def test_side_unread_is_independent_of_stopped_parent_and_clears_when_read(self):
         from unittest.mock import Mock
         from codex_taskbar.tasks import task_category,category_counts
         start=self.now-timedelta(seconds=100)
@@ -162,12 +162,12 @@ class TaskTests(unittest.TestCase):
         def publish(ids):
             provider.unread_state.read.return_value=ids
             provider._publish([{'id':'a','name':'Parent'}],[],{'a':cursor},[],None,None)
-            return provider.snapshot['recent_tasks'][0]
+            return next(t for t in provider.snapshot['recent_tasks'] if t['id']=='side')
         row=publish({'side'})
         self.assertTrue(row['unread']);self.assertTrue(row['side_chat'])
         self.assertEqual(task_category(row),'unread');self.assertEqual(row['round_seconds'],15)
         self.assertEqual(category_counts(provider.snapshot)['unread'],1)
-        row=publish(set());self.assertFalse(row['unread']);self.assertFalse(row.get('side_chat',False))
+        row=publish(set());self.assertFalse(row['unread']);self.assertTrue(row['side_chat'])
         self.assertEqual(category_counts(provider.snapshot)['unread'],0)
         self.assertIsNone(publish(None)['unread'])
         provider.side_rows[0]['completion_kind']='turn_aborted'
@@ -176,13 +176,14 @@ class TaskTests(unittest.TestCase):
         self.assertTrue(publish({'side'})['unread'])
         self.assertFalse(publish(set())['unread'])
         self.assertEqual(category_counts(provider.snapshot)['running'],0)
+        self.assertEqual(category_counts(provider.snapshot)['stopped'],1)
 
     def test_task_activity_order_compares_instants_across_offsets(self):
         data={'tasks':[{'id':'older','running':True,'activity_at':'2026-09-11T09:00:00+08:00'},
                        {'id':'newer','running':True,'activity_at':'2026-09-11T05:00:00+00:00'}]}
         self.assertEqual([t['id'] for t in task_rows(data)],['newer','older'])
 
-    def test_side_unread_survives_parent_running_then_finishing_without_double_counting(self):
+    def test_parent_running_and_side_unread_are_visible_together(self):
         from unittest.mock import Mock
         from codex_taskbar.tasks import category_counts
         start=self.now-timedelta(seconds=100)
@@ -194,13 +195,14 @@ class TaskTests(unittest.TestCase):
                              'started_at':start.timestamp()+10,'ended_at':start.timestamp()+25,'activity_at':start.timestamp()+25}]
         def publish():provider._publish([{'id':'a','name':'Parent'}],[],{'a':cursor},[],None,None)
         publish();self.assertEqual(category_counts(provider.snapshot)['running'],1)
-        self.assertEqual(category_counts(provider.snapshot)['unread'],0)
-        self.assertTrue(provider.snapshot['tasks'][0]['side_chat'])
+        self.assertEqual(category_counts(provider.snapshot)['unread'],1)
+        self.assertEqual(provider.snapshot['tasks'][0]['task_role'],'main')
+        self.assertFalse(provider.snapshot['tasks'][0].get('side_chat',False))
         with self.path.open('ab') as stream:stream.write(record('task_complete',self.now))
         cursor.update();publish()
         self.assertEqual(category_counts(provider.snapshot)['running'],0)
         self.assertEqual(category_counts(provider.snapshot)['unread'],1)
-        self.assertEqual(provider.snapshot['recent_tasks'][0]['round_seconds'],15)
+        self.assertEqual(next(t for t in provider.snapshot['recent_tasks'] if t['id']=='side')['round_seconds'],15)
 
 
 if __name__=='__main__':unittest.main()
