@@ -13,3 +13,9 @@ Verification on Windows 11 x64:
 - Hidden native Qt renders in English and Chinese were inspected for partial values, completed values, initial indexing and missing files. These checks used fixtures and did not control the user's pointer or redeem quota credits.
 
 These measurements describe this machine and these histories, not a universal performance guarantee. Other operating systems and target devices remain outside this verification.
+
+## Local delivery
+
+Implementation `18cda54` follows [task statistics](../specs/task-statistics.md#task-statistics). Its Windows and portable-core GitHub CI jobs passed. A local build was installed and matched the built executable; preferences and bundled assets were retained, and relaunch restored a visible strip without changing foreground focus. The installed strip capture and native hit test passed.
+
+During the companion's stopped update interval, its existing local index was completed in 24.19 seconds: all 115 available tasks had indexed tokens, recorded duration and turns, with no missing files. The index was saved before relaunch; conversation logs were read only. This is a local unreleased fix on the 0.8.0 baseline. Published 0.8.0 assets and tags were not replaced.
