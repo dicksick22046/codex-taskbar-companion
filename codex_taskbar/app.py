@@ -977,7 +977,7 @@ class StatusBar(QWidget):
                 p.save();p.setOpacity(opacity);p.translate(0,offset)
                 title_x=x+project_tag(p,x,y,task['project'],face(8),self.project_available(x),self.language,color=palette['link'],muted=palette['muted'])+10
                 if task.get('side_chat'):title_x+=side_tag(p,title_x,y,self.language,light=theme=='light')+7
-                available=max(0,self.width()-title_x-6)
+                available=max(0,self.width()-title_x-12)
                 label=task_title(task,self.language)
                 metrics=QFontMetricsF(self.font)
                 title_y=y-metrics.tightBoundingRect(label).center().y()-(metrics.ascent()-metrics.descent())/2

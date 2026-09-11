@@ -151,3 +151,12 @@ class InteractionQualityTests(unittest.TestCase):
         with patch('codex_taskbar.app.activity_count',wraps=app.activity_count) as counts:self.bar.grab()
         self.assertEqual(counts.call_args_list[0].kwargs['emphasis'],2)
         self.bar.track_pointer(app.QPointF(-1,-1));self.assertFalse(self.bar.press_inside)
+
+    def test_task_feedback_keeps_text_clear_of_both_ends_when_elided(self):
+        for title in ('Short task','A long task title '*30):
+            self.data['tasks'][0]['title']=title;self.bar.task=self.data['tasks'][0]
+            self.bar.resize(self.bar.content_width(540),30);self.bar.grab()
+            box=self.bar.feedback_regions['task']
+            self.assertGreaterEqual(box.right()-self.bar.task_rect.right(),5)
+            self.assertLessEqual(box.right(),self.bar.width()-5)
+            self.assertTrue(self.bar.task_area.contains(box))
