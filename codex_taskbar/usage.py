@@ -229,20 +229,32 @@ def remaining_time_fraction(window,now=None):
     return max(0.,min(1.,(window['resets_at']-current)/duration))
 
 
-def daily_quota_text(samples, window, now=None):
-    """Sum observed intra-cycle deltas; never subtract across a quota reset."""
-    now = now or datetime.now().astimezone()
+def _daily_quota_samples(samples, window, now):
     if not window or not window.get("resets_at"):
-        return "—"
+        return []
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
-    used = 100 - window["remaining"]
     rows = sorted((s for s in samples if isinstance(s.get("used"), (int, float))
                    and s.get("reset") and s["at"] <= now.timestamp()), key=lambda s:s["at"])
     after = [s for s in rows if midnight <= s["at"] <= now.timestamp()]
+    if not after or abs(after[-1]["reset"]-window["resets_at"]) > 2:
+        return []
+    return after
+
+
+def daily_observed_at(samples, window, now: datetime | None = None):
+    """First usable observation today, including samples before a later reset."""
+    now = now or datetime.now().astimezone()
+    after = _daily_quota_samples(samples, window, now)
+    return datetime.fromtimestamp(after[0]["at"], now.tzinfo).isoformat() if after else None
+
+
+def daily_quota_text(samples, window, now=None):
+    """Sum observed intra-cycle deltas; never subtract across a quota reset."""
+    now = now or datetime.now().astimezone()
+    after = _daily_quota_samples(samples, window, now)
     if not after:
         return "—"
-    if abs(after[-1]["reset"]-window["resets_at"]) > 2:
-        return "—"
+    used = 100 - window["remaining"]
     total = 0
     first = last = after[0]
     for sample in after[1:]:
@@ -258,6 +270,22 @@ def quota_window(data, minutes):
     return next((q for q in data.get('quota', []) if q.get('minutes') == minutes), None)
 
 
+def effective_quota_data(data, now: float | None = None):
+    """Project current quota values without changing the snapshot or history."""
+    current = datetime.now().timestamp() if now is None else now
+    quota = [dict(q) for q in data.get('quota', [])
+             if q.get('resets_at') is None or q['resets_at'] > current]
+    result = {**data, 'quota': quota}
+    if quota_window(result, 10080) is None:
+        result.update(daily_quota='—', daily_observed_at=None)
+    return result
+
+
+def quota_is_cached(data):
+    """A quota read failed while the snapshot retains a previous quota result."""
+    return bool(data.get('quota_error') and data.get('quota'))
+
+
 def chart_window(data):
     return quota_window(data, 10080) or quota_window(data, 300)
 
@@ -271,21 +299,19 @@ def countdown_window(data, settings):
 
 def visible_metrics(data, settings):
     """Display actual account windows; never infer them from a plan name."""
-    if data.get('quota_error') or data.get('error'):
-        current=datetime.now().timestamp()
-        valid=[q for q in data.get('quota',[]) if q.get('resets_at') is None or q['resets_at']>current]
-        data={**data,'quota':valid}
-        if not quota_window(data,10080):data['daily_quota']='—'
+    has_session = quota_window(data, 300) is not None
+    data = effective_quota_data(data)
     week, session = quota_window(data, 10080), quota_window(data, 300)
     show_week = settings.get('show_week', True)
-    show_session = settings.get('show_session', True) and session is not None
+    show_session = settings.get('show_session', True) and has_session
     result = []
     both = show_week and week is not None and show_session
     if show_week and (week is not None or not data.get('quota')):
         value = f"{week['remaining']:g}%" if week else '—'
         result.append(('quota', ('7d ' if both else '') + value, week['remaining']/100 if week else None))
     if show_session:
-        result.append(('session', f"5h {session['remaining']:g}%", session['remaining']/100))
+        value = f"{session['remaining']:g}%" if session else '—'
+        result.append(('session', f"5h {value}", session['remaining']/100 if session else None))
     if settings.get('show_daily', True) and (week is not None or not data.get('quota')):
         value = data.get('daily_quota', '—')
         result.append(('spent', value, min(1.,max(0.,float(value.rstrip('%'))/100)) if value != '—' else None))

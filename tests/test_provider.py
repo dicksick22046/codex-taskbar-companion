@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from codex_taskbar.provider import Provider
 from codex_taskbar.unread import UnreadState
@@ -63,6 +63,9 @@ class ProviderFailureTests(unittest.TestCase):
         snapshots=self.run_failure('quota_timeout')
         self.assertEqual(snapshots[1]['quota'],snapshots[0]['quota'])
         self.assertIsNotNone(snapshots[1]['quota_error'])
+        self.assertIsNotNone(snapshots[0]['daily_observed_at'])
+        self.assertEqual(snapshots[1]['daily_observed_at'],snapshots[0]['daily_observed_at'])
+        self.assertEqual(snapshots[2]['daily_observed_at'],snapshots[0]['daily_observed_at'])
 
     def test_empty_quota_response_is_not_a_new_empty_balance(self):
         snapshots=self.run_failure('quota_empty')
@@ -78,6 +81,24 @@ class ProviderFailureTests(unittest.TestCase):
         snapshots=self.run_failure('catalog_timeout')
         self.assertIsNotNone(snapshots[1]['error'])
         self.assertIsNone(snapshots[1]['quota_error'])
+
+
+class ProviderQuotaObservationTests(unittest.TestCase):
+    def test_publish_exposes_first_observation_and_clears_it_without_week(self):
+        now=datetime.now().astimezone();first=now.replace(hour=0,minute=0,second=0,microsecond=0)
+        reset=now.timestamp()+86400
+        provider=Provider.__new__(Provider);provider.lock=threading.Lock()
+        provider.unread_state=Mock();provider.unread_state.read.return_value=set()
+        provider.quota_history=[{'at':first.timestamp(),'used':None,'reset':reset},
+            {'at':now.timestamp(),'used':20,'reset':reset}]
+        quota=[{'label':'周','minutes':10080,'remaining':80,'resets_at':reset}]
+        with patch.object(provider,'_write_snapshot'):
+            provider._publish([],[],{},quota,now.isoformat(),None)
+            self.assertEqual(provider.snapshot['daily_observed_at'],now.isoformat())
+            self.assertEqual(provider.snapshot['daily_quota'],'0%')
+            provider._publish([],[],{},[],now.isoformat(),None)
+            self.assertIsNone(provider.snapshot['daily_observed_at'])
+            self.assertEqual(provider.snapshot['daily_quota'],'—')
 
 
 class SideChatAggregationTests(unittest.TestCase):

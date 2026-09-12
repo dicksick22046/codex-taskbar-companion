@@ -154,13 +154,15 @@ class Provider:
                 if active:tasks.append(side_task)
                 elif datetime.fromtimestamp(side['activity_at']).astimezone().date()==datetime.now().astimezone().date():recent.append(side_task)
         tasks.sort(key=lambda t: (t["project"], t["started_at"] or "", t["id"]))
-        from .usage import daily_quota_text
+        from .usage import daily_observed_at, daily_quota_text
         week = next((w for w in quota if w["label"] == "周"), None)
+        observed_now = datetime.now().astimezone()
         snapshot = {"tasks": tasks, "recent_tasks": recent, "quota": quota, "quota_updated_at": quota_at,
                     "catalog":getattr(self,'catalog_rows',None),
                     "task_statistics":self.statistics.view(native_running) if hasattr(self,'statistics') else {},
                     "unread_count": sum(task['unread'] is True for task in recent) if unread_ids is not None else None,
-                    "history": daily, "daily_quota": daily_quota_text(self.quota_history, week),
+                    "history": daily, "daily_quota": daily_quota_text(self.quota_history, week, observed_now),
+                    "daily_observed_at": daily_observed_at(self.quota_history, week, observed_now),
                     "totals": totals, "usage_at": newest_usage, "loading": False,
                     "updated_at": datetime.now().astimezone().isoformat(), "error": error, "quota_error": quota_error,
                     "source": "本机 Codex 日志；Token 包含缓存输入，按模型步骤上报"}

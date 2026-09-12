@@ -37,7 +37,7 @@ class UsageTests(unittest.TestCase):
 
     def test_daily_percentage_can_exceed_one_cycle_without_wrapping_the_ring(self):
         from codex_taskbar.usage import visible_metrics
-        fields=visible_metrics({'quota':[],'daily_quota':'125%'},{'show_week':False,'show_countdown':False})
+        fields=visible_metrics({'quota':[{'minutes':10080,'remaining':75}],'daily_quota':'125%'},{'show_week':False,'show_countdown':False})
         self.assertEqual(fields,[('spent','125%',1.)])
 
     def setUp(self):
