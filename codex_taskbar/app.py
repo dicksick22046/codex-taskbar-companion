@@ -15,7 +15,7 @@ BASE = Path(__file__).resolve().parents[1]
 from .preferences import runtime_dir, migrate_legacy, read_settings, write_settings, DISPLAY_DEFAULTS, legacy_runtime_dirs
 RUNTIME = runtime_dir()
 try:
-    from PySide6.QtCore import Qt, QTimer, QRectF, QPointF, QVariantAnimation, QEasingCurve,QAbstractAnimation
+    from PySide6.QtCore import Qt, QTimer, QRectF, QPointF, QVariantAnimation, QEasingCurve
     from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPen, QCursor, QLinearGradient, QBrush
     from PySide6.QtWidgets import QApplication, QWidget, QMenu, QSystemTrayIcon, QPushButton, QMessageBox,QButtonGroup,QToolTip
 except ImportError:
@@ -231,10 +231,8 @@ class StatusBar(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setMouseTracking(True)
         self.provider=provider
-        self.current_id=None;self.rotated_at=time.monotonic();self.popup=None
-        self.data=provider.get();self.task=None;self.position=None;self.font=face()
-        self.task_rect=QRectF();self.task_hover=False;self.title_hover_started=time.monotonic()
-        self.task_area=QRectF()
+        self.popup=None
+        self.data=provider.get();self.position=None;self.font=face()
         self.quota_kind=None;self.quota_rotated_at=time.monotonic();self.quota_paused_at=None;self.quota_hover=False
         self.quota_progress=1.;self.quota_previous=None;self.quota_target=1.
         self.quota_tween=QVariantAnimation(self)
@@ -269,10 +267,9 @@ class StatusBar(QWidget):
         self.update_timer=QTimer(self);self.update_timer.setInterval(24*60*60*1000)
         self.update_timer.timeout.connect(self.updater.check)
         if RELEASE_REPOSITORY:self.update_timer.start();QTimer.singleShot(5000,self.updater.check)
-        self.previous_task=None;self.task_blend=1.;self.ring_values={};self.ring_tweens={}
-        self.task_tween=QVariantAnimation(self);self.task_tween.setDuration(450)
-        self.task_tween.setEasingCurve(QEasingCurve.Type.InOutCubic)
-        self.task_tween.valueChanged.connect(self.set_task_blend)
+        self.ring_values={};self.ring_tweens={}
+        from .task_strip import TaskStrip
+        self.task_strip=TaskStrip(self)
         self.timer=QTimer(self);self.timer.timeout.connect(self.tick);self.timer.start(150)
         self.animation=QTimer(self);self.animation.timeout.connect(self.animate);self.animation.start(33)
         self.native_handle=int(self.winId())  # Create the native handle only after transparency attributes are set.
@@ -291,14 +288,14 @@ class StatusBar(QWidget):
         if enabled==self.motion_enabled:return
         self.motion_enabled=enabled
         if not enabled:
-            self.animation.stop();self.task_tween.stop();self.quota_tween.stop()
-            self.task_blend=1.;self.previous_task=None;self.quota_previous=None;self.quota_progress=1.
+            self.animation.stop();self.quota_tween.stop()
+            self.quota_previous=None;self.quota_progress=1.
             for motion in self.ring_tweens.values():motion.stop()
             if self.popup and self.popup.reveal_target is not None:self.popup.reveal_to(self.popup.reveal_target,force=True)
             if self.settings_dialog:
                 for control in self.settings_dialog.findChildren(Toggle):control.motion.snap(float(control.isChecked()))
                 self.settings_dialog.stop_motion()
-        self.update()
+        self.task_strip.sync_motion();self.update()
 
     def desktop_click(self,x,y,button="left"):
         if self.confirming_reset:return False
@@ -315,8 +312,7 @@ class StatusBar(QWidget):
             if not pressed:return False
             mode,rect,payload=pressed
             if self.isVisible() and rect.contains(QPointF(x,y)) and windows.pointer_over(int(self.winId()),x,y):
-                if mode=='task':QTimer.singleShot(0,lambda t=payload:self.open_task(t))
-                else:QTimer.singleShot(0,lambda m=mode:self.toggle_popup(m))
+                QTimer.singleShot(0,lambda m=mode:self.toggle_popup(m))
             return True
         if button=='right_up':
             pressed=self.right_pressed;self.right_pressed=None
@@ -341,12 +337,10 @@ class StatusBar(QWidget):
 
     def begin_press(self,hit,rect=None):
         self.pressed=(hit[0],rect or hit[1],hit[2]);self.pressed_local=QRectF(hit[1]);self.press_inside=True
-        if hit[0]=='task' and self.task_tween.state()==QAbstractAnimation.State.Running:self.task_tween.pause()
         self.update()
 
     def release_press(self):
         pressed=self.pressed;self.pressed=None;self.pressed_local=None;self.press_inside=False
-        if self.task_tween.state()==QAbstractAnimation.State.Paused:self.task_tween.resume()
         self.update();return pressed
 
     def toggle_popup(self,mode='usage',activate=True):
@@ -374,7 +368,7 @@ class StatusBar(QWidget):
             self.hover_target=None;self.hover_leave_since=None;return
         now=time.monotonic() if now is None else now
         local=self.mapFromGlobal(point)
-        mode=next((m for m,r,t in self.hit_regions if m!='task' and r.contains(local)),None)
+        mode=next((m for m,r,t in self.hit_regions if r.contains(local)),None)
         if self.floating and QApplication.widgetAt(point) is not self:mode=None
         inside=bool(self.popup and self.popup.isVisible() and self.popup.geometry().contains(point))
         if inside:
@@ -525,26 +519,18 @@ class StatusBar(QWidget):
         metrics=QFontMetricsF(face(8))
         return max(metrics.horizontalAdvance(value.partition(' ')[0]) for kind,value,fraction in self.quota_choices())
 
-    def project_available(self,x,limit=None):
-        return min(112,max(0,((limit or self.content_limit or self.width())-x)*.35))
-
     def content_width(self,limit):
         metrics=self.displayed_metrics();rotating=self.settings.get('rotate_quotas')
         x=CONTENT_X+sum((25 if rotating else 29)+self.metric_text_width(kind,value) for kind,value,_ in metrics)
         right=x-(13 if rotating else 17) if metrics else CONTENT_X
         if not self.settings['show_tasks']:return min(limit,math.ceil(right+12))
-        counts=category_counts(self.data);tasks=self.data.get('tasks',[])
+        counts=category_counts(self.data)
         statuses=[kind for kind in STATUS_CATEGORIES if counts[kind]]
-        if not tasks and not statuses:return min(limit,math.ceil(right+12))
+        if not statuses:return min(limit,math.ceil(right+12))
         if metrics:x+=7
         font_metrics=QFontMetricsF(face(8));badge_x=x-6
         for kind in statuses:badge_x+=font_metrics.horizontalAdvance(str(counts[kind]))+30
-        if statuses:right=badge_x-6;x=badge_x+4
-        for task in tasks:
-            project=font_metrics.elidedText(project_label(task['project'],self.language),Qt.TextElideMode.ElideRight,max(0,self.project_available(x,limit)-12))
-            end=x+font_metrics.horizontalAdvance(project)+12+10
-            if task_role_label(task):end+=side_tag_width(self.language,task_role_label(task))+7
-            right=max(right,end+QFontMetricsF(self.font).horizontalAdvance(task_title(task,self.language)))
+        if statuses:right=badge_x-6
         return min(limit,math.ceil(right+12))
 
     def fitted_width(self,limit,resize=False):
@@ -599,17 +585,16 @@ class StatusBar(QWidget):
             self.quota_progress=0.;self.animate_quota_to(1.)
 
     def animate(self):
+        active=False
         if self.motion_enabled and self.isVisible() and self.settings['show_tasks']:
-            regions=[r for mode,r,_ in self.hit_regions if mode=='running' or mode=='task' and self.task and (not self.task.get('needs_input') or self.task_hover)]
+            regions=[r for mode,r,_ in self.hit_regions if mode=='running']
             if regions:
                 dirty=QRectF(regions[0])
                 for region in regions[1:]:dirty=dirty.united(region)
                 self.update(dirty.toAlignedRect())
-                return
-        self.animation.stop()
-
-    def set_task_blend(self,value):
-        self.task_blend=float(value);self.update()
+                active=True
+        self.task_strip.animate()
+        if not active and not self.task_strip.needs_animation:self.animation.stop()
 
     def set_chart_unit(self,unit):
         if unit not in ('M','100M') or unit==self.chart_unit:return
@@ -631,6 +616,7 @@ class StatusBar(QWidget):
         if key not in DISPLAY_DEFAULTS:return
         self.quota_tween.stop();self.quota_previous=None;self.quota_progress=1.
         self.settings[key]=bool(value);self.save_settings();self.hide_popup(immediate=True);self.tick(resize=True)
+        if key=='show_tasks' and self.settings_dialog:self.settings_dialog.refresh()
 
     def open_settings(self):
         self.hide_popup(immediate=True)
@@ -732,34 +718,17 @@ class StatusBar(QWidget):
             self.ring_tweens[kind]=motion
         motion.stop();motion.setStartValue(self.ring_values[kind]);motion.setEndValue(target);motion.start()
 
-    def selected_task(self, tasks,advance=True):
-        if not tasks:self.current_id=None;return None
-        ids=[t["id"] for t in tasks]
-        if self.current_id not in ids:
-            self.current_id=ids[0]
-            if advance:self.rotated_at=time.monotonic()
-            if self.task_hover:self.title_hover_started=self.rotated_at
-        elif advance and not getattr(self,'task_hover',False) and not getattr(self,'pressed',None) and not getattr(self,'drag_origin',None) and not getattr(self,'confirming_reset',False) and time.monotonic()-self.rotated_at>=ROTATE_SECONDS:
-            self.current_id=ids[(ids.index(self.current_id)+1)%len(ids)];self.rotated_at=time.monotonic()
-        return tasks[ids.index(self.current_id)]
-
     def track_pointer(self,point):
         inside=bool(self.pressed_local and self.pressed_local.contains(point))
         if inside!=self.press_inside:self.press_inside=inside;self.update()
         self.quota_hover=any(m in ('usage','daily','session','resets') and r.contains(point) for m,r,t in self.hit_regions)
-        hovering=self.task_area.contains(point)
         self.setCursor(Qt.CursorShape.PointingHandCursor if any(r.contains(point) for m,r,t in self.hit_regions) else Qt.CursorShape.ArrowCursor)
         hit=next((item for item in self.hit_regions if item[1].contains(point)),None)
         tip=''
         if hit:
-            mode,_,task=hit
-            if mode=='task':tip='<qt>'+escape(project_label(task.get('project'),self.language))+'<br>'+escape(task_title(task,self.language))+'</qt>'
-            else:tip=self.label({'usage':'Weekly quota remaining','daily':"Today's quota consumption",'session':'5-hour quota remaining','resets':'Next quota reset'}.get(mode,CATEGORY_LABELS.get(mode,mode)))
+            mode,_,_=hit
+            tip=self.label({'usage':'Weekly quota remaining','daily':"Today's quota consumption",'session':'5-hour quota remaining','resets':'Next quota reset'}.get(mode,CATEGORY_LABELS.get(mode,mode)))
         if self.toolTip()!=tip:self.setToolTip(tip)
-        if hovering!=self.task_hover:
-            now=time.monotonic()
-            if self.task_hover:self.rotated_at+=now-self.title_hover_started
-            self.task_hover=hovering;self.title_hover_started=now
 
     def mousePressEvent(self,event):
         if not self.floating:return super().mousePressEvent(event)
@@ -788,8 +757,7 @@ class StatusBar(QWidget):
             if self.settings.get('floating_display') is not None or screen is not QApplication.primaryScreen():self.settings['floating_display']=screen.name()
             self.save_settings()
         elif hit and hit[1].contains(event.position()):
-            if hit[0]=='task':self.open_task(hit[2])
-            else:self.toggle_popup(hit[0])
+            self.toggle_popup(hit[0])
         elif not hit:self.hide_popup()
         self.track_pointer(event.position());event.accept()
 
@@ -832,7 +800,15 @@ class StatusBar(QWidget):
         return True
 
     def tick(self,resize=False):
-        if not (self.pressed and self.pressed[0]=='task'):self.data=self.provider.get()
+        fullscreen=windows.foreground_fullscreen()
+        self.tick_status(resize,fullscreen)
+        self.task_strip.refresh(self.data,resize=resize,hidden=fullscreen)
+        if self.motion_enabled and (self.task_strip.needs_animation or self.isVisible() and self.settings['show_tasks'] and category_counts(self.data)['running']):
+            if not self.animation.isActive():self.animation.start(33)
+        else:self.animation.stop()
+
+    def tick_status(self,resize,fullscreen):
+        self.data=self.provider.get()
         self.check_attention()
         if self.settings_dialog and self.settings_dialog.isVisible():self.settings_dialog.refresh_status()
         if self.task_finder and self.task_finder.isVisible():self.task_finder.refresh(self.data)
@@ -842,7 +818,7 @@ class StatusBar(QWidget):
         minimum=CONTENT_X+sum((25 if self.settings.get('rotate_quotas') else 29)+self.metric_text_width(kind,value) for kind,value,fraction in metrics)
         if self.settings['show_tasks']:
             counts=category_counts(self.data)
-            minimum+=(60 if self.data.get('tasks') else 0)+sum(30+QFontMetricsF(face(8)).horizontalAdvance(str(counts[k])) for k in STATUS_CATEGORIES if counts[k])
+            minimum+=sum(30+QFontMetricsF(face(8)).horizontalAdvance(str(counts[k])) for k in STATUS_CATEGORIES if counts[k])
         if not metrics and not self.settings['show_tasks']:
             self.hide();self.hide_popup(immediate=True);return
         minimum=min(minimum,self.content_width(540))
@@ -855,7 +831,7 @@ class StatusBar(QWidget):
         if self.floating:
             screen=self.floating_screen()
             box=self.geometry() if self.drag_origin is not None else floating_rect(screen.availableGeometry(),self.settings.get('floating_position')) if screen else None
-            hidden=self.settings.get('placement')=='auto' and (bool(placed and placed[-1]) or windows.foreground_fullscreen())
+            hidden=self.settings.get('placement')=='auto' and (bool(placed and placed[-1]) or fullscreen)
             placed=(*box.getRect(),1,hidden) if box else None
         self.placement_unavailable=placed is None
         if not placed:self.hide();self.hide_popup(immediate=True);return
@@ -888,13 +864,6 @@ class StatusBar(QWidget):
             point=self.mapFromGlobal(QCursor.pos()) if not self.floating or QApplication.widgetAt(QCursor.pos()) is self else QPointF(-1,-1)
             self.track_pointer(point)
         self.advance_quota()
-        previous=self.task
-        if not (self.pressed and self.pressed[0]=='task'):self.task=self.selected_task(self.data.get("tasks",[]) if self.settings['show_tasks'] else [],advance=not resize)
-        if previous and self.task and previous['id']!=self.task['id'] and self.motion_enabled:
-            self.previous_task=previous;self.task_tween.stop()
-            self.task_tween.setStartValue(0.);self.task_tween.setEndValue(1.);self.task_tween.start()
-        elif not self.task:
-            self.previous_task=None;self.task_tween.stop();self.task_blend=1.
         self.metrics=visible_metrics(self.data,self.settings)
         for kind,value,fraction in self.metrics:
             if fraction is not None:
@@ -903,13 +872,9 @@ class StatusBar(QWidget):
         # Keep visibility/interaction checks responsive without repainting unchanged pixels.
         frame_key=(tuple((kind,value,None if fraction is None else round(fraction,4)) for kind,value,fraction in self.displayed_metrics()),
                    tuple(category_counts(self.data).items()) if self.settings['show_tasks'] else (),
-                   tuple(self.task.get(k) for k in ('id','project','title','side_chat','task_role')) if self.task else None,
-                   self.task_hover,self.position,tuple(self.settings.get(k) for k in DISPLAY_DEFAULTS),self.settings.get('rotate_quotas'))
+                   self.position,tuple(self.settings.get(k) for k in DISPLAY_DEFAULTS),self.settings.get('rotate_quotas'))
         if frame_key!=self.frame_key:
             self.frame_key=frame_key;self.update()
-        if self.motion_enabled and self.isVisible() and self.settings['show_tasks'] and (self.task and (not self.task.get('needs_input') or self.task_hover) or category_counts(self.data)['running']):
-            if not self.animation.isActive():self.animation.start(33)
-        else:self.animation.stop()
         if self.popup:
             panel_key=(self.popup,id(self.data),int(time.time()),self.position)
             if panel_key!=self.panel_key:self.panel_key=panel_key;self.popup.refresh(self.data)
@@ -984,52 +949,15 @@ class StatusBar(QWidget):
                 p.drawLine(QPointF(x-6,y-5),QPointF(x-6,y+5))
             x+=7
         for kind,value,fraction in self.displayed_metrics():field(kind,value,fraction)
-        self.task_area=QRectF();self.task_rect=QRectF()
         if not self.settings['show_tasks']:finish();return
         counts=category_counts(data)
-        if not self.task and not any(counts[k] for k in STATUS_CATEGORIES):finish();return
+        if not any(counts[k] for k in STATUS_CATEGORIES):finish();return
         if x>CONTENT_X:separator()
         badge_x=x-6
         for mode,color in [('waiting',palette['amber']),('running',palette['green']),('unread',palette['amber']),('failed',palette['failed']),('stopped',palette['stopped'])]:
             if counts[mode]:
                 width=activity_count(p,badge_x,y,counts[mode],color,pulse=mode=='running' and self.motion_enabled,text_color=color if theme=='light' else None,glyph='?' if mode=='waiting' else None,emphasis=emphasis(mode))
                 self.hit_regions.append((mode,QRectF(badge_x-2,0,width+4,self.height()),None));badge_x+=width+6
-        if any(counts[k] for k in STATUS_CATEGORIES):x=badge_x+4
-        if self.task:
-            self.task_area=QRectF(x-2,0,0,self.height())
-            p.save();p.setClipRect(QRectF(x-2,0,max(0,self.width()-x+2),self.height()))
-            def task_label(task,opacity,offset,current=False):
-                p.save();p.setOpacity(opacity);p.translate(0,offset)
-                title_x=x+project_tag(p,x,y,task['project'],face(8),self.project_available(x),self.language,color=palette['link'],muted=palette['muted'])+10
-                if task_role_label(task):title_x+=side_tag(p,title_x,y,self.language,light=theme=='light',role=task_role_label(task))+7
-                available=max(0,self.width()-title_x-12)
-                label=task_title(task,self.language)
-                metrics=QFontMetricsF(self.font)
-                title_y=y-metrics.tightBoundingRect(label).center().y()-(metrics.ascent()-metrics.descent())/2
-                shown=min(available,metrics.horizontalAdvance(label))
-                if current:self.task_rect=QRectF(title_x,0,shown,self.height())
-                if opacity>0:self.task_area.setRight(max(self.task_area.right(),min(self.width(),title_x+shown+6)))
-                shift=0.
-                if self.task_hover and self.popup is None and self.motion_enabled:
-                    shift=marquee_offset(time.monotonic()-self.title_hover_started,metrics.horizontalAdvance(label)-available)
-                else:
-                    label=metrics.elidedText(label,Qt.TextElideMode.ElideRight,available)
-                p.setClipRect(QRectF(title_x,-offset,available,self.height()),Qt.ClipOperation.IntersectClip)
-                if self.task_hover and shift>0:
-                    text(p,title_x-shift,title_y,label,self.font,palette['text'])
-                elif self.task_blend<1:
-                    text(p,title_x,title_y,label,self.font,palette['muted'])
-                elif task.get('needs_input') or not self.motion_enabled:text(p,title_x-shift,title_y,label,self.font,palette['text'])
-                else:running_title(p,title_x-shift,title_y,label,self.font,title_x,min(available,metrics.horizontalAdvance(label)),palette['shimmer'])
-                p.restore()
-            if self.previous_task and self.task_blend<1:
-                task_label(self.previous_task,1-self.task_blend,-22*self.task_blend)
-            task_label(self.task,self.task_blend,22*(1-self.task_blend),current=True);p.restore()
-            shown=self.previous_task if self.previous_task and self.task_blend<.5 else self.task
-            feedback=self.task_area.adjusted(-4,4,0,-4).intersected(QRectF(5,4,self.width()-10,self.height()-8))
-            self.feedback_regions['task']=feedback
-            self.task_area=QRectF(feedback.x(),0,feedback.width(),self.height())
-            self.hit_regions.append(('task',QRectF(self.task_area),dict(shown)))
         finish()
 
     def hide_popup(self,immediate=False):
@@ -1042,6 +970,7 @@ class StatusBar(QWidget):
 
     def closeEvent(self,event):
         self.quota_tween.stop()
+        self.task_strip.shutdown();self.task_strip.deleteLater()
         self.click_hook.close();self.timer.stop();self.animation.stop();self.update_timer.stop()
         self.tray.hide();self.hide_popup(immediate=True)
         if self.settings_dialog:self.settings_dialog.close()
@@ -1495,6 +1424,7 @@ class TaskListPopup(TaskPopup):
 def main():
     if sys.argv[1:]==["--smoke-test"]:
         from .task_finder import TaskFinder
+        from .task_strip import TaskStrip
         return
     if len(sys.argv)==4 and sys.argv[1]=='--install-update':
         install_after_exit(sys.argv[2],int(sys.argv[3]),RUNTIME);return

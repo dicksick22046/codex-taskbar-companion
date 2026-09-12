@@ -2,6 +2,9 @@ import unittest
 from codex_taskbar.app import QApplication,QWidget,TaskPopup,TaskListPopup,StatusBar,SessionPopup,ResetPopup,DISPLAY_DEFAULTS
 from unittest.mock import patch
 from codex_taskbar.i18n import translate
+from PySide6.QtCore import QEvent,QPointF,Qt
+from PySide6.QtGui import QMouseEvent
+from tests import test_interactions as fixtures
 
 
 class Owner(QWidget):
@@ -68,40 +71,35 @@ class PopupInitialFrameTests(unittest.TestCase):
         owner.close();owner.deleteLater()
 
     def test_task_hit_area_follows_visible_content(self):
-        data={'tasks':[]}
-        provider=type('Provider',(),{'get':lambda self:data,'stop':lambda self:None})()
-        with patch('codex_taskbar.app.read_settings',return_value={**DISPLAY_DEFAULTS,'chart_unit':'M'}),patch('codex_taskbar.app.RELEASE_REPOSITORY',''), \
-             patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.QSystemTrayIcon'):
-            bar=StatusBar(provider)
-        bar.timer.stop();bar.animation.stop();bar.resize(810,30);bar.settings=dict(DISPLAY_DEFAULTS)
-        task={'id':'a','project':'Project','title':'Short'}
-        bar.task=task;bar.data={'tasks':[task]}
-        bar.grab()
-        self.assertLess(bar.task_area.right(),bar.width()-100)
-        self.assertLess(bar.task_rect.width(),100)
-        with patch.object(bar,'isVisible',return_value=True),patch('codex_taskbar.app.windows.pointer_over',return_value=True),patch('codex_taskbar.app.windows.rect',return_value=(0,0,810,30)), \
-             patch('codex_taskbar.app.windows.user32.GetDpiForWindow',return_value=96),patch('codex_taskbar.app.QTimer.singleShot') as dispatch:
-            self.assertFalse(bar.desktop_click(800,15))
-            dispatch.assert_not_called()
-            self.assertTrue(bar.desktop_click(round(bar.task_area.center().x()),15))
-            dispatch.assert_not_called()
-            self.assertTrue(bar.desktop_click(round(bar.task_area.center().x()),15,'left_up'))
-            dispatch.assert_called_once()
+        fixtures.InteractionTests.setUp(self);self.addCleanup(fixtures.InteractionTests.tearDown,self)
+        bar=self.bar;strip=self.strip
+        task={'id':'a','project':'Project','title':'Short','running':True}
+        bar.data={'tasks':[task]};strip.refresh(bar.data);strip.task_tween.setCurrentTime(strip.task_tween.duration());strip.grab()
+        self.assertLess(strip.task_area.right(),strip.width()-100)
+        self.assertLess(strip.task_rect.width(),100)
+        def send(kind,point):
+            held=Qt.MouseButton.NoButton if kind==QEvent.Type.MouseButtonRelease else Qt.MouseButton.LeftButton
+            self.application.sendEvent(strip,QMouseEvent(kind,point,QPointF(strip.mapToGlobal(point.toPoint())),Qt.MouseButton.LeftButton,held,Qt.KeyboardModifier.NoModifier))
+        with patch.object(bar,'open_task') as opened:
+            blank=QPointF(strip.width()-10,15)
+            send(QEvent.Type.MouseButtonPress,blank);send(QEvent.Type.MouseButtonRelease,blank);opened.assert_not_called()
+            point=strip.task_area.center();send(QEvent.Type.MouseButtonPress,point);opened.assert_not_called()
+            send(QEvent.Type.MouseButtonRelease,point);opened.assert_called_once_with(task)
         task['title']='A long task title '*40
-        bar.grab()
-        self.assertLessEqual(bar.task_area.right(),bar.width()-5)
-        self.assertEqual(bar.task_area.right()-bar.task_rect.right(),6)
-        bar.task=None;bar.data={'tasks':[]};bar.grab()
-        self.assertTrue(bar.task_area.isEmpty())
+        strip.refresh(bar.data);strip.grab()
+        self.assertLessEqual(strip.task_area.right(),strip.width()-5)
+        self.assertEqual(strip.task_area.right()-strip.task_rect.right(),6)
+        bar.data={'tasks':[]};strip.refresh(bar.data);strip.grab();bar.grab()
+        self.assertTrue(strip.task_area.isEmpty())
         self.assertEqual(sum(mode=='daily' for mode,rect,target in bar.hit_regions),1)
-        bar.close();bar.deleteLater()
 
 
     def test_native_strip_is_layered_even_before_it_is_shown(self):
         from codex_taskbar import app
         provider=type('Provider',(),{'get':lambda self:{},'stop':lambda self:None})()
         with patch('codex_taskbar.app.read_settings',return_value={**DISPLAY_DEFAULTS,'chart_unit':'M'}),patch('codex_taskbar.app.RELEASE_REPOSITORY',''), \
-             patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.QSystemTrayIcon'):
+             patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.QSystemTrayIcon'), \
+             patch('codex_taskbar.task_strip.TaskStrip.ensure_visible',new=lambda self:False):
             bar=StatusBar(provider)
         try:
             self.assertTrue(app.windows.user32.GetWindowLongPtrW(int(bar.winId()),-20)&0x80000)

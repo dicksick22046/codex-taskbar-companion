@@ -23,6 +23,7 @@ def task_category(task):
 def panel_rows(data, mode='daily'):
     rows = task_rows(data)
     if mode != 'daily':return [t for t in rows if task_category(t) == mode]
+    rows = [{k:v for k,v in t.items() if k != 'task_role'} for t in rows if not t.get('side_chat')]
     return sorted(rows, key=lambda t: (CATEGORIES.index(task_category(t)), -(t.get('tokens') or 0)))
 
 

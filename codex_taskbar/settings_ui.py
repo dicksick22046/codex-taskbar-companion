@@ -197,8 +197,9 @@ class SettingsDialog(QDialog):
         for caption,control in ((self.placement_label,self.placement),(self.display_label,self.display),(self.capsule_label,self.capsule),(self.transparency_label,self.transparency),(self.language_label,self.language)):
             caption.setBuddy(control);control.setAccessibleName(caption.text())
         floating_options=self.bar.settings.get('placement') in ('auto','floating')
-        self.topmost.setText(label('Keep on top'));self.topmost.setVisible(floating_options);self.topmost_line.setVisible(floating_options)
-        self.topmost.row.setVisible(floating_options);self.display_row.setVisible(floating_options);self.display_line.setVisible(floating_options)
+        topmost_options=floating_options or self.bar.settings['show_tasks']
+        self.topmost.setText(label('Keep on top'));self.topmost.setVisible(topmost_options);self.topmost_line.setVisible(topmost_options)
+        self.topmost.row.setVisible(topmost_options);self.display_row.setVisible(floating_options);self.display_line.setVisible(floating_options)
         self.display_label.setText(label('Floating display'));self.display.setAccessibleName(label('Floating display'));self.refresh_displays()
         self.placement.items[2][0].setToolTip(label('Use floating mode when taskbar space is unavailable.'))
         self.transparency.blockSignals(True);self.transparency.setValue(self.bar.settings.get('capsule_transparency',0));self.transparency.blockSignals(False);self.transparency_value.setText(f'{self.transparency.value()}%')

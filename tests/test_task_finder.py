@@ -40,13 +40,13 @@ class CatalogTests(unittest.TestCase):
         data={'catalog':[{'id':'b','title':'Review 中文 API','project':'Alpha','updated_at':200},
                          {'id':'a','title':'Readme','project':'','updated_at':200},
                          {'id':'c','title':'Alpha migration','project':'Beta','updated_at':100}],
-              'tasks':[{'id':'b','running':True,'side_chat':True,'project':'Alpha','title':'Review 中文 API'}]}
+              'tasks':[{'id':'b','running':True,'project':'Alpha','title':'Review 中文 API'}]}
         rows=finder_rows(data,'en')
         self.assertEqual([r['id'] for r in rows],['a','b','c'])
         self.assertEqual([r['id'] for r in filter_rows(rows,'ALPHA 中文')],['b'])
         self.assertEqual([r['id'] for r in filter_rows(rows,'alpha','Beta')],['c'])
         self.assertEqual([r['id'] for r in filter_rows(rows,project='')],['a'])
-        self.assertEqual(rows[0]['kind'],'');self.assertEqual(rows[1]['kind'],'running');self.assertTrue(rows[1]['side_chat'])
+        self.assertEqual(rows[0]['kind'],'');self.assertEqual(rows[1]['kind'],'running')
 
 
 class FinderInteractionTests(unittest.TestCase):
@@ -147,16 +147,23 @@ class FinderInteractionTests(unittest.TestCase):
         self.finder.refresh(self.data)
         self.assertEqual(cell_text(self.finder.model.rows[0],5),'9');self.assertNotIn('Indexing',self.finder.count.text())
 
-    def test_main_and_side_keep_distinct_selection_and_navigate_side_to_parent(self):
-        for language in ('en','zh-CN','ja','es'):
-            self.assertEqual(app.side_tag_width(language,'Main'),app.side_tag_width(language,'Side'))
+    def test_search_keeps_parent_totals_and_selection_without_temporary_side_rows(self):
         parent='00000000-0000-4000-8000-000000000001';side='00000000-0000-4000-8000-000000000002'
         self.data['catalog']=[]
         self.data['tasks']=[dict(id=parent,title='Shared title',project='App',running=True,task_role='main'),
                             dict(id=side,parent_id=parent,navigation_id=parent,title='Shared title',project='App',running=True,task_role='side',side_chat=True)]
-        self.finder.refresh(self.data);self.assertEqual(self.finder.model.rowCount(),2)
-        self.assertIn('Main',self.finder.model.index(0,0).data(Qt.ItemDataRole.AccessibleTextRole))
-        self.assertIn('Side',self.finder.model.index(1,0).data(Qt.ItemDataRole.AccessibleTextRole))
-        row=self.finder.model.rows[1]
+        self.data['task_statistics']={parent:dict(ready=True,tokens=81000000,seconds=80,turns=2)}
+        self.finder.refresh(self.data);self.assertEqual(self.finder.model.rowCount(),1)
+        row=self.finder.model.rows[0]
+        self.assertEqual(row['id'],parent);self.assertEqual(row['total_tokens'],81000000)
+        self.assertFalse({'side_chat','task_role','parent_id','navigation_id'} & row.keys())
+        spoken=self.finder.model.index(0,0).data(Qt.ItemDataRole.AccessibleTextRole)
+        self.assertNotIn('Main',spoken);self.assertNotIn('Side',spoken)
+        self.finder.view.setCurrentIndex(self.finder.model.index(0,1))
+        self.finder.search.setText('Shared')
+        self.data['tasks'][1].update(running=False,unread=True)
+        with patch.object(self.finder.model,'replace',wraps=self.finder.model.replace) as replace:
+            self.finder.refresh(self.data);replace.assert_not_called()
+        self.assertEqual(self.finder.view.currentIndex().data(Qt.ItemDataRole.UserRole)['id'],parent)
         with patch('codex_taskbar.app.os.startfile') as opened:
             self.assertTrue(self.bar.open_task(row));opened.assert_called_once_with('codex://threads/'+parent)

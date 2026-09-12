@@ -51,18 +51,19 @@ class FloatingInteractionTests(unittest.TestCase):
 
     def tearDown(self):fixtures.InteractionTests.tearDown(self)
 
-    def send(self,kind,local,global_point=None):
+    def send(self,kind,local,global_point=None,widget=None):
+        widget=widget or self.bar
         button=app.Qt.MouseButton.NoButton if kind==QEvent.Type.MouseMove else app.Qt.MouseButton.LeftButton
         held=app.Qt.MouseButton.NoButton if kind==QEvent.Type.MouseButtonRelease else app.Qt.MouseButton.LeftButton
-        event=QMouseEvent(kind,local,global_point or QPointF(self.bar.mapToGlobal(local.toPoint())),button,held,app.Qt.KeyboardModifier.NoModifier)
-        self.application.sendEvent(self.bar,event)
+        event=QMouseEvent(kind,local,global_point or QPointF(widget.mapToGlobal(local.toPoint())),button,held,app.Qt.KeyboardModifier.NoModifier)
+        self.application.sendEvent(widget,event)
 
     def test_click_retains_task_target_and_does_not_save_position(self):
-        point=self.bar.task_area.center()
+        point=self.strip.task_area.center()
         with patch.object(self.bar,'open_task') as opened,patch.object(self.bar,'save_settings') as saved:
-            self.send(QEvent.Type.MouseButtonPress,point)
-            self.bar.task={'id':'replacement','title':'Replacement','project':'P'};self.bar.grab()
-            self.send(QEvent.Type.MouseButtonRelease,point)
+            self.send(QEvent.Type.MouseButtonPress,point,widget=self.strip)
+            self.strip.task={'id':'replacement','title':'Replacement','project':'P'};self.strip.grab()
+            self.send(QEvent.Type.MouseButtonRelease,point,widget=self.strip)
             self.assertEqual(opened.call_args.args[0]['id'],'running');saved.assert_not_called()
 
     def test_drag_from_metric_moves_without_opening_panel_and_saves_once(self):

@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+- Move the running task carousel into its own draggable floating strip with a saved position; keep quota indicators, status counts and their menus on the original strip.
+- Keep temporary Main/Side distinctions in the strip and status lists; show ordinary tasks once without role labels in daily Token statistics and task search.
+
 ## 0.8.1
 
 - Show Main tasks and Side chats independently, with separate status counts and durations; Side entries return to their parent task.

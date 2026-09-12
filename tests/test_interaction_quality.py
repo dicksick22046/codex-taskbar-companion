@@ -65,16 +65,17 @@ class InteractionQualityTests(unittest.TestCase):
             self.bar.desktop_click(-10,-10,'right_up');menu.assert_not_called()
             self.bar.desktop_click(point.x(),point.y(),'right');self.bar.desktop_click(point.x(),point.y(),'right_up');menu.assert_called_once()
 
-    def test_holding_task_freezes_provider_snapshot_and_animation(self):
-        hit=next(h for h in self.bar.hit_regions if h[0]=='task')
-        self.bar.task_tween.setStartValue(0.);self.bar.task_tween.setEndValue(1.);self.bar.task_tween.start();self.bar.task_tween.setCurrentTime(100)
-        self.bar.begin_press(hit);value=self.bar.task_blend
-        self.assertEqual(self.bar.task_tween.state(),QAbstractAnimation.State.Paused)
+    def test_holding_task_freezes_animation_while_status_data_still_refreshes(self):
+        strip=self.strip
+        strip.task_tween.setStartValue(0.);strip.task_tween.setEndValue(1.);strip.task_tween.start();strip.task_tween.setCurrentTime(100)
+        point=strip.task_area.center().toPoint();self.mouse(strip,QEvent.Type.MouseButtonPress,point);value=strip.task_blend
+        self.assertEqual(strip.task_tween.state(),QAbstractAnimation.State.Paused)
         self.provider.get.reset_mock()
         with patch('codex_taskbar.app.windows.placement',return_value=None):self.bar.tick()
-        self.provider.get.assert_not_called();self.assertEqual(self.bar.task_blend,value)
-        self.assertTrue(self.bar.press_inside);self.bar.release_press();self.assertFalse(self.bar.press_inside)
-        self.assertEqual(self.bar.task_tween.state(),QAbstractAnimation.State.Running)
+        self.provider.get.assert_called_once();self.assertEqual(strip.task_blend,value)
+        self.assertEqual(strip.pressed[1]['id'],'running')
+        strip.release_press();self.assertFalse(strip.press_inside)
+        self.assertEqual(strip.task_tween.state(),QAbstractAnimation.State.Running)
 
     def test_hover_open_never_activates_but_explicit_open_accepts_keyboard(self):
         panel=Mock();panel.mode='usage';panel.reveal_target=1.;panel.winId.return_value=1
@@ -154,9 +155,8 @@ class InteractionQualityTests(unittest.TestCase):
 
     def test_task_feedback_keeps_text_clear_of_both_ends_when_elided(self):
         for title in ('Short task','A long task title '*30):
-            self.data['tasks'][0]['title']=title;self.bar.task=self.data['tasks'][0]
-            self.bar.resize(self.bar.content_width(540),30);self.bar.grab()
-            box=self.bar.feedback_regions['task']
-            self.assertGreaterEqual(box.right()-self.bar.task_rect.right(),5)
-            self.assertLessEqual(box.right(),self.bar.width()-5)
-            self.assertTrue(self.bar.task_area.contains(box))
+            self.data['tasks'][0]['title']=title;self.strip.task=self.data['tasks'][0];self.strip.grab()
+            box=self.strip.task_area.adjusted(0,4,0,-4)
+            self.assertGreaterEqual(box.right()-self.strip.task_rect.right(),5)
+            self.assertLessEqual(box.right(),self.strip.width()-5)
+            self.assertTrue(self.strip.task_area.contains(box))

@@ -6,9 +6,9 @@ import math
 from PySide6.QtCore import Qt,QAbstractTableModel,QModelIndex,QSize,QRectF,QEvent
 from PySide6.QtGui import QColor,QFontMetricsF
 from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLineEdit,QComboBox,QListView,QTableView,QHeaderView,QLabel,QStyledItemDelegate,QAbstractItemView,QStyle
-from .app import face,text,project_tag,side_tag,side_tag_width,chart_number,BLUE,ACCENT,AMBER,FAILED,MUTED
+from .app import face,text,project_tag,chart_number,BLUE,ACCENT,AMBER,FAILED,MUTED
 from .i18n import project_label,task_title,translate
-from .tasks import task_rows,task_category,CATEGORY_LABELS,duration_text,task_role_label
+from .tasks import task_rows,task_category,CATEGORY_LABELS,duration_text
 from .settings_ui import Choice
 from .ui_theme import CONTROLS,typeface
 
@@ -23,7 +23,7 @@ def timestamp(value):
 
 
 def finder_rows(data,language):
-    states={task['id']:task for task in task_rows(data)}
+    states={task['id']:task for task in task_rows(data) if not task.get('side_chat')}
     catalog={task['id']:task for task in data.get('catalog') or []}
     # Freshly started work can precede the next catalog refresh.
     for task in states.values():catalog.setdefault(task['id'],task)
@@ -38,9 +38,7 @@ def finder_rows(data,language):
         project=task.get('project') or '';title=task_title(task,language)
         stats=(data.get('task_statistics') or {}).get(task['id'],{});ready=stats.get('ready',False)
         rows.append({'id':task['id'],'title':title,'project':project,'project_label':project_label(project,language),
-                     'kind':kind if kind!='recent' else '', 'side_chat':bool((state or {}).get('side_chat')),
-                     'task_role':(state or {}).get('task_role'),'parent_id':(state or {}).get('parent_id'),
-                     'navigation_id':(state or {}).get('navigation_id'),
+                     'kind':kind if kind!='recent' else '',
                      'status_label':translate(language,CATEGORY_LABELS[kind]) if kind and kind!='recent' else '',
                      'total_tokens':stats.get('tokens'),'total_seconds':stats.get('seconds'),
                      'total_turns':stats.get('turns'),'partial':stats.get('partial',False),
@@ -98,8 +96,7 @@ class TaskModel(QAbstractTableModel):
         if role==Qt.ItemDataRole.DisplayRole:return cell_text(row,index.column(),self.parent().bar.chart_unit)
         if role==Qt.ItemDataRole.AccessibleTextRole:
             if index.column():return self.parent().bar.label(COLUMNS[index.column()][0])+': '+cell_text(row,index.column(),self.parent().bar.chart_unit)
-            role=task_role_label(row)
-            return ', '.join(([self.parent().bar.label(role)] if role else [])+[row[k] for k in ('project_label','title','status_label','stamp') if row[k]])
+            return ', '.join(row[k] for k in ('project_label','title','status_label','stamp') if row[k])
         if role==Qt.ItemDataRole.ToolTipRole:
             lines=[row[k] for k in ('project_label','title','stamp')]
             if index.column() in (3,4,5):
@@ -132,7 +129,6 @@ class TaskDelegate(QStyledItemDelegate):
         column=index.column();right=box.right()-12;font=face(8)
         if column==0:project_tag(p,x,y,row['project'],font,max(0,box.width()-24),browser.bar.language)
         elif column==1:
-            if task_role_label(row):x+=side_tag(p,x,y,browser.bar.language,role=task_role_label(row))+7
             title=QFontMetricsF(face()).elidedText(row['title'],Qt.TextElideMode.ElideRight,max(0,right-x))
             text(p,x,y,title,face(),MUTED)
         else:
@@ -216,10 +212,10 @@ class TaskFinder(QDialog):
         return super().eventFilter(watched,event)
 
     def refresh(self,data):
-        states=task_rows(data)
+        states=[task for task in task_rows(data) if not task.get('side_chat')]
         # Retain the catalog itself: object IDs can be reused while this window is hidden.
         key=(data.get('catalog'),data.get('task_statistics'),self.bar.language,self.bar.chart_unit,datetime.now().date(),
-             tuple(tuple(t.get(k) for k in ('id','project','title','running','needs_input','unread','status','side_chat','task_role','parent_id','navigation_id','activity_at')) for t in states),bool(data.get('loading')))
+             tuple(tuple(t.get(k) for k in ('id','project','title','running','needs_input','unread','status','activity_at')) for t in states),bool(data.get('loading')))
         if key==self.input_key:return
         format_key=(self.bar.language,self.bar.chart_unit);format_changed=format_key!=getattr(self,'format_key',None);self.format_key=format_key
         self.input_key=key;self.rows=finder_rows(data,self.bar.language)

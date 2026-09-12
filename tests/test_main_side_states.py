@@ -4,7 +4,7 @@ import tempfile,threading,unittest
 from unittest.mock import Mock
 from codex_taskbar.provider import Provider
 from codex_taskbar.usage import UsageCursor
-from codex_taskbar.tasks import category_counts,panel_rows,task_rows,task_category
+from codex_taskbar.tasks import category_counts,panel_rows,task_rows,task_category,task_role_label
 from codex_taskbar.task_finder import finder_rows
 from tests.test_usage import record
 
@@ -43,7 +43,12 @@ class MainSideStateTests(unittest.TestCase):
                                 expected=int(main_kind==kind)+int(expected_side==kind)
                                 self.assertEqual(counts[kind],expected)
                                 if kind!='recent':self.assertEqual(len(panel_rows(data,kind)),expected)
+                            daily=panel_rows(data,'daily')
+                            self.assertEqual([r['id'] for r in daily],['main'])
+                            self.assertEqual(daily[0]['tokens'],100);self.assertIsNone(task_role_label(daily[0]))
+                            self.assertEqual(task_role_label(rows['main']),'Main')
+                            self.assertEqual(task_role_label(rows['side']),'Side')
                             search={r['id']:r for r in finder_rows(data,'en')}
+                            self.assertEqual(set(search),{'main'});self.assertIsNone(task_role_label(search['main']))
                             self.assertEqual(search['main']['kind'],'' if main_kind=='recent' else main_kind)
-                            self.assertEqual(search['side']['kind'],'' if expected_side=='recent' else expected_side)
                             self.assertEqual(rows['side']['navigation_id'],'main')

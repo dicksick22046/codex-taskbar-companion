@@ -108,7 +108,8 @@ class SideChatAggregationTests(unittest.TestCase):
             provider.unread_state.read.return_value={'side'}
             provider._publish(threads,[],{'main':cursor},[],None,None)
             self.assertEqual(category_counts(provider.snapshot)['unread'],1)
-            self.assertEqual(next(row for row in finder_rows(provider.snapshot,'en') if row['id']=='side')['kind'],'unread')
+            self.assertEqual([row['id'] for row in finder_rows(provider.snapshot,'en')],['main'])
+            self.assertEqual([row['id'] for row in panel_rows(provider.snapshot,'unread')],['side'])
 
     def test_two_active_sides_count_separately_without_copying_parent_usage(self):
         from datetime import timedelta

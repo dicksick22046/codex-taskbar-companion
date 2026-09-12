@@ -67,13 +67,15 @@ def read_settings(path):
     result['capsule_transparency']=max(0,min(100,transparency)) if type(transparency) is int else 0
     result['placement']=data.get('placement') if data.get('placement') in ('auto','taskbar','floating') else 'taskbar'
     result['floating_topmost']=data.get('floating_topmost') is not False
-    position=data.get('floating_position')
-    valid=isinstance(position,dict) and isinstance(position.get('screen'),str) and all(
-        type(position.get(k)) in (int,float) and math.isfinite(position[k]) and 0<=position[k]<=1 for k in ('x','y'))
-    result['floating_position']={k:position[k] for k in ('screen','x','y')} if valid else None
-    if valid and type(position.get('width')) is int and 1<=position['width']<=540:
-        result['floating_position']['width']=position['width']
-    selected=data.get('floating_display',position.get('screen') if valid else None)
+    for key in ('floating_position','task_strip_position'):
+        position=data.get(key)
+        valid=isinstance(position,dict) and isinstance(position.get('screen'),str) and all(
+            type(position.get(k)) in (int,float) and math.isfinite(position[k]) and 0<=position[k]<=1 for k in ('x','y'))
+        result[key]={k:position[k] for k in ('screen','x','y')} if valid else None
+        if valid and type(position.get('width')) is int and 1<=position['width']<=540:
+            result[key]['width']=position['width']
+    position=result['floating_position']
+    selected=data.get('floating_display',position.get('screen') if position else None)
     result['floating_display']=selected if isinstance(selected,str) and 0<len(selected)<=128 else None
     return result
 

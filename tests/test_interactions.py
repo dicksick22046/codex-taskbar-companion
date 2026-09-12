@@ -1,6 +1,8 @@
 from datetime import datetime,timedelta
 from unittest.mock import patch,Mock
 import unittest
+from PySide6.QtCore import QEvent,QPointF
+from PySide6.QtGui import QMouseEvent
 
 from codex_taskbar import app
 from codex_taskbar.tasks import panel_rows,category_counts
@@ -12,6 +14,8 @@ class InteractionTests(unittest.TestCase):
     def setUpClass(cls):cls.application=app.QApplication.instance() or app.QApplication([])
 
     def setUp(self):
+        hidden=patch('codex_taskbar.task_strip.TaskStrip.ensure_visible',new=lambda self:False)
+        hidden.start();self.addCleanup(hidden.stop)
         now=datetime.now().astimezone().timestamp()
         self.data={'tasks':[{'id':'running','project':'Demo','title':'Running task','running':True,'tokens':500,'daily_seconds':7200,'round_seconds':42}],
             'recent_tasks':[{'id':k,'project':'Demo','title':k,'status':k,'unread':k=='unread','tokens':1000,'daily_seconds':3600,'round_seconds':25}
@@ -24,26 +28,32 @@ class InteractionTests(unittest.TestCase):
              patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.RELEASE_REPOSITORY',''),patch('codex_taskbar.app.QSystemTrayIcon'):
             self.bar=app.StatusBar(self.provider)
         self.bar.timer.stop();self.bar.animation.stop();self.bar.update_timer.stop();self.bar.tray.hide()
-        self.bar.resize(1200,30);self.bar.data=self.data;self.bar.task=self.data['tasks'][0]
+        self.bar.resize(1200,30);self.bar.data=self.data
         self.bar.settings=dict(app.DISPLAY_DEFAULTS);self.bar.chart_unit='M';self.bar.grab()
+        self.strip=self.bar.task_strip;self.strip.refresh(self.data);self.strip.grab()
         pointer=patch('codex_taskbar.app.windows.pointer_over',return_value=True);pointer.start();self.addCleanup(pointer.stop)
 
     def tearDown(self):self.bar.close();self.bar.deleteLater()
 
+    def strip_mouse(self,kind,point):
+        held=app.Qt.MouseButton.NoButton if kind==QEvent.Type.MouseButtonRelease else app.Qt.MouseButton.LeftButton
+        event=QMouseEvent(kind,QPointF(point),QPointF(self.strip.mapToGlobal(point.toPoint())),app.Qt.MouseButton.LeftButton,held,app.Qt.KeyboardModifier.NoModifier)
+        self.application.sendEvent(self.strip,event)
+
     def test_hovering_a_title_pauses_task_rotation(self):
-        self.bar.current_id='a';self.bar.rotated_at=0;self.bar.task_hover=True
+        self.strip.current_id='a';self.strip.rotated_at=0;self.strip.task_hover=True
         with patch('codex_taskbar.app.time.monotonic',return_value=10):
-            self.assertEqual(self.bar.selected_task([{'id':'a'},{'id':'b'}])['id'],'a')
+            self.assertEqual(self.strip.selected_task([{'id':'a'},{'id':'b'}])['id'],'a')
 
     def test_rotation_allows_eight_seconds_and_pauses_on_hover(self):
-        bar=self.bar;bar.current_id=None;bar.rotated_at=0;bar.popup=None;bar.task_hover=False
+        bar=self.strip;bar.current_id=None;bar.rotated_at=0;self.bar.popup=None;bar.task_hover=False
         tasks=[{'id':'a'},{'id':'b'},{'id':'c'}]
         with patch('codex_taskbar.app.time.monotonic',return_value=0):self.assertEqual(bar.selected_task(tasks)['id'],'a')
         with patch('codex_taskbar.app.time.monotonic',return_value=4):self.assertEqual(bar.selected_task(tasks)['id'],'a')
         with patch('codex_taskbar.app.time.monotonic',return_value=8):self.assertEqual(bar.selected_task(tasks)['id'],'b')
-        bar.popup=object()
+        self.bar.popup=object()
         with patch('codex_taskbar.app.time.monotonic',return_value=12):self.assertEqual(bar.selected_task(tasks)['id'],'b')
-        bar.popup=None
+        self.bar.popup=None
         with patch('codex_taskbar.app.time.monotonic',return_value=16):self.assertEqual(bar.selected_task(tasks)['id'],'c')
 
     def test_categories_are_exclusive_and_daily_keeps_all_tasks(self):
@@ -61,29 +71,52 @@ class InteractionTests(unittest.TestCase):
         self.assertEqual([s for s,y in running.sections],['Running'])
         daily.close();running.close();daily.deleteLater();running.deleteLater()
 
+    def test_temporary_roles_render_only_in_status_list_and_strip(self):
+        parent='00000000-0000-4000-8000-000000000001';side='00000000-0000-4000-8000-000000000002'
+        main=dict(id=parent,project='Demo',title='Shared title',running=True,task_role='main',tokens=81000000,round_seconds=42)
+        child=dict(main,id=side,parent_id=parent,navigation_id=parent,task_role='side',side_chat=True,tokens=None,round_seconds=12)
+        self.data.update(tasks=[main,child],recent_tasks=[],totals={'total_tokens':81000000})
+        self.bar.setGeometry(20,600,600,30)
+        daily=app.TaskListPopup(self.bar,'daily');running=app.TaskListPopup(self.bar,'running')
+        try:
+            for language in ('en','zh-CN','ja','es'):
+                self.bar.settings['language']=language
+                self.assertEqual(app.side_tag_width(language,'Main'),app.side_tag_width(language,'Side'))
+                daily.refresh(self.data);running.refresh(self.data)
+                self.assertEqual(daily.values,{parent:'81'});self.assertEqual(running.values,{parent:'42s',side:'12s'})
+                with patch('codex_taskbar.app.side_tag',wraps=app.side_tag) as tag:
+                    daily.grab();tag.assert_not_called()
+                    running.grab();self.assertEqual([c.kwargs['role'] for c in tag.call_args_list],['Main','Side'])
+                    for task,role in ((main,'Main'),(child,'Side')):
+                        tag.reset_mock();self.strip.task=task;self.strip.grab()
+                        self.assertEqual(tag.call_args.kwargs['role'],role)
+            with patch('codex_taskbar.app.os.startfile') as opened:
+                self.assertTrue(self.bar.open_task(running.rows[1]));opened.assert_called_once_with('codex://threads/'+parent)
+        finally:
+            daily.close();running.close();daily.deleteLater();running.deleteLater()
+
     def test_metric_and_status_regions_are_distinct(self):
-        self.assertEqual([m for m,r,t in self.bar.hit_regions],['usage','session','daily','resets','running','unread','failed','stopped','task'])
+        self.assertEqual([m for m,r,t in self.bar.hit_regions],['usage','session','daily','resets','running','unread','failed','stopped'])
         for i,(_,a,_) in enumerate(self.bar.hit_regions):
             for _,b,_ in self.bar.hit_regions[i+1:]:self.assertFalse(a.intersects(b))
 
     def test_task_target_is_frozen_at_press_and_dragging_out_cancels(self):
-        region=next(r for m,r,t in self.bar.hit_regions if m=='task');point=region.center()
-        with patch.object(self.bar,'isVisible',return_value=True),patch('codex_taskbar.app.windows.rect',return_value=(0,0,1200,30)), \
-             patch('codex_taskbar.app.windows.user32.GetDpiForWindow',return_value=96),patch.object(self.bar,'open_task') as navigate, \
-             patch('codex_taskbar.app.QTimer.singleShot',side_effect=lambda ms,fn:fn()):
-            self.bar.desktop_click(point.x(),point.y())
-            self.bar.task={'id':'replacement','project':'Other','title':'Another task'};self.bar.grab()
-            self.bar.desktop_click(point.x(),point.y(),'left_up')
+        point=self.strip.task_area.center()
+        with patch.object(self.bar,'open_task') as navigate:
+            self.strip_mouse(QEvent.Type.MouseButtonPress,point)
+            self.strip.task={'id':'replacement','project':'Other','title':'Another task'};self.strip.grab()
+            self.strip_mouse(QEvent.Type.MouseButtonRelease,point)
             self.assertEqual(navigate.call_args.args[0]['id'],'running')
             navigate.reset_mock()
-            point=self.bar.task_area.center();self.bar.desktop_click(point.x(),point.y())
-            self.bar.desktop_click(1199,100,'left_up');navigate.assert_not_called()
+            self.strip.task=self.data['tasks'][0];self.strip.grab();point=self.strip.task_area.center()
+            self.strip_mouse(QEvent.Type.MouseButtonPress,point)
+            self.strip_mouse(QEvent.Type.MouseButtonRelease,QPointF(1199,100));navigate.assert_not_called()
 
     def test_popup_regions_dispatch_their_own_mode(self):
         with patch.object(self.bar,'isVisible',return_value=True),patch('codex_taskbar.app.windows.rect',return_value=(0,0,1200,30)), \
              patch('codex_taskbar.app.windows.user32.GetDpiForWindow',return_value=96),patch.object(self.bar,'toggle_popup') as toggle, \
              patch('codex_taskbar.app.QTimer.singleShot',side_effect=lambda ms,fn:fn()):
-            for mode,region,payload in self.bar.hit_regions[:-1]:
+            for mode,region,payload in self.bar.hit_regions:
                 point=region.center();self.bar.desktop_click(point.x(),point.y())
                 self.bar.desktop_click(point.x(),point.y(),'left_up')
                 self.assertEqual(toggle.call_args.args[0],mode)
@@ -180,35 +213,35 @@ class InteractionTests(unittest.TestCase):
 
     def test_popups_do_not_freeze_rotation_and_hover_still_pauses(self):
         tasks=[{'id':'a'},{'id':'b'},{'id':'c'}]
-        self.bar.current_id='a';self.bar.rotated_at=0
+        self.strip.current_id='a';self.strip.rotated_at=0
         panel=app.ResetPopup(self.bar);self.bar.popup=panel
         with patch('codex_taskbar.app.time.monotonic',return_value=10):
-            self.assertEqual(self.bar.selected_task(tasks)['id'],'b')
-        self.bar.task_hover=True
+            self.assertEqual(self.strip.selected_task(tasks)['id'],'b')
+        self.strip.task_hover=True
         with patch('codex_taskbar.app.time.monotonic',return_value=20):
-            self.assertEqual(self.bar.selected_task(tasks)['id'],'b')
-        self.bar.task_hover=False
+            self.assertEqual(self.strip.selected_task(tasks)['id'],'b')
+        self.strip.task_hover=False
         with patch('codex_taskbar.app.time.monotonic',return_value=21):
-            self.assertEqual(self.bar.selected_task(tasks)['id'],'c')
+            self.assertEqual(self.strip.selected_task(tasks)['id'],'c')
 
     def test_hover_and_popup_close_preserve_rotation_progress(self):
-        self.bar.current_id='running';self.bar.rotated_at=0
-        point=self.bar.task_area.center()
-        with patch('codex_taskbar.app.time.monotonic',return_value=6):self.bar.track_pointer(point)
-        with patch('codex_taskbar.app.time.monotonic',return_value=16):self.bar.track_pointer(app.QPointF(-1,-1))
-        self.assertEqual(self.bar.rotated_at,10)
+        self.strip.current_id='running';self.strip.rotated_at=0
+        point=self.strip.task_area.center()
+        with patch('codex_taskbar.app.time.monotonic',return_value=6):self.strip.track_pointer(point)
+        with patch('codex_taskbar.app.time.monotonic',return_value=16):self.strip.track_pointer(app.QPointF(-1,-1))
+        self.assertEqual(self.strip.rotated_at,10)
         self.bar.popup=app.TaskPopup(self.bar)
         with patch('codex_taskbar.app.time.monotonic',return_value=17):self.bar.hide_popup(immediate=True)
-        self.assertEqual(self.bar.rotated_at,10)
-        tasks=[self.bar.task,{'id':'next'}]
+        self.assertEqual(self.strip.rotated_at,10)
+        tasks=[self.strip.task,{'id':'next'}]
         with patch('codex_taskbar.app.time.monotonic',return_value=18):
-            self.assertEqual(self.bar.selected_task(tasks)['id'],'next')
+            self.assertEqual(self.strip.selected_task(tasks)['id'],'next')
 
     def test_replacement_task_does_not_inherit_previous_hover_wait(self):
-        self.bar.current_id='finished';self.bar.task_hover=True;self.bar.title_hover_started=0
-        with patch('codex_taskbar.app.time.monotonic',return_value=10):self.bar.selected_task([{'id':'next'}])
-        with patch('codex_taskbar.app.time.monotonic',return_value=16):self.bar.track_pointer(app.QPointF(-1,-1))
-        self.assertEqual(self.bar.rotated_at,16)
+        self.strip.current_id='finished';self.strip.task_hover=True;self.strip.title_hover_started=0
+        with patch('codex_taskbar.app.time.monotonic',return_value=10):self.strip.selected_task([{'id':'next'}])
+        with patch('codex_taskbar.app.time.monotonic',return_value=16):self.strip.track_pointer(app.QPointF(-1,-1))
+        self.assertEqual(self.strip.rotated_at,16)
 
     def test_entire_interactive_regions_have_native_hit_pixels(self):
         self.bar.resize(1500,30)
@@ -231,8 +264,9 @@ class InteractionTests(unittest.TestCase):
             self.bar.update_hover_popup(self.hover_point('daily'),.31)
             self.bar.update_hover_popup(self.hover_point('daily'),.7);show.assert_called_once_with('daily',activate=False)
             show.reset_mock()
-            self.bar.update_hover_popup(self.hover_point('task'),1)
-            self.bar.update_hover_popup(self.hover_point('task'),2)
+            self.strip.track_pointer(self.strip.task_area.center())
+            self.bar.update_hover_popup(self.strip.mapToGlobal(self.strip.task_area.center().toPoint()),1)
+            self.bar.update_hover_popup(self.strip.mapToGlobal(self.strip.task_area.center().toPoint()),2)
             show.assert_not_called();navigate.assert_not_called()
             self.bar.settings['hover_panels']=False
             self.bar.update_hover_popup(self.hover_point('usage'),3)
@@ -401,13 +435,13 @@ class InteractionTests(unittest.TestCase):
     def test_language_switch_updates_open_settings_menu_and_panel_without_side_effects(self):
         from codex_taskbar.settings_ui import SettingsDialog
         self.data['tasks'][0].update(project='',side_chat=True,title='原任务标题')
-        panel=app.TaskListPopup(self.bar,'daily');self.bar.popup=panel;panel.refresh(self.data)
+        panel=app.TaskListPopup(self.bar,'running');self.bar.popup=panel;panel.refresh(self.data)
         with patch('codex_taskbar.settings_ui.startup.enabled',return_value=True),patch('codex_taskbar.app.write_settings') as save, \
              patch('codex_taskbar.app.windows.placement',return_value=(0,900,1200,30,1,False)), \
              patch.object(self.bar,'ensure_visible',return_value=False),patch('codex_taskbar.app.windows.follow_taskbar'):
             dialog=SettingsDialog(self.bar);self.bar.settings_dialog=dialog
             before={key:self.bar.settings.get(key) for key in app.DISPLAY_DEFAULTS}
-            rotated=self.bar.rotated_at
+            rotated=self.strip.rotated_at
             for language,settings,no_project,side,category in [('zh-CN','设置…','无项目','侧聊','进行中'),('en','Settings…','No project','Side','Running'),
                     ('ja','設定…','未所属','サイド','実行中'),('es','Ajustes…','Sin proyecto','Lateral','En curso')]:
                 dialog.language.setCurrentIndex(dialog.language.findData(language))
@@ -418,12 +452,12 @@ class InteractionTests(unittest.TestCase):
                 self.assertEqual(dialog.checks['show_session'].text(),self.bar.label('5-hour quota'))
                 self.assertEqual(dialog.language_label.text(),self.bar.label('Language'))
                 with patch('codex_taskbar.app.text',wraps=app.text) as draw:
-                    self.bar.grab();panel.grab()
+                    self.bar.grab();self.strip.grab();panel.grab()
                 labels=[c.args[3] for c in draw.call_args_list]
                 self.assertIn(no_project,labels);self.assertIn(side,labels)
                 self.assertIn('原任务标题',labels)
                 self.assertEqual(before,{key:self.bar.settings.get(key) for key in app.DISPLAY_DEFAULTS})
-                self.assertEqual(self.bar.rotated_at,rotated)
+                self.assertEqual(self.strip.rotated_at,rotated)
                 self.assertEqual(save.call_args.args[1]['language'],language)
             self.provider.request_reset.assert_not_called()
             self.provider.refresh.assert_not_called()
@@ -465,7 +499,7 @@ class InteractionTests(unittest.TestCase):
                     self.assertEqual(dialog.update_button.text(),expected)
                 self.assertIn('9.9.9',dialog.update_button.text())
 
-    def test_all_left_metrics_rotate_in_one_slot_and_task_positions_stay_fixed(self):
+    def test_all_left_metrics_rotate_in_one_slot_and_status_positions_stay_fixed(self):
         self.bar.settings['rotate_quotas']=True
         with patch.object(self.bar,'isVisible',return_value=True):
             positions=[]
@@ -475,7 +509,7 @@ class InteractionTests(unittest.TestCase):
                 self.assertEqual(self.bar.displayed_metrics()[0][1],label)
                 modes=[m for m,r,t in self.bar.hit_regions]
                 self.assertEqual([m for m in modes if m in ('usage','daily','session','resets')],[mode])
-                positions.append([r.x() for m,r,t in self.bar.hit_regions if m in ('running','task')])
+                positions.append([r.x() for m,r,t in self.bar.hit_regions if m=='running'])
             self.assertTrue(all(p==positions[0] for p in positions))
 
     def test_rotation_slot_stays_fixed_within_each_countdown_format(self):
@@ -490,7 +524,7 @@ class InteractionTests(unittest.TestCase):
                         width=self.bar.metric_text_width(kind,value);widths.add(width)
                         self.assertGreaterEqual(width,app.QFontMetricsF(app.face(8)).horizontalAdvance(value))
                         self.bar.quota_kind=kind;self.bar.grab()
-                        positions.add(next(r.x() for m,r,t in self.bar.hit_regions if m=='task'))
+                        positions.add(next(r.x() for m,r,t in self.bar.hit_regions if m=='running'))
                 self.assertEqual(len(widths),1);self.assertEqual(len(positions),1)
 
     def test_current_day_countdown_has_compact_text_gap_and_stationary_ring(self):
@@ -581,9 +615,9 @@ class InteractionTests(unittest.TestCase):
             self.assertEqual(dialog.rotation.text(),'轮换左侧指标')
             self.assertEqual(self.bar.displayed_metrics()[0][1],'今日 12%')
             self.assertEqual(self.bar.quota_rotated_at,12)
-            self.bar.current_id='a';self.bar.rotated_at=0;self.bar.quota_hover=True
+            self.strip.current_id='a';self.strip.rotated_at=0;self.bar.quota_hover=True
             with patch('codex_taskbar.app.time.monotonic',return_value=8):
-                self.assertEqual(self.bar.selected_task([{'id':'a'},{'id':'b'}])['id'],'b')
+                self.assertEqual(self.strip.selected_task([{'id':'a'},{'id':'b'}])['id'],'b')
             dialog.rotation.setChecked(False)
             self.assertFalse(save.call_args.args[1]['rotate_quotas'])
             self.assertEqual([k for k,v,f in self.bar.displayed_metrics()],['quota','session','spent','clock'])
