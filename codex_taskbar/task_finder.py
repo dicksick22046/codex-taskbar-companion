@@ -5,7 +5,7 @@ from pathlib import Path
 import math
 from PySide6.QtCore import Qt,QAbstractTableModel,QModelIndex,QSize,QRectF,QEvent
 from PySide6.QtGui import QColor,QFontMetricsF
-from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLineEdit,QComboBox,QListView,QTableView,QHeaderView,QLabel,QStyledItemDelegate,QAbstractItemView,QStyle
+from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLineEdit,QComboBox,QListView,QTableView,QHeaderView,QLabel,QStyledItemDelegate,QAbstractItemView,QStyle,QPushButton
 from .app import face,text,project_tag,chart_number,BLUE,ACCENT,AMBER,FAILED,MUTED
 from .i18n import project_label,task_title,translate
 from .tasks import task_rows,task_category,CATEGORY_LABELS,duration_text
@@ -154,6 +154,7 @@ class TaskFinder(QDialog):
     def __init__(self,bar):
         super().__init__();self.bar=bar;self.rows=[];self.input_key=None;self.pressed_id=None
         self.sort_column=6;self.sort_descending=True
+        self.statistics=bar.settings.get('show_task_statistics',False)
         bounds=(bar.floating_screen() if bar.floating else bar.screen()).availableGeometry();max_width=max(320,bounds.width()-32);max_height=max(240,bounds.height()-48)
         self.setFont(bar.font);self.setMinimumSize(min(760,max_width),min(300,max_height))
         self.setStyleSheet(('QWidget{font-family:"'+bar.font.family()+'";} '+CONTROLS+'''QDialog,QTableView{background:#24262c;color:#d7dfe9;}
@@ -170,7 +171,10 @@ class TaskFinder(QDialog):
         self.projects.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.units=Choice();self.units.addItems(['M','100M']);self.units.setCurrentText(bar.chart_unit)
         self.units.currentTextChanged.connect(bar.set_chart_unit)
-        controls.addWidget(self.search,1);controls.addWidget(self.projects);controls.addWidget(self.units);layout.addLayout(controls)
+        self.statistics_button=QPushButton();self.statistics_button.setCheckable(True);self.statistics_button.setChecked(self.statistics)
+        self.statistics_button.setAutoDefault(False)
+        self.statistics_button.setStyleSheet('QPushButton{padding:8px 12px;} QPushButton:checked{background:#405c7e;color:#e1e5ec;}')
+        controls.addWidget(self.search,1);controls.addWidget(self.projects);controls.addWidget(self.statistics_button);controls.addWidget(self.units);layout.addLayout(controls)
         self.view=TaskView(self);self.view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows);self.view.setShowGrid(False)
         self.view.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);self.view.setMouseTracking(True)
@@ -188,17 +192,33 @@ class TaskFinder(QDialog):
         self.search.textChanged.connect(self.apply_filter);self.projects.currentIndexChanged.connect(self.apply_filter)
         self.search.returnPressed.connect(self.open_selected)
         self.view.pressed.connect(self.remember_press);self.view.clicked.connect(self.open_clicked)
+        self.statistics_button.toggled.connect(self.set_statistics)
+        self.sync_statistics_view()
         self.refresh(bar.provider.get())
         self.ensurePolished()
         chrome=34+layout.spacing()*3+heading.sizeHint().height()+controls.sizeHint().height()+footer.sizeHint().height()+header.sizeHint().height()
-        self.resize(min(1030,max_width),min(560,max(300,len(self.rows)*40+chrome+8),max_height))
+        self.resize(min(1030 if self.statistics else 820,max_width),min(560,max(300,len(self.rows)*40+chrome+8),max_height))
         self.move(bounds.center()-self.rect().center())
 
     def showEvent(self,event):
-        super().showEvent(event);self.failure.hide();self.bar.provider.set_statistics_active(True)
+        super().showEvent(event);self.failure.hide();self.bar.provider.set_statistics_active(self.statistics)
 
     def hideEvent(self,event):
         self.bar.provider.set_statistics_active(False);super().hideEvent(event)
+
+    def sync_statistics_view(self):
+        for column in (3,4,5):self.view.setColumnHidden(column,not self.statistics)
+        self.units.setVisible(self.statistics)
+
+    def set_statistics(self,enabled):
+        if self.statistics==enabled:return
+        self.statistics=bool(enabled);self.bar.settings['show_task_statistics']=self.statistics
+        self.pressed_id=None
+        if not self.statistics and self.sort_column in (3,4,5):
+            self.sort_column=6;self.sort_descending=True
+            self.view.horizontalHeader().setSortIndicator(6,Qt.SortOrder.DescendingOrder)
+        self.sync_statistics_view();self.bar.provider.set_statistics_active(self.isVisible() and self.statistics)
+        self.bar.save_settings();self.input_key=None;self.refresh(self.bar.provider.get())
 
     def choose_sort(self,column):
         self.sort_descending=not self.sort_descending if column==self.sort_column else column>=3
@@ -214,13 +234,17 @@ class TaskFinder(QDialog):
     def refresh(self,data):
         states=[task for task in task_rows(data) if not task.get('side_chat')]
         # Retain the catalog itself: object IDs can be reused while this window is hidden.
-        key=(data.get('catalog'),data.get('task_statistics'),self.bar.language,self.bar.chart_unit,datetime.now().date(),
+        key=(data.get('catalog'),data.get('task_statistics') if self.statistics else None,self.statistics,self.bar.language,self.bar.chart_unit,datetime.now().date(),
              tuple(tuple(t.get(k) for k in ('id','project','title','running','needs_input','unread','status','activity_at')) for t in states),bool(data.get('loading')))
         if key==self.input_key:return
         format_key=(self.bar.language,self.bar.chart_unit);format_changed=format_key!=getattr(self,'format_key',None);self.format_key=format_key
         self.input_key=key;self.rows=finder_rows(data,self.bar.language)
-        self.scope.setText(self.bar.label('All local history'))
+        self.scope.setText(self.bar.label('All local history' if self.statistics else 'Recorded tasks'))
         self.heading.setText(self.bar.label('Tasks'));self.key_hint.setText(self.bar.label('Enter to open'))
+        self.statistics_button.setText(self.bar.label('History statistics'))
+        self.statistics_button.setAccessibleName(self.bar.label('History statistics'))
+        self.statistics_button.setToolTip(self.bar.label('Show local lifetime run time, tokens and turns.'))
+        self.statistics_button.setAccessibleDescription(self.statistics_button.toolTip())
         self.units.blockSignals(True);self.units.setCurrentText(self.bar.chart_unit);self.units.blockSignals(False)
         self.model.headerDataChanged.emit(Qt.Orientation.Horizontal,0,len(COLUMNS)-1)
         self.setWindowTitle(self.bar.label('Tasks'));self.search.setPlaceholderText(self.bar.label('Search tasks or projects'))
@@ -248,7 +272,7 @@ class TaskFinder(QDialog):
             self.pressed_id=None;self.view.setCurrentIndex(self.model.index(0,0));self.view.verticalScrollBar().setValue(0)
         self.view.setVisible(bool(rows));self.empty.setVisible(not rows)
         self.empty.setText(self.bar.label('Connecting to Codex…' if self.loading else 'No matching tasks'))
-        pending=sum(row['indexing'] for row in rows)
+        pending=sum(row['indexing'] for row in rows) if self.statistics else 0
         self.count.setText(self.bar.label('Results: {count}',count=len(rows))+'  ·  '+self.bar.label('Indexing local history: {count}',count=pending) if pending else self.bar.label('Results: {count}',count=len(rows)))
         total=sum(row['total_bytes'] for row in rows);done=sum(row['indexed_bytes'] for row in rows)
         if pending and total:self.count.setText(self.count.text()+f' · {min(99,int(done/total*100))}%')

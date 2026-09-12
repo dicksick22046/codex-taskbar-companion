@@ -5,7 +5,7 @@ import threading
 import unittest
 from unittest.mock import Mock,patch
 from PySide6.QtCore import Qt,QEvent,QRect
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtGui import QKeyEvent,QShowEvent,QHideEvent
 from codex_taskbar import app
 from codex_taskbar.codex_api import CodexApi
 from codex_taskbar.provider import Provider
@@ -55,6 +55,7 @@ class FinderInteractionTests(unittest.TestCase):
 
     def setUp(self):
         fixtures.InteractionTests.setUp(self)
+        saving=patch.object(self.bar,'save_settings');self.save=saving.start();self.addCleanup(saving.stop)
         self.data['tasks']=[];self.data['recent_tasks']=[]
         self.data['catalog']=[{'id':str(i),'title':f'Task {i}','project':'App' if i%2 else 'Docs','updated_at':1700000000-i} for i in range(80)]
         self.finder=TaskFinder(self.bar)
@@ -116,6 +117,7 @@ class FinderInteractionTests(unittest.TestCase):
         self.assertIn('进行中',spoken);self.assertIn(self.finder.model.rows[0]['stamp'],spoken)
 
     def test_totals_are_numeric_sortable_in_both_directions_with_unknown_last(self):
+        self.finder.statistics_button.setChecked(True)
         self.data['catalog']=self.data['catalog'][:3]
         self.data['task_statistics']={'0':{'ready':True,'tokens':9000000,'seconds':80,'turns':2},
                                       '1':{'ready':True,'tokens':120000000,'seconds':120,'turns':9,'partial':True}}
@@ -128,6 +130,7 @@ class FinderInteractionTests(unittest.TestCase):
         self.assertEqual(cell_text(partial,4,'M'),'≥ 0.1M')
 
     def test_statistics_updates_preserve_selected_task(self):
+        self.finder.statistics_button.setChecked(True)
         self.finder.view.setCurrentIndex(self.finder.model.index(3,1))
         self.data['task_statistics']={'3':{'ready':True,'tokens':100,'seconds':40,'turns':1}}
         self.finder.refresh(self.data)
@@ -137,6 +140,7 @@ class FinderInteractionTests(unittest.TestCase):
         self.assertEqual(self.finder.scope.text(),'All local history')
 
     def test_indexing_shows_known_lower_bounds_and_byte_progress(self):
+        self.finder.statistics_button.setChecked(True)
         self.data['catalog']=self.data['catalog'][:1]
         self.data['task_statistics']={'0':{'ready':False,'tokens':120000000,'seconds':120,'turns':9,
             'partial':True,'tokens_partial':True,'turns_partial':True,'indexed_bytes':25,'total_bytes':100}}
@@ -167,3 +171,42 @@ class FinderInteractionTests(unittest.TestCase):
         self.assertEqual(self.finder.view.currentIndex().data(Qt.ItemDataRole.UserRole)['id'],parent)
         with patch('codex_taskbar.app.os.startfile') as opened:
             self.assertTrue(self.bar.open_task(row));opened.assert_called_once_with('codex://threads/'+parent)
+
+    def test_default_search_has_four_columns_and_does_not_index_history(self):
+        self.assertEqual([i for i in range(7) if not self.finder.view.isColumnHidden(i)],[0,1,2,6])
+        self.assertTrue(self.finder.units.isHidden());self.assertEqual(self.finder.scope.text(),'Recorded tasks')
+        self.provider.set_statistics_active.reset_mock()
+        self.finder.showEvent(QShowEvent())
+        self.provider.set_statistics_active.assert_called_once_with(False)
+        with patch.object(self.finder.model,'replace') as replace:
+            self.data['task_statistics']={'0':{'ready':False,'tokens':100,'indexed_bytes':20,'total_bytes':100}}
+            self.finder.refresh(self.data);replace.assert_not_called()
+        self.assertNotIn('Indexing',self.finder.count.text())
+
+    def test_statistics_disclosure_preserves_selection_filter_and_pauses_indexing(self):
+        self.finder.search.setText('Task 1');self.finder.projects.setCurrentIndex(self.finder.projects.findData('App'))
+        self.finder.view.setCurrentIndex(self.finder.model.index(2,1))
+        selected=self.finder.view.currentIndex().data(Qt.ItemDataRole.UserRole)['id']
+        with patch.object(self.finder,'isVisible',return_value=True):
+            self.finder.statistics_button.setChecked(True)
+            self.provider.set_statistics_active.assert_called_with(True)
+            self.assertEqual(self.finder.view.currentIndex().data(Qt.ItemDataRole.UserRole)['id'],selected)
+            self.assertTrue(self.bar.settings['show_task_statistics']);self.save.assert_called()
+            self.assertFalse(any(self.finder.view.isColumnHidden(i) for i in (3,4,5)))
+            self.finder.choose_sort(4);self.finder.statistics_button.setChecked(False)
+            self.assertEqual((self.finder.sort_column,self.finder.sort_descending),(6,True))
+            self.provider.set_statistics_active.assert_called_with(False)
+            self.assertEqual(self.finder.search.text(),'Task 1');self.assertEqual(self.finder.projects.currentData(),'App')
+            self.assertEqual(self.finder.view.currentIndex().data(Qt.ItemDataRole.UserRole)['id'],selected)
+            self.finder.statistics_button.setChecked(True);self.finder.hideEvent(QHideEvent())
+            self.provider.set_statistics_active.assert_called_with(False)
+
+    def test_statistics_choice_is_used_by_a_new_finder_and_keyboard_toggle(self):
+        self.bar.settings['show_task_statistics']=True
+        finder=TaskFinder(self.bar)
+        try:
+            self.assertTrue(finder.statistics_button.isChecked());self.assertFalse(finder.view.isColumnHidden(4))
+            for kind in (QEvent.Type.KeyPress,QEvent.Type.KeyRelease):
+                self.application.sendEvent(finder.statistics_button,QKeyEvent(kind,Qt.Key.Key_Space,Qt.KeyboardModifier.NoModifier))
+            self.assertFalse(finder.statistics);self.assertFalse(self.bar.settings['show_task_statistics'])
+        finally:finder.close();finder.deleteLater()
