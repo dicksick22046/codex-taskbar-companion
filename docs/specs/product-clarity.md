@@ -54,10 +54,10 @@ Prepare a ready-to-run, consent-based usability protocol for five unfamiliar Cod
 
 ## Execution status
 
-- [ ] Quota validity and observation metadata
-- [ ] Quota meaning, freshness and reset-source presentation
-- [ ] Independent controls, accessible state entry and quiet motion
-- [ ] Basic finder with optional historical statistics
-- [ ] Integrated tests and visual verification
+- [x] Quota validity and observation metadata
+- [x] Quota meaning, freshness and reset-source presentation
+- [x] Independent controls, accessible state entry and quiet motion
+- [x] Basic finder with optional historical statistics
+- [x] Integrated tests and visual verification
 - [ ] Upgrade/install verification, documentation and release
-- [ ] Usability protocol ready; real participant study reported separately
+- [x] Usability protocol ready; real participant study reported separately

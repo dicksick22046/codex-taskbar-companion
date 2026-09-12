@@ -4,6 +4,8 @@ Help people notice what their AI tasks need and return to the right task, with q
 
 ## Current delivery order
 
+The 0.9.0 product-clarity batch refines the existing Windows scope: shared quota validity and source context, independent task-strip control, quiet Running presentation and optional history statistics. Engineering verification is recorded in [0.9.0 verification](qa/product-clarity-release.md). Real user validation remains pending under the [usability protocol](qa/product-clarity-usability.md); delivered interface work is not evidence of fewer missed tasks.
+
 The first-level goals below are governed by the concrete second-level checklist in [product quality execution](plans/product-quality.md). Completing a single item is not the end of the work. Reconcile unfinished items before reporting completion or beginning another milestone.
 
 1. **Desktop experience, attention and product review — delivered.** 0.7.0 and the subsequent local selection fix are recorded in the execution checklist.

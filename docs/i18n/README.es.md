@@ -18,9 +18,9 @@ Requiere **Windows 11 x64** y la **aplicación de escritorio de Codex**, instala
 2. Ejecuta el instalador y abre la aplicación. Incluye Python, Qt y las fuentes; no requiere permisos de administrador.
 3. Haz clic derecho en la barra para abrir los ajustes. Elige qué mostrar y si debe iniciarse al entrar en Windows.
 
-Se coloca a la izquierda de la barra de tareas principal. Si no hay espacio, puedes abrir los ajustes desde la bandeja del sistema. Busca actualizaciones en GitHub, pero solo las instala cuando tú lo eliges.
+Las instalaciones nuevas usan Auto: prefieren la barra principal y flotan si falta espacio. Se conservan las preferencias anteriores al actualizar. El menú contextual y la bandeja permiten buscar tareas, abrir categorías de estado, cambiar ajustes y salir.
 
-Elige **Ubicación → Flotante** en los ajustes para mover la cápsula arrastrándola. La posición se conserva al reiniciar. **Mantener encima** es opcional; los paneles se abren arriba o abajo según el espacio disponible. Puedes volver a **Barra de tareas** en cualquier momento.
+La ubicación de la barra de estado controla la cuota y los recuentos. La barra independiente de tareas en curso se activa por separado y recuerda su posición al arrastrarla. Mantener las ventanas flotantes encima, los colores y la transparencia se comparten entre ambas barras.
 
 ![Cápsula flotante](../images/floating.png)
 
@@ -39,7 +39,7 @@ Elige **Ubicación → Flotante** en los ajustes para mover la cápsula arrastr�
 | Punto de estado y cantidad | Tareas de ese estado, con la duración del turno actual o más reciente |
 | Nombre de una tarea | Esa tarea en Codex |
 
-Las tareas en curso se alternan en la barra. Al pasar el ratón, la rotación se detiene y los nombres largos se desplazan. Las tareas principales y los chats laterales tienen recuentos, estados y tiempos separados: una tarea principal en curso puede aparecer junto a un resultado lateral sin leer. Al seleccionar el chat lateral se abre su tarea principal. Las tareas detenidas y los fallos tienen indicadores propios.
+Los nuevos usuarios ven recuentos de estado; la barra independiente de tareas está desactivada inicialmente. Las preferencias anteriores se conservan y ambos controles son independientes. La barra de tareas mantiene un ancho estable, pausa la rotación al pasar el cursor y permite leer títulos largos. Se oculta si no hay tareas en curso. Main/Side solo distingue estados temporales; Side abre la tarea principal y no duplica filas en las estadísticas o la búsqueda. Los indicadores de ejecución son estáticos.
 
 En los ajustes puedes elegir inglés, chino simplificado, japonés o español, abrir paneles al pasar el ratón y activar la rotación de cuotas. En este modo, todos los indicadores activados de la izquierda, incluida la cuenta atrás, comparten una posición de ancho fijo.
 
@@ -47,7 +47,7 @@ En Ajustes puedes elegir manualmente el color oscuro o claro de la cápsula y la
 
 Haz clic derecho y elige **Buscar tarea…** para buscar tareas guardadas por título o proyecto. Filtra por proyecto y abre un resultado con un clic o con las flechas y Enter. La búsqueda es local y no guarda el texto introducido. El filtro solo afecta a esta ventana.
 
-La cápsula se ajusta al contenido hasta el ancho máximo anterior. Reserva espacio para la tarea más larga de la rotación, evitando cambios de tamaño entre tareas. El catálogo también incluye ejecuciones CLI guardadas; sus registros pueden aumentar los totales locales de tokens.
+La barra de estado se ajusta al ancho real de las etiquetas y los recuentos dentro del espacio disponible. No oculta indicadores elegidos ni cambia la rotación automáticamente. Si no cabe completa, el menú de estados sigue disponible en la bandeja. La barra de títulos mantiene un ancho estable.
 
 ![Búsqueda de tareas](../images/task-search.png)
 
@@ -55,7 +55,9 @@ La cápsula se ajusta al contenido hasta el ancho máximo anterior. Reserva espa
 
 ## Qué significan los datos
 
-La búsqueda muestra tiempo activo, tokens y turnos acumulados del historial local. Haz clic en una cabecera para ordenar y otra vez para invertir el orden. El historial se procesa por lotes mientras la ventana está abierta y se conserva en caché. El tiempo incluye esperas dentro del turno y excluye pausas entre turnos. `≥` indica un mínimo conocido cuando faltan registros.
+Semana y 5h indican cuota restante; Hoy indica consumo observado desde la primera lectura del día. Los detalles muestran el inicio de observación y la última actualización. Un marcador identifica los valores conservados tras un fallo; las cuotas y horas de reinicio caducadas pasan a desconocidas. Los tokens locales no equivalen a un porcentaje exacto de la cuota de cuenta.
+
+La búsqueda muestra inicialmente proyecto, título, estado y actividad reciente. Activa Estadísticas históricas para revelar tiempo, tokens, turnos y unidades. La indexación solo se ejecuta mientras la ventana y las estadísticas están visibles; al ocultarlas se pausa y conserva la caché. La selección y los filtros se mantienen. `≥` indica un mínimo conocido cuando faltan registros.
 
 La barra lateral organiza los ajustes en Apariencia, Indicadores y General. Los cambios se aplican al instante, incluido el ancho de la cápsula. General permite activar avisos de respuesta (desactivados por defecto) y copiar un diagnóstico sin nombres de tareas, cuentas, rutas ni registros.
 
@@ -70,7 +72,7 @@ Una pregunta síncrona sin respuesta aparece como «Requiere respuesta», con un
 - La lista diaria incluye los turnos de hoy. Los paneles de estado muestran la duración del turno actual o más reciente, incluida la espera de herramientas.
 - Los totales históricos solo cubren tareas registradas en este equipo. Excluyen otros dispositivos y chats laterales temporales sin consumo guardado.
 
-En el historial, Scheduled indica un cambio de ciclo observado; Manual, un reinicio confirmado mediante esta herramienta; y Official, las demás recuperaciones observadas. Official es una clasificación inferida, no una confirmación de OpenAI. Usar un crédito de reinicio requiere confirmación y consume un crédito real.
+En el historial, Scheduled indica un cambio natural; Manual, un reinicio confirmado mediante esta herramienta; y Other recovery, una recuperación cuyo origen no se ha confirmado. No se atribuye automáticamente a OpenAI. Usar un crédito de reinicio requiere confirmación y consume un crédito real.
 
 ## Datos y limitaciones
 

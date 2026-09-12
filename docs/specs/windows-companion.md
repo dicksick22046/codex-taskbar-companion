@@ -2,7 +2,7 @@
 
 ## Scope
 
-Extend the existing Windows presentation with an optional floating capsule and reduce unnecessary background work. Keep one Provider and the existing data directory. The quota/status strip retains its placement modes; the running task carousel is now a separate floating strip as specified in [interaction](interaction.md#进行中任务独立悬浮条). Default status placement remains Taskbar; upgrading preserves existing preferences. This milestone does not claim macOS, Linux or untested Windows support.
+Extend the existing Windows presentation with an optional floating capsule and reduce unnecessary background work. Keep one Provider and the existing data directory. The quota/status strip retains its placement modes; the running task carousel is a separately controlled floating strip as specified in [product clarity](product-clarity.md#2-independent-windows-and-defaults). Fresh settings use Auto and leave the title strip off; upgrading preserves existing placement and presentation choices. This milestone does not claim macOS, Linux or untested Windows support.
 
 ## Performance
 
@@ -16,11 +16,11 @@ Validate with repeatable idle/active render counts and CPU samples using control
 
 Settings offer Taskbar / Floating, plus Keep on top for Floating. Switch immediately without restarting collection. Reuse manual theme/transparency, indicators, tasks and panels. Right-click retains Settings and Quit. The tray remains available if all indicators are disabled.
 
-The floating capsule is 30 DIP high, with a maximum width of 540 DIP constrained by the screen. Content sizing is specified below. It is independent of taskbar availability and alignment. Drag anywhere inside the capsule; movement must exceed the system drag threshold before being a drag. A completed drag never opens a panel or task. Preserve normal click targets and outside dismissal. Transparent rounded corners stay outside the target.
+The floating status capsule is 30 DIP high and fits its complete content within the available screen. Content sizing is specified below. It is independent of taskbar availability and alignment. Drag anywhere inside the capsule; movement must exceed the system drag threshold before being a drag. A completed drag never opens a panel or task. Preserve normal click targets and outside dismissal. Transparent rounded corners stay outside the target.
 
 ### Adaptive capsule width
 
-Both status-strip placements fit the enabled metrics and nonempty status counts, with balanced end padding. Keep the existing taskbar space limit and floating 540 DIP limit. Task names no longer affect status-strip width; the separate task strip keeps a stable 420 DIP width constrained by its display. Retain the quota rotation slot's existing stable width. Long task titles still elide and scroll on hover. No extra setting is needed.
+Both status-strip placements measure the enabled metrics and nonempty status counts with balanced end padding. Respect actual taskbar/system-button and screen boundaries instead of the old fixed 540 DIP maximum. Auto placement falls back when full content cannot fit; an explicit placement choice remains preserved. If even floating content cannot fit, standard tray status actions remain available. Task names no longer affect status-strip width; the separate task strip keeps a stable 420 DIP width constrained by its display. Retain the quota rotation slot's stable width; do not silently enable rotation to fit. Long task titles still elide and scroll on hover.
 
 Keep the left edge and ring positions fixed when content changes. Defer background-driven shrinking while hovering, pressing, dragging, or a panel/menu is open. A settings window alone never freezes geometry: explicit display, rotation, language and placement changes immediately recompute the capsule, including when other interaction guards are present. Opening a task panel continues to use its own readable minimum width even when the capsule is short.
 

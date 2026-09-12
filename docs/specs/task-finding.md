@@ -1,6 +1,6 @@
 # Task finding
 
-Lifetime metric columns and numeric sorting are specified in [task statistics](task-statistics.md); the read-only Needs input category is specified in [attention](attention.md).
+Optional lifetime metric columns and numeric sorting are specified in [task statistics](task-statistics.md); simple/expanded display and index activation follow [product clarity](product-clarity.md#3-find-tasks-first-disclose-statistics). The read-only Needs input category is specified in [attention](attention.md).
 
 ## Scope and entry
 

@@ -18,9 +18,9 @@ Requires **Windows 11 x64** and the **Codex desktop app**, installed and signed 
 2. Run the installer, then start the app. Python, Qt, and fonts are included. Administrator access is not required.
 3. Right-click the strip to open Settings. Choose which items to show and whether to start at sign-in.
 
-The strip sits on the left of the primary taskbar. If there is not enough space, open Settings from the system tray. Updates are checked on GitHub; installation starts only when you choose it.
+New installations use **Auto** placement: prefer the primary taskbar and float when there is not enough room. Existing placement preferences are preserved. Right-click either strip or the tray for **Find task…**, **Task status**, Settings and Quit. Updates are checked on GitHub; installation starts only when you choose it.
 
-Choose **Placement → Floating** in Settings to move the capsule away from the taskbar. Drag it to a convenient position; that position is remembered. **Keep on top** is optional, and panels open above or below it to fit the screen. Switch back to **Taskbar** at any time.
+Choose **Status bar placement → Floating** to move the quota/status strip. The optional **Running task strip** is independent: drag it to a convenient position and that position is remembered. **Keep floating windows on top** applies to enabled floating windows; colors and transparency apply to both strips.
 
 **Auto** prefers the primary taskbar and uses a floating capsule when there is not enough room. It waits for stable availability before switching back and avoids automatic overlays over fullscreen foreground apps. **Floating display** can follow primary or pin a display; disconnecting it temporarily uses primary, and reconnecting restores the saved relative position. This does not add secondary-taskbar embedding or claim validation on other Windows versions.
 
@@ -39,17 +39,17 @@ Choose **Placement → Floating** in Settings to move the capsule away from the 
 | Status dot and count | Tasks in that state, with the current or latest turn's duration |
 | Task title | That task in Codex |
 
-Running tasks rotate in the strip. Hovering pauses rotation and scrolls long titles. Main tasks and Side chats have separate counts, states and timers: a running main task can appear alongside an unread side result. Side entries return to their parent task. Stopped and failed tasks have their own indicators.
+Enable **Running task strip** in Indicators to see a separate 420-DIP title carousel. It is off by default for new users; existing display choices are preserved on upgrade. **Task status counts** remains an independent control on the original strip. Hovering pauses task rotation and reveals long titles; empty Running lists hide the title strip. Main/Side markers appear only in live task surfaces; Side entries return to the parent task and do not add duplicate statistics/search rows. Running markers are static; motion is reserved for interactions and deliberate long-title reading.
 
 Settings include English, Simplified Chinese, Japanese, and Spanish UI selection, optional hover-to-open panels, and optional quota rotation. With rotation enabled, all enabled left-side indicators, including the reset countdown, share one fixed-width position.
 
 Capsule colors and background transparency are set manually in Settings. Choose Dark or Light; 0% transparency gives a solid background. Text and ring opacity are unaffected.
 
-The capsule fits its content up to the original maximum width. It reserves room for the longest rotating task, so switching tasks does not make it jump in size.
+The status strip fits the actual enabled labels and counts within the available screen/taskbar space. It does not silently hide selected indicators or change quota-rotation preferences. If complete content cannot fit, task categories remain available in the tray/context menu. The separate task strip keeps a stable width during rotation.
 
 Right-click and choose **Find task…** to search recorded tasks by title or project. Filter to one project, then click a result or use the arrow keys and Enter to return to it in Codex. This filter affects the search window only; quota and strip counts keep their existing scope.
 
-Task search also shows local lifetime **run time, tokens and execution turns**. Click a column heading to sort; click again to reverse it. The first history scan runs in small batches while the window is open, then resumes from a cache. Run time includes waits within a turn and excludes gaps between turns. Turns are execution rounds, not individual messages or tool calls. `≥` marks a known lower bound when records are incomplete.
+Task search defaults to project, title, status and recent activity. Enable **History statistics** to reveal local lifetime **run time, tokens and execution turns**, plus the unit selector. Sorting, filtering, selection and existing caches are preserved. The history scan runs only while this view is visible and statistics are expanded; collapsing it pauses indexing. Run time includes waits within a turn and excludes gaps. Turns are execution rounds. `≥` marks a known lower bound when records are incomplete.
 
 Settings use a sidebar for **Appearance**, **Indicators** and **General**. Placement, theme and display changes apply immediately, including the capsule's width.
 
@@ -67,13 +67,13 @@ An unresolved synchronous `request_user_input` record appears as **Needs input**
 
 ## About the numbers
 
-- Quota percentages come from the account. Tokens come from task logs on this computer. Token totals cannot be converted into an exact quota percentage or subscription cost.
-- Daily quota usage starts at the day's first available reading. Restarting preserves it. Earlier usage is not reconstructed; a reset during the day is handled as a separate interval.
+- Quota percentages come from the account; Token statistics come from this computer. Local cycle/today panels label both scopes explicitly. A quiet **Cached** marker identifies retained readings after a quota failure, with the last successful update in tooltips/details. Expired balances and reset times become unknown across all quota surfaces.
+- **Week left / 5h left** show remaining account quota; **Today used** is observed consumption, not necessarily a complete day. The detail shows the observation start time. Restarting preserves the baseline, earlier usage is not reconstructed, and resets are accumulated as separate intervals.
 - The daily task list includes today's turns. Status panels show the current or latest turn's duration, including time waiting for tools.
 - Historical token totals cover locally recorded tasks. Other devices and temporary side chats without saved usage are excluded.
 - The task catalog includes recorded CLI, VS Code, app-server and CLI execution sources. Newly included records can increase local token totals. Persisted synchronous input requests are observable; live approval routing and unrecorded questions are not fully exposed.
 
-Reset history uses **Scheduled** for an observed natural rollover, **Manual** for a reset confirmed through this tool, and **Official** for other observed recoveries. Official is an inferred category, not a verified statement from OpenAI. Using a reset credit requires confirmation and consumes a real credit.
+Reset history uses **Scheduled** for an observed natural rollover, **Manual** for a reset confirmed through this tool, and **Other recovery** for other observed recoveries. The latter has an unconfirmed source; its stored historical classification is unchanged. Using a reset credit requires confirmation and consumes a real credit.
 
 ## Data and limitations
 
