@@ -7,7 +7,7 @@ from .i18n import LANGUAGES
 
 DISPLAY_DEFAULTS = {
     'show_week': True, 'show_session': True, 'show_countdown': True,
-    'show_daily': True, 'show_tasks': True,
+    'show_daily': True, 'show_tasks': True, 'show_task_strip': False,
 }
 
 
@@ -57,6 +57,9 @@ def read_settings(path):
     result = dict(data)
     for key, default in DISPLAY_DEFAULTS.items():
         result[key] = data[key] if isinstance(data.get(key), bool) else default
+    if 'show_task_strip' not in data and isinstance(data.get('show_tasks'),bool):
+        result['show_task_strip']=data['show_tasks']
+    result['show_task_statistics']=data.get('show_task_statistics') is True
     result['chart_unit'] = data.get('chart_unit') if data.get('chart_unit') in ('M', '100M') else 'M'
     result['hover_panels'] = data.get('hover_panels') is True
     result['rotate_quotas'] = data.get('rotate_quotas') is True
@@ -65,14 +68,14 @@ def read_settings(path):
     result['capsule_theme'] = data.get('capsule_theme') if data.get('capsule_theme') in ('dark','light') else 'dark'
     transparency=data.get('capsule_transparency',0)
     result['capsule_transparency']=max(0,min(100,transparency)) if type(transparency) is int else 0
-    result['placement']=data.get('placement') if data.get('placement') in ('auto','taskbar','floating') else 'taskbar'
+    result['placement']=data.get('placement') if data.get('placement') in ('auto','taskbar','floating') else 'auto'
     result['floating_topmost']=data.get('floating_topmost') is not False
     for key in ('floating_position','task_strip_position'):
         position=data.get(key)
         valid=isinstance(position,dict) and isinstance(position.get('screen'),str) and all(
             type(position.get(k)) in (int,float) and math.isfinite(position[k]) and 0<=position[k]<=1 for k in ('x','y'))
         result[key]={k:position[k] for k in ('screen','x','y')} if valid else None
-        if valid and type(position.get('width')) is int and 1<=position['width']<=540:
+        if valid and type(position.get('width')) is int and position['width']>=1:
             result[key]['width']=position['width']
     position=result['floating_position']
     selected=data.get('floating_display',position.get('screen') if position else None)

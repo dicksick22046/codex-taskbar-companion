@@ -88,15 +88,15 @@ class TaskStripPositionTests(unittest.TestCase):
                     self.assertEqual(loaded['floating_position'],original)
                     self.assertEqual(loaded['floating_display'],'original')
 
-    def test_optional_reference_width_uses_original_validation_rules(self):
+    def test_optional_reference_width_must_be_a_positive_integer(self):
         task={'screen':'task','x':.5,'y':.4}
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'settings.json'
-            for width in (None,True,0,541,420.,'420'):
+            for width in (None,True,0,-1,420.,'420'):
                 with self.subTest(width=width):
                     path.write_text(json.dumps({'task_strip_position':dict(task,width=width)}))
                     self.assertEqual(read_settings(path)['task_strip_position'],task)
-            for width in (1,420,540):
+            for width in (1,420,540,891,10000):
                 with self.subTest(width=width):
                     path.write_text(json.dumps({'task_strip_position':dict(task,width=width)}))
                     self.assertEqual(read_settings(path)['task_strip_position'],dict(task,width=width))

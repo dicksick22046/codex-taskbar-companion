@@ -25,7 +25,7 @@ class TaskStripTests(unittest.TestCase):
         self.visible=Mock(return_value=False);self.show=Mock()
         self.stack.enter_context(patch.object(TaskStrip,'ensure_visible',new=lambda strip:self.visible()))
         self.stack.enter_context(patch.object(TaskStrip,'show',new=lambda strip:self.show()))
-        self.owner=QWidget();self.owner.settings={'show_tasks':True,'language':'en','floating_position':{'screen':'unchanged','x':.2,'y':.8,'width':300}}
+        self.owner=QWidget();self.owner.settings={'show_tasks':True,'show_task_strip':True,'language':'en','floating_position':{'screen':'unchanged','x':.2,'y':.8,'width':300}}
         self.owner.language='en';self.owner.font=app.face();self.owner.motion_enabled=False
         self.owner.menu=Mock();self.owner.menu.isVisible.return_value=False
         self.owner.settings_dialog=None;self.owner.confirming_reset=False
@@ -133,7 +133,7 @@ class TaskStripTests(unittest.TestCase):
         self.refresh([task('a')]);self.press()
         self.refresh([task('a')],now=3,hidden=True)
         self.assertIsNone(self.strip.pressed);self.assertIsNone(self.strip.drag_origin);self.assertFalse(self.strip.needs_animation)
-        self.visible.reset_mock();self.owner.settings['show_tasks']=False
+        self.visible.reset_mock();self.owner.settings['show_task_strip']=False
         self.refresh([task('a')],now=4);self.visible.assert_not_called()
 
     def test_fullscreen_restore_preserves_pause_progress(self):
@@ -171,7 +171,23 @@ class TaskStripTests(unittest.TestCase):
         with patch.object(self.strip,'update') as update:self.strip.animate();update.assert_not_called()
         self.owner.motion_enabled=True
         with patch.object(self.strip,'isVisible',return_value=True),patch.object(self.strip,'update') as update:
-            self.strip.animate();update.assert_called_once()
+            self.strip.animate();update.assert_not_called()
+
+    def test_only_deliberate_long_title_hover_needs_a_paint_clock(self):
+        self.owner.motion_enabled=True;self.refresh([task('a')])
+        with patch.object(self.strip,'isVisible',return_value=True):
+            self.assertFalse(self.strip.needs_animation)
+            self.strip.track_pointer(self.strip.task_area.center());self.assertFalse(self.strip.needs_animation)
+            self.refresh([task('a','Long task title '*40)])
+            self.strip.track_pointer(self.strip.task_area.center());self.assertTrue(self.strip.needs_animation)
+            with patch.object(self.strip,'update') as update:self.strip.animate();update.assert_called_once()
+            self.strip.track_pointer(QPointF(-1,-1));self.assertFalse(self.strip.needs_animation)
+
+    def test_status_counts_switch_does_not_hide_running_strip(self):
+        self.owner.settings['show_tasks']=False;self.refresh([task('a')])
+        self.assertFalse(self.strip.hidden);self.visible.assert_called_once()
+        self.assertEqual(self.strip.accessibleName(),'Running task strip')
+        self.assertIn('Fixture',self.strip.accessibleDescription())
 
     def test_shutdown_cleans_interaction_and_future_refresh_is_noop(self):
         self.refresh([task('a')]);self.press();self.strip.shutdown();self.visible.reset_mock()

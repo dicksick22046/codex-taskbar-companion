@@ -13,7 +13,7 @@ from .diagnostics import diagnostic_text
 DISPLAY_LABELS = {
     'show_week': 'Weekly quota', 'show_session': '5-hour quota',
     'show_countdown': 'Reset countdown', 'show_daily': 'Daily quota usage',
-    'show_tasks': 'Task rotation and counts',
+    'show_tasks': 'Task status counts', 'show_task_strip':'Running task strip',
 }
 
 
@@ -104,7 +104,7 @@ class SettingsDialog(QDialog):
             result=QFrame();result.setObjectName('settingsLine');result.setFixedHeight(1);parent.addWidget(result);return result
         def row(parent,label,control):
             widget=QWidget();layout=QHBoxLayout(widget);layout.setContentsMargins(0,8,0,8);widget.setMinimumHeight(48)
-            label.setFont(bar.font);control.setFont(bar.font)
+            label.setFont(bar.font);label.setWordWrap(True);control.setFont(bar.font)
             layout.addWidget(label);layout.addStretch();layout.addWidget(control);parent.addWidget(widget)
         def combo(values,current,callback,segmented=False):
             control=Segments() if segmented else Choice()
@@ -118,7 +118,7 @@ class SettingsDialog(QDialog):
             control=Toggle(caption);control.row=container;caption.setBuddy(control)
             items.addWidget(caption,1);items.addSpacing(16);items.addWidget(control);parent.addWidget(container);return control
         position=card(appearance);self.placement_label=QLabel()
-        self.placement=combo([('','taskbar'),('','floating'),('','auto')],bar.settings.get('placement','taskbar'),bar.set_placement,segmented=True)
+        self.placement=combo([('','taskbar'),('','floating'),('','auto')],bar.settings.get('placement','auto'),bar.set_placement,segmented=True)
         row(position,self.placement_label,self.placement);self.topmost_line=line(position)
         self.display_label=QLabel();self.display_label.setWordWrap(True);self.display=Choice();self.display.setView(QListView());self.display.setMaximumWidth(230)
         self.display.currentIndexChanged.connect(lambda:bar.set_floating_display(self.display.currentData()))
@@ -193,12 +193,13 @@ class SettingsDialog(QDialog):
             if options:
                 for i,value in enumerate(options):control.setItemText(i,label(value))
             control.setCurrentIndex(max(0,control.findData(self.bar.settings.get(key,{'language':'en','placement':'taskbar','capsule_theme':'dark'}[key]))));control.blockSignals(False)
-        self.placement_label.setText(label('Placement'));self.capsule_label.setText(label('Capsule'));self.transparency_label.setText(label('Transparency'))
+        self.placement_label.setText(label('Status bar placement'));self.capsule_label.setText(label('Capsule'));self.transparency_label.setText(label('Transparency'))
+        self.capsule.setToolTip(label('Colors and transparency apply to both strips.'));self.transparency.setToolTip(label('Colors and transparency apply to both strips.'))
         for caption,control in ((self.placement_label,self.placement),(self.display_label,self.display),(self.capsule_label,self.capsule),(self.transparency_label,self.transparency),(self.language_label,self.language)):
             caption.setBuddy(control);control.setAccessibleName(caption.text())
         floating_options=self.bar.settings.get('placement') in ('auto','floating')
-        topmost_options=floating_options or self.bar.settings['show_tasks']
-        self.topmost.setText(label('Keep on top'));self.topmost.setVisible(topmost_options);self.topmost_line.setVisible(topmost_options)
+        topmost_options=floating_options or self.bar.settings.get('show_task_strip',False)
+        self.topmost.setText(label('Keep floating windows on top'));self.topmost.setVisible(topmost_options);self.topmost_line.setVisible(topmost_options)
         self.topmost.row.setVisible(topmost_options);self.display_row.setVisible(floating_options);self.display_line.setVisible(floating_options)
         self.display_label.setText(label('Floating display'));self.display.setAccessibleName(label('Floating display'));self.refresh_displays()
         self.placement.items[2][0].setToolTip(label('Use floating mode when taskbar space is unavailable.'))
@@ -222,7 +223,7 @@ class SettingsDialog(QDialog):
         elif data.get('error'):message='Some data is unavailable. Showing the last available records.'
         elif data.get('loading'):message='Connecting to Codex…'
         elif fallback:message='Taskbar space unavailable. Using floating mode.'
-        elif self.bar.placement_unavailable and any(self.bar.settings.get(k) for k in DISPLAY_LABELS):message='Not enough taskbar space. Settings are available in the system tray.'
+        elif self.bar.placement_unavailable and any(self.bar.settings.get(k) for k in DISPLAY_LABELS):message='Not enough room for enabled indicators. Hide some indicators or rotate them.'
         else:message='Connected to Codex'
         self.connection.setText(label(message));self.update_button.setText(label(self.bar.updater.message,version=(self.bar.updater.release or {}).get('version','')));self.update_button.setEnabled(not self.bar.updater.busy)
 

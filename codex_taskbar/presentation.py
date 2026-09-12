@@ -21,7 +21,7 @@ def clamp_rect(rect,bounds):
 
 
 def floating_rect(bounds,position=None,width=540):
-    width=min(width,540,max(1,bounds.width()-32));height=min(30,bounds.height())
+    width=min(width,max(1,bounds.width()-32));height=min(30,bounds.height())
     if position:
         reference=min(position.get('width',540),max(1,bounds.width()-32))
         x=bounds.x()+round(position['x']*(bounds.width()-reference))

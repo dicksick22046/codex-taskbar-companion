@@ -33,7 +33,7 @@ class GeometryTests(unittest.TestCase):
     def test_preferences_validate_position_and_preserve_existing_options(self):
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'settings.json';settings=read_settings(path)
-            self.assertEqual(settings['placement'],'taskbar');self.assertTrue(settings['floating_topmost'])
+            self.assertEqual(settings['placement'],'auto');self.assertTrue(settings['floating_topmost'])
             settings.update(placement='floating',floating_topmost=False,floating_position={'screen':'B','x':.3,'y':.7})
             write_settings(path,settings);self.assertEqual(read_settings(path),settings)
             for bad in (None,[],{'screen':'B','x':True,'y':0},{'screen':'B','x':float('nan'),'y':0}):

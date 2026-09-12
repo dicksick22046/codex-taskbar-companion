@@ -26,13 +26,12 @@ class RenderingBudgetTests(unittest.TestCase):
             self.assertEqual(visible.call_count,100);draw.assert_not_called()
             self.data['daily_quota']='13%';self.bar.tick();draw.assert_called()
 
-    def test_animation_does_not_repaint_quota_area_or_hidden_tasks(self):
+    def test_static_running_counts_do_not_start_or_repaint_animation(self):
         with patch.object(self.bar,'isVisible',return_value=True),patch.object(self.bar,'update') as draw:
+            self.bar.animation.start(33)
             self.bar.animate()
-            dirty=draw.call_args.args[0]
-            quota=next(r for mode,r,_ in self.bar.hit_regions if mode=='usage')
-            self.assertFalse(app.QRectF(dirty).intersects(quota))
-            draw.reset_mock();self.bar.settings['show_tasks']=False;self.bar.animate();draw.assert_not_called()
+            draw.assert_not_called();self.assertFalse(self.bar.animation.isActive())
+            self.bar.settings['show_tasks']=False;self.bar.animate();draw.assert_not_called()
 
     def test_settings_status_does_not_reread_startup_or_rebuild_controls(self):
         with patch('codex_taskbar.settings_ui.startup.enabled',return_value=False):dialog=app.SettingsDialog(self.bar)

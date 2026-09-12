@@ -15,5 +15,7 @@ class AttentionUITests(unittest.TestCase):
         counts=category_counts(self.data);self.assertEqual(counts['waiting'],1);self.assertEqual(counts['running'],0)
         self.assertEqual(panel_rows(self.data,'running'),[]);self.assertEqual(len(panel_rows(self.data,'waiting')),1)
         self.assertIn('waiting',[mode for mode,rect,task in self.bar.hit_regions])
-        with patch('codex_taskbar.app.running_title') as shimmer:self.bar.grab();shimmer.assert_not_called()
+        with patch('codex_taskbar.app.text',wraps=app.text) as draw:
+            self.bar.grab();self.assertIn('Needs input 1',[call.args[3] for call in draw.call_args_list])
+        self.strip.refresh(self.data);self.assertIsNone(self.strip.task);self.assertFalse(self.strip.needs_animation)
         panel=app.TaskListPopup(self.bar,'waiting');panel.refresh(self.data);self.assertEqual(panel.sections[0][0],'Needs input');panel.close();panel.deleteLater()

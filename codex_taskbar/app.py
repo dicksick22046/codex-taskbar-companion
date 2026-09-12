@@ -15,14 +15,14 @@ BASE = Path(__file__).resolve().parents[1]
 from .preferences import runtime_dir, migrate_legacy, read_settings, write_settings, DISPLAY_DEFAULTS, legacy_runtime_dirs
 RUNTIME = runtime_dir()
 try:
-    from PySide6.QtCore import Qt, QTimer, QRectF, QPointF, QVariantAnimation, QEasingCurve
-    from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPen, QCursor, QLinearGradient, QBrush
+    from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QPointF, QVariantAnimation, QEasingCurve
+    from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPen, QCursor, QLinearGradient
     from PySide6.QtWidgets import QApplication, QWidget, QMenu, QSystemTrayIcon, QPushButton, QMessageBox,QButtonGroup,QToolTip
 except ImportError:
     if '--smoke-test' in sys.argv:raise SystemExit(1)
     raise
 from .provider import Provider
-from .usage import reset_countdown_text, remaining_time_fraction, visible_metrics, quota_window, chart_window, countdown_window
+from .usage import reset_countdown_text, remaining_time_fraction, visible_metrics, quota_window, chart_window, countdown_window, effective_quota_data, quota_is_cached
 from .tasks import thread_url, panel_rows, task_category, category_counts, CATEGORY_LABELS, STATUS_CATEGORIES, duration_text,task_role_label
 from . import windows
 from . import startup
@@ -44,10 +44,8 @@ AMBER = "#ebb45f"
 FAILED = "#df8589"
 CAPSULE_COLORS = {
     'dark': {'background':'#252b34','text':MUTED,'muted':TITLE_MUTED,'link':BLUE,'green':ACCENT,'amber':AMBER,'failed':FAILED,'stopped':'#8795a5','divider':'#53606d',
-             'shimmer':(TITLE_MUTED,'#a1cddc','#f4fcff'),
              'rings':{'quota':'#45ba91','session':'#51adb4','clock':'#5d9dd7','spent':'#a088d1'}},
     'light': {'background':'#eef1f5','text':'#27374b','muted':'#43556b','link':'#2169ad','green':'#19775d','amber':'#936005','failed':'#ab3443','stopped':'#596a7d','divider':'#abb7c5',
-              'shimmer':('#43556b','#28647b','#0b405b'),
               'rings':{'quota':'#19775d','session':'#14767e','clock':'#286dab','spent':'#7150a1'}},
 }
 FLAGS = Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.WindowDoesNotAcceptFocus | Qt.WindowType.NoDropShadowWindowHint
@@ -115,11 +113,9 @@ def icon(p, kind, x, y, color=None, fraction=1):
         for dx,height in [(-4,4),(0,9),(4,6)]:
             p.drawLine(QPointF(x+dx,y+4),QPointF(x+dx,y+4-height))
     elif kind == "task":
-        phase=(1-math.cos(time.monotonic()*2*math.pi/2.4))/2
-        halo=QColor(color);halo.setAlpha(round(24+35*phase))
-        center=QColor(color);center.setAlpha(round(160+95*phase))
+        halo=QColor(color);halo.setAlpha(40)
         p.setPen(Qt.PenStyle.NoPen);p.setBrush(halo);p.drawEllipse(QPointF(x,y),4.3,4.3)
-        p.setBrush(center);p.drawEllipse(QPointF(x,y),2.4+.2*phase,2.4+.2*phase)
+        p.setBrush(QColor(color));p.drawEllipse(QPointF(x,y),2.4,2.4)
 
 
 def text(p, x, y, value, font, color=MUTED):
@@ -169,20 +165,29 @@ def activity_count(p,x,y,count,color=ACCENT,pulse=True,text_color=None,glyph=Non
     return width
 
 
-def running_title(p,x,y,value,font,left,width,colors=None):
-    base,middle,peak=colors or (TITLE_MUTED,'#a1cddc','#f4fcff')
-    metrics=QFontMetricsF(font)
-    phase=time.monotonic()%3.2
-    if phase>=2.6:
-        text(p,x,y,value,font,base)
-        return
-    band=24
-    center=left-band+(width+2*band)*phase/2.6
-    light=QLinearGradient(center-band,0,center+band,0)
-    for position,color in ((0,base),(.3,middle),(.5,peak),(.7,middle),(1,base)):
-        light.setColorAt(position,QColor(color))
-    p.setFont(font);p.setPen(QPen(QBrush(light),1))
-    p.drawText(QPointF(x,y+(metrics.ascent()-metrics.descent())/2),value)
+def quota_update_label(owner,data):
+    stamp=data.get('quota_updated_at')
+    try:updated=datetime.fromisoformat(stamp).astimezone().strftime('%m.%d %H:%M')
+    except (TypeError,ValueError):return owner.label('Update time unknown')
+    return owner.label('Updated {time}',time=updated)
+
+
+def quota_context_lines(owner,data,mode):
+    current=effective_quota_data(data)
+    if mode=='daily':
+        value=current.get('daily_quota','—');label='Today used'
+    else:
+        window=quota_window(current,300 if mode=='session' else 10080)
+        value=f"{window['remaining']:g}%" if window else '—'
+        label='5h left' if mode=='session' else 'Week left'
+    context=owner.label('Account quota')+' · '+owner.label(label)+' '+value
+    if quota_is_cached(data):context+=' · '+owner.label('Cached')
+    freshness=quota_update_label(owner,data)
+    if mode=='daily':
+        try:observed=owner.label('Observed since {time}',time=datetime.fromisoformat(current.get('daily_observed_at')).astimezone().strftime('%H:%M'))
+        except (TypeError,ValueError):observed=owner.label('Observation start unknown')
+        freshness+=' · '+observed
+    return context,freshness
 
 
 def chart_values(days, history, today):
@@ -258,6 +263,10 @@ class StatusBar(QWidget):
         self.menu=QMenu(self);self.menu.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint,True);self.menu.setFont(face(8))
         self.menu.setStyleSheet('QMenu{background:#2b2f37;color:#d7dfe9;border:1px solid #474f5d;padding:6px;} QMenu::item{padding:8px 16px;border-radius:5px;} QMenu::item:selected{background:#426992;}')
         self.find_action=self.menu.addAction(self.label('Find task…'),lambda:QTimer.singleShot(0,self.open_finder))
+        self.status_menu=QMenu(self.label('Task status'),self.menu)
+        self.status_action=self.menu.addMenu(self.status_menu)
+        self.menu.aboutToShow.connect(self.refresh_status_menu)
+        self.status_menu.aboutToShow.connect(self.refresh_status_menu)
         self.settings_action=self.menu.addAction(self.label('Settings…'),lambda:QTimer.singleShot(0,self.open_settings))
         self.quit_action=self.menu.addAction(self.label('Quit'),self.close)
         self.tray.setContextMenu(self.menu)
@@ -271,7 +280,7 @@ class StatusBar(QWidget):
         from .task_strip import TaskStrip
         self.task_strip=TaskStrip(self)
         self.timer=QTimer(self);self.timer.timeout.connect(self.tick);self.timer.start(150)
-        self.animation=QTimer(self);self.animation.timeout.connect(self.animate);self.animation.start(33)
+        self.animation=QTimer(self);self.animation.timeout.connect(self.animate)
         self.native_handle=int(self.winId())  # Create the native handle only after transparency attributes are set.
         self.click_hook=windows.ClickHook(self.desktop_click)
         self.tick()
@@ -403,6 +412,7 @@ class StatusBar(QWidget):
             self.quota_previous=next((m for m in self.quota_choices() if m[0]==self.quota_previous[0]),None)
         self.settings_action.setText(self.label('Settings…'));self.quit_action.setText(self.label('Quit'))
         self.find_action.setText(self.label('Find task…'))
+        self.refresh_status_menu()
         if self.task_finder:self.task_finder.refresh(self.data)
         if self.settings_dialog:self.settings_dialog.refresh()
         if self.popup:
@@ -486,12 +496,25 @@ class StatusBar(QWidget):
     def quota_choices(self):
         metrics={kind:(value,fraction) for kind,value,fraction in visible_metrics(self.data,self.settings)}
         result=[]
-        for kind,title in (('quota',self.label('Week')),('spent',self.label('Today')),('session','5h'),('clock',None)):
+        for kind in ('quota','spent','session','clock'):
             if kind in metrics:
                 value,fraction=metrics[kind]
-                label=self.label('Reset {time}',time=value) if kind=='clock' else title+' '+value.removeprefix('7d ').removeprefix('5h ')
+                label=self.label('Reset {time}',time=value) if kind=='clock' else self.metric_label(kind)+' '+value.removeprefix('7d ').removeprefix('5h ')
                 result.append((kind,label,fraction))
         return result
+
+    def metric_label(self,kind):
+        return self.label('Reset {time}',time='').strip() if kind=='clock' else self.label({'quota':'Week left','spent':'Today used','session':'5h left'}[kind])
+
+    def metric_parts(self,kind,value):
+        label=self.metric_label(kind)
+        return label,value.removeprefix(label+' ')
+
+    def count_label(self,kind,count):
+        return self.label('Needs input')+' '+str(count) if kind=='waiting' else str(count)
+
+    def cached_width(self):
+        return QFontMetricsF(face(7)).horizontalAdvance(self.label('Cached'))+12 if self.displayed_metrics() and quota_is_cached(self.data) else 0
 
     def displayed_metrics(self):
         metrics=visible_metrics(self.data,self.settings)
@@ -507,7 +530,7 @@ class StatusBar(QWidget):
         if not self.settings.get('rotate_quotas'):return metrics.horizontalAdvance(value)
         widths=[]
         for item,labelled,fraction in self.quota_choices():
-            number=labelled.partition(' ')[2]
+            _,number=self.metric_parts(item,labelled)
             if item=='clock':
                 template='6d 23h' if 'd' in number or number=='—' else '23h 59m' if 'h' in number else '59m'
                 number_width=metrics.horizontalAdvance(template)
@@ -517,19 +540,21 @@ class StatusBar(QWidget):
 
     def metric_label_width(self):
         metrics=QFontMetricsF(face(8))
-        return max(metrics.horizontalAdvance(value.partition(' ')[0]) for kind,value,fraction in self.quota_choices())
+        return max((metrics.horizontalAdvance(self.metric_label(kind)) for kind,value,fraction in self.quota_choices()),default=0)
 
     def content_width(self,limit):
         metrics=self.displayed_metrics();rotating=self.settings.get('rotate_quotas')
         x=CONTENT_X+sum((25 if rotating else 29)+self.metric_text_width(kind,value) for kind,value,_ in metrics)
         right=x-(13 if rotating else 17) if metrics else CONTENT_X
+        cached=self.cached_width()
+        if cached:x+=cached;right+=cached
         if not self.settings['show_tasks']:return min(limit,math.ceil(right+12))
         counts=category_counts(self.data)
         statuses=[kind for kind in STATUS_CATEGORIES if counts[kind]]
         if not statuses:return min(limit,math.ceil(right+12))
         if metrics:x+=7
         font_metrics=QFontMetricsF(face(8));badge_x=x-6
-        for kind in statuses:badge_x+=font_metrics.horizontalAdvance(str(counts[kind]))+30
+        for kind in statuses:badge_x+=font_metrics.horizontalAdvance(self.count_label(kind,counts[kind]))+30
         if statuses:right=badge_x-6
         return min(limit,math.ceil(right+12))
 
@@ -585,16 +610,8 @@ class StatusBar(QWidget):
             self.quota_progress=0.;self.animate_quota_to(1.)
 
     def animate(self):
-        active=False
-        if self.motion_enabled and self.isVisible() and self.settings['show_tasks']:
-            regions=[r for mode,r,_ in self.hit_regions if mode=='running']
-            if regions:
-                dirty=QRectF(regions[0])
-                for region in regions[1:]:dirty=dirty.united(region)
-                self.update(dirty.toAlignedRect())
-                active=True
         self.task_strip.animate()
-        if not active and not self.task_strip.needs_animation:self.animation.stop()
+        if not self.task_strip.needs_animation:self.animation.stop()
 
     def set_chart_unit(self,unit):
         if unit not in ('M','100M') or unit==self.chart_unit:return
@@ -616,7 +633,26 @@ class StatusBar(QWidget):
         if key not in DISPLAY_DEFAULTS:return
         self.quota_tween.stop();self.quota_previous=None;self.quota_progress=1.
         self.settings[key]=bool(value);self.save_settings();self.hide_popup(immediate=True);self.tick(resize=True)
-        if key=='show_tasks' and self.settings_dialog:self.settings_dialog.refresh()
+        if key in ('show_tasks','show_task_strip') and self.settings_dialog:self.settings_dialog.refresh()
+
+    def refresh_status_menu(self):
+        self.status_menu.setTitle(self.label('Task status'));self.status_menu.clear()
+        counts=category_counts(self.provider.get())
+        for category in CATEGORY_LABELS:
+            if counts[category]:
+                action=self.status_menu.addAction(self.label(CATEGORY_LABELS[category])+' · '+str(counts[category]))
+                action.setData(category)
+                action.triggered.connect(lambda checked=False,mode=category:QTimer.singleShot(0,lambda:self.toggle_popup(mode)))
+        if not self.status_menu.actions():self.status_menu.addAction(self.label('No tasks')).setEnabled(False)
+
+    def refresh_accessibility(self):
+        values=[value for kind,value,fraction in self.displayed_metrics()]
+        if values and quota_is_cached(self.data):values.append(self.label('Cached'))
+        if self.settings['show_tasks']:
+            counts=category_counts(self.data)
+            values.extend(self.label(CATEGORY_LABELS[kind])+' '+str(counts[kind]) for kind in STATUS_CATEGORIES if counts[kind])
+        self.setAccessibleName(self.label('Status bar')+(' · '+' · '.join(values) if values else ''))
+        self.setAccessibleDescription(self.label('Account quota and task status. Use the tray menu to open task categories.')+' '+quota_update_label(self,self.data))
 
     def open_settings(self):
         self.hide_popup(immediate=True)
@@ -728,6 +764,11 @@ class StatusBar(QWidget):
         if hit:
             mode,_,_=hit
             tip=self.label({'usage':'Weekly quota remaining','daily':"Today's quota consumption",'session':'5-hour quota remaining','resets':'Next quota reset'}.get(mode,CATEGORY_LABELS.get(mode,mode)))
+            if mode in ('usage','daily','session','resets'):
+                tip=self.label('Account quota')+' · '+tip+'\n'+quota_update_label(self,self.data)
+                if mode=='daily':tip+='\n'+quota_context_lines(self,self.data,'daily')[1].split(' · ',1)[1]
+                if quota_is_cached(self.data):tip+='\n'+self.label('Showing the last available quota.')
+            else:tip+=' · '+str(category_counts(self.data).get(mode,0))
         if self.toolTip()!=tip:self.setToolTip(tip)
 
     def mousePressEvent(self,event):
@@ -802,26 +843,32 @@ class StatusBar(QWidget):
     def tick(self,resize=False):
         fullscreen=windows.foreground_fullscreen()
         self.tick_status(resize,fullscreen)
+        if self.popup:
+            panel_key=(self.popup,id(self.data),int(time.time()),self.position)
+            if panel_key!=self.panel_key:self.panel_key=panel_key;self.popup.refresh(self.data)
         self.task_strip.refresh(self.data,resize=resize,hidden=fullscreen)
-        if self.motion_enabled and (self.task_strip.needs_animation or self.isVisible() and self.settings['show_tasks'] and category_counts(self.data)['running']):
+        if self.motion_enabled and self.task_strip.needs_animation:
             if not self.animation.isActive():self.animation.start(33)
         else:self.animation.stop()
 
+    def hide_status(self,fullscreen=False):
+        self.hide()
+        if fullscreen or not isinstance(self.popup,TaskListPopup) or self.popup.mode=='daily':self.hide_popup(immediate=True)
+
     def tick_status(self,resize,fullscreen):
         self.data=self.provider.get()
+        self.refresh_accessibility()
         self.check_attention()
         if self.settings_dialog and self.settings_dialog.isVisible():self.settings_dialog.refresh_status()
         if self.task_finder and self.task_finder.isVisible():self.task_finder.refresh(self.data)
         if not any(self.settings[key] for key in DISPLAY_DEFAULTS):
-            self.hide();self.hide_popup(immediate=True);return
+            self.hide_status(fullscreen);return
         metrics=self.displayed_metrics()
-        minimum=CONTENT_X+sum((25 if self.settings.get('rotate_quotas') else 29)+self.metric_text_width(kind,value) for kind,value,fraction in metrics)
-        if self.settings['show_tasks']:
-            counts=category_counts(self.data)
-            minimum+=sum(30+QFontMetricsF(face(8)).horizontalAdvance(str(counts[k])) for k in STATUS_CATEGORIES if counts[k])
+        if self.quota_previous:
+            self.quota_previous=next((choice for choice in self.quota_choices() if choice[0]==self.quota_previous[0]),None)
         if not metrics and not self.settings['show_tasks']:
-            self.hide();self.hide_popup(immediate=True);return
-        minimum=min(minimum,self.content_width(540))
+            self.hide_status(fullscreen);return
+        minimum=self.content_width(math.inf)
         placed=windows.placement(minimum_width=minimum) if self.settings.get('placement')!='floating' else None
         if self.settings.get('placement')=='auto':
             before=self.floating
@@ -830,11 +877,12 @@ class StatusBar(QWidget):
             if before!=self.floating:self.hide_popup(immediate=True);self.position=None;self.host_key=None
         if self.floating:
             screen=self.floating_screen()
-            box=self.geometry() if self.drag_origin is not None else floating_rect(screen.availableGeometry(),self.settings.get('floating_position')) if screen else None
+            room=screen.availableGeometry().width()-32 if screen else 0
+            box=(self.geometry() if self.drag_origin is not None else floating_rect(screen.availableGeometry(),self.settings.get('floating_position'),minimum)) if minimum<=room else None
             hidden=self.settings.get('placement')=='auto' and (bool(placed and placed[-1]) or fullscreen)
             placed=(*box.getRect(),1,hidden) if box else None
         self.placement_unavailable=placed is None
-        if not placed:self.hide();self.hide_popup(immediate=True);return
+        if not placed:self.hide_status(fullscreen);return
         hwnd=int(self.winId())
         if not windows.user32.IsWindow(hwnd):
             # Explorer destroys owned native windows when rebuilding the taskbar.
@@ -845,14 +893,14 @@ class StatusBar(QWidget):
             self.native_handle=hwnd;self.position=None
             self.surface_loss_since=None;self.surface_repaired=False
         x,y,w,h,scale,hidden=placed
-        if hidden:
+        if hidden or fullscreen:
             self.hide();self.hide_popup(immediate=True);return
         logical=tuple(round(v/scale) for v in (x,y,w,h))
-        if self.drag_origin is None:self.content_limit=logical[2]
+        if self.drag_origin is None:self.content_limit=self.floating_screen().availableGeometry().width()-32 if self.floating else logical[2]
         width=self.fitted_width(self.content_limit,resize=resize)
         if self.floating and self.drag_origin is None:
             logical=floating_rect(self.floating_screen().availableGeometry(),self.settings.get('floating_position'),width).getRect()
-        elif self.drag_origin is None:logical=(logical[0],logical[1],width,logical[3])
+        else:logical=(logical[0],logical[1],width,logical[3])
         if self.position!=logical:self.setGeometry(*logical);self.position=logical
         recovered=self.ensure_visible()
         if self.floating:
@@ -872,12 +920,9 @@ class StatusBar(QWidget):
         # Keep visibility/interaction checks responsive without repainting unchanged pixels.
         frame_key=(tuple((kind,value,None if fraction is None else round(fraction,4)) for kind,value,fraction in self.displayed_metrics()),
                    tuple(category_counts(self.data).items()) if self.settings['show_tasks'] else (),
-                   self.position,tuple(self.settings.get(k) for k in DISPLAY_DEFAULTS),self.settings.get('rotate_quotas'))
+                   self.position,tuple(self.settings.get(k) for k in DISPLAY_DEFAULTS),self.settings.get('rotate_quotas'),quota_is_cached(self.data))
         if frame_key!=self.frame_key:
             self.frame_key=frame_key;self.update()
-        if self.popup:
-            panel_key=(self.popup,id(self.data),int(time.time()),self.position)
-            if panel_key!=self.panel_key:self.panel_key=panel_key;self.popup.refresh(self.data)
         self.update_hover_popup(QCursor.pos())
 
     def paintEvent(self,event):
@@ -913,9 +958,9 @@ class StatusBar(QWidget):
             nonlocal x
             colors=palette['rings']
             color=QColor(colors[kind]);width=self.metric_text_width(kind,value)
-            def draw_value(value,line_y):
+            def draw_value(draw_kind,value,line_y):
                 if self.settings.get('rotate_quotas'):
-                    label,_,number=value.partition(' ')
+                    label,number=self.metric_parts(draw_kind,value)
                     text(p,x+12,line_y,label,face(8),palette['muted'])
                     number_x=x+12+self.metric_label_width()+3
                     text(p,number_x,line_y,number,face(8),palette['muted'])
@@ -932,10 +977,10 @@ class StatusBar(QWidget):
                 elif progress<.5:current_fraction=old_fraction
                 if progress<.5:hit_kind=old_kind
                 p.save();p.setClipRect(QRectF(x+11,0,width+2,self.height()),Qt.ClipOperation.IntersectClip)
-                p.setOpacity(1-progress);draw_value(old_value,y-14*progress)
-                p.setOpacity(progress);draw_value(value,y+14*(1-progress))
+                p.setOpacity(1-progress);draw_value(old_kind,old_value,y-14*progress)
+                p.setOpacity(progress);draw_value(kind,value,y+14*(1-progress))
                 p.restore()
-            else:draw_value(value,y)
+            else:draw_value(kind,value,y)
             icon(p,kind,x,y,color,fraction=current_fraction)
             feedback=QRectF(x-11,4,width+28,self.height()-8)
             x+=12+width+(13 if self.settings.get('rotate_quotas') else 17)
@@ -949,6 +994,9 @@ class StatusBar(QWidget):
                 p.drawLine(QPointF(x-6,y-5),QPointF(x-6,y+5))
             x+=7
         for kind,value,fraction in self.displayed_metrics():field(kind,value,fraction)
+        cached=self.cached_width()
+        if cached:
+            text(p,x-5,y,self.label('Cached'),face(7),palette['muted']);x+=cached
         if not self.settings['show_tasks']:finish();return
         counts=category_counts(data)
         if not any(counts[k] for k in STATUS_CATEGORIES):finish();return
@@ -956,7 +1004,7 @@ class StatusBar(QWidget):
         badge_x=x-6
         for mode,color in [('waiting',palette['amber']),('running',palette['green']),('unread',palette['amber']),('failed',palette['failed']),('stopped',palette['stopped'])]:
             if counts[mode]:
-                width=activity_count(p,badge_x,y,counts[mode],color,pulse=mode=='running' and self.motion_enabled,text_color=color if theme=='light' else None,glyph='?' if mode=='waiting' else None,emphasis=emphasis(mode))
+                width=activity_count(p,badge_x,y,self.count_label(mode,counts[mode]),color,pulse=False,text_color=color if theme=='light' else None,emphasis=emphasis(mode))
                 self.hit_regions.append((mode,QRectF(badge_x-2,0,width+4,self.height()),None));badge_x+=width+6
         finish()
 
@@ -981,7 +1029,7 @@ class StatusBar(QWidget):
 class TaskPopup(QWidget):
     mode='usage'
     GAP=8
-    TITLE_HEIGHT=22
+    TITLE_HEIGHT=58
     UNIT_RECTS={'M':QRectF(277,9,28,24),'100M':QRectF(309,9,40,24)}
     def __init__(self,owner):
         super().__init__(None,FLAGS & ~Qt.WindowType.WindowDoesNotAcceptFocus)
@@ -1039,8 +1087,15 @@ class TaskPopup(QWidget):
         top=min(self.owner.y(),round(bounds[1]/self.owner.devicePixelRatioF())) if bounds else self.owner.y()
         return top-self.GAP
 
+    def owner_unplaced(self):
+        return isinstance(self.owner,StatusBar) and self.owner.position is None
+
     def place_panel(self,width,height):
-        if getattr(self.owner,'floating',False):
+        if self.owner_unplaced():
+            bounds=(self.owner.floating_screen() if self.owner.floating else self.owner.screen()).availableGeometry()
+            anchor=QRect(bounds.left()+16,bounds.bottom()-29,min(420,bounds.width()-32),30)
+            self.setGeometry(panel_rect(anchor,bounds,width,height,self.GAP))
+        elif getattr(self.owner,'floating',False):
             self.setGeometry(panel_rect(self.owner.geometry(),self.owner.floating_screen().availableGeometry(),width,height,self.GAP))
         else:self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-height),width,height)
 
@@ -1052,11 +1107,12 @@ class TaskPopup(QWidget):
         self.end=datetime.fromtimestamp(week["resets_at"]).astimezone() if week and week.get("resets_at") else self.start+timedelta(days=7)
         self.days=[];day=self.start.date()
         while day<=self.end.date():self.days.append(day);day+=timedelta(days=1)
-        self.window_summary=quota_window(data,300)
+        self.window_summary=quota_window(effective_quota_data(data),300)
         self.extra=24 if self.window_summary else 0
         self.full_height=158+self.extra+self.TITLE_HEIGHT
         shown=round(self.full_height) if self.owner.floating else min(round(self.full_height),max(180,self.owner.y()-16))
-        self.place_panel(360,shown)
+        self.place_panel(self.usage_width(),shown)
+        self.setToolTip('\n'.join(quota_context_lines(self.owner,data,self.mode)))
         self.scroll=min(self.scroll,max(0,self.full_height-self.height()));self.sync_units();self.update()
 
     def paintEvent(self,event):
@@ -1071,8 +1127,8 @@ class TaskPopup(QWidget):
         p.translate(0,-self.scroll)
         if self.window_summary:
             window=self.window_summary
-            text(p,18,43+self.TITLE_HEIGHT,f"5h  {window['remaining']:g}%   ·   {reset_countdown_text(window)}",face(8),'#51adb4')
-        maximum=max([v for v in values if v is not None]+[1]);step=324/len(self.days)
+            text(p,18,43+self.TITLE_HEIGHT,self.owner.label('5h left')+f"  {window['remaining']:g}%   ·   {reset_countdown_text(window)}",face(8),'#51adb4')
+        maximum=max([v for v in values if v is not None]+[1]);step=(self.width()-36)/len(self.days)
         for i,(day,value) in enumerate(zip(self.days,values)):
             x=18+(i+.5)*step;bottom=121.+self.extra+self.TITLE_HEIGHT;height=(value or 0)/maximum*64
             color=ACCENT if day==today else ("#687583" if value is None else (LILAC if day in extremes else BLUE))
@@ -1093,16 +1149,26 @@ class TaskPopup(QWidget):
         p.end()
 
     def unit_rects(self):
-        return {unit:rect.translated(self.width()-360,self.TITLE_HEIGHT) for unit,rect in self.UNIT_RECTS.items()}
+        return {unit:rect.translated(self.width()-360,0) for unit,rect in self.UNIT_RECTS.items()}
+
+    def usage_width(self):
+        context=quota_context_lines(self.owner,self.data,self.mode)
+        return math.ceil(max(360,*[QFontMetricsF(face(7)).horizontalAdvance(line)+36 for line in context],
+                             QFontMetricsF(face(9)).horizontalAdvance(self.owner.label('Local today · Tokens' if self.mode=='daily' else 'Local cycle · Tokens'))+118))
 
     def usage_header(self,p,period,total):
-        text(p,18,17,self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens'),face(9),'#d7dfe9')
+        text(p,18,21,self.owner.label('Local today · Tokens' if self.mode=='daily' else 'Local cycle · Tokens'),face(9),'#d7dfe9')
         boxes=list(self.unit_rects().values());unit_box=boxes[0].united(boxes[1]).adjusted(-2,-2,2,2)
         p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('#20242b'));p.drawRoundedRect(unit_box,7,7)
+        context,freshness=quota_context_lines(self.owner,self.data,self.mode)
+        text(p,18,41,context,face(7),MUTED)
+        text(p,18,59,freshness,face(7),TITLE_MUTED)
         y=21+self.TITLE_HEIGHT
         icon(p,'chart',23,y,LILAC)
-        date_width=text(p,39,y,period,face(8),BLUE)
-        text(p,39+date_width+12,y,'Σ '+chart_number(total,self.owner.chart_unit),face(8),LILAC)
+        total_label='Σ '+chart_number(total,self.owner.chart_unit);metrics=QFontMetricsF(face(8))
+        total_x=self.width()-18-metrics.horizontalAdvance(total_label)
+        text(p,39,y,metrics.elidedText(period,Qt.TextElideMode.ElideRight,max(0,total_x-51)),face(8),BLUE)
+        text(p,total_x,y,total_label,face(8),LILAC)
 
     def mouseMoveEvent(self,event):
         if self.mode!='usage':
@@ -1118,17 +1184,22 @@ class SessionPopup(TaskPopup):
     mode='session'
 
     def refresh(self,data):
-        self.data=data;self.place_panel(360,174)
+        self.data=data;self.place_panel(self.usage_width(),210)
+        self.setToolTip('\n'.join(quota_context_lines(self.owner,data,self.mode)))
         self.update()
 
     def paintEvent(self,event):
-        p=panel_painter(self);window=quota_window(self.data,300)
+        p=panel_painter(self);window=quota_window(effective_quota_data(self.data),300)
         text(p,18,21,'5h',face(8),'#51adb4')
         value=self.owner.label('{value}% remaining',value=f"{window['remaining']:g}") if window else '—'
         text(p,49,21,value,face(8),MUTED)
         reset=datetime.fromtimestamp(window['resets_at']).strftime('%H:%M') if window and window.get('resets_at') else '—'
-        text(p,258,21,self.owner.label('Reset {time}',time=reset),face(7),'#8797aa')
-        left,top,width,height=32.,51.,306.,87.
+        label=self.owner.label('Reset {time}',time=reset)
+        text(p,self.width()-18-QFontMetricsF(face(7)).horizontalAdvance(label),21,label,face(7),'#8797aa')
+        context=self.owner.label('Account quota')+(' · '+self.owner.label('Cached') if quota_is_cached(self.data) else '')
+        text(p,18,43,context,face(7),MUTED)
+        text(p,18,61,quota_update_label(self.owner,self.data),face(7),TITLE_MUTED)
+        left,top,width,height=32.,87.,self.width()-54.,87.
         for fraction,label in ((1,'100'),(0,'0')):
             y=top+(1-fraction)*height;pen(p,'#46515d',.5)
             p.drawLine(QPointF(left,y),QPointF(left+width,y));text(p,9,y,label,face(6),'#8797aa')
@@ -1142,9 +1213,9 @@ class SessionPopup(TaskPopup):
                 for point in points[1:]:path.lineTo(point)
                 pen(p,'#51adb4',1.5);p.drawPath(path)
                 p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('#51adb4'));p.drawEllipse(points[-1],2.5,2.5)
-            text(p,left,153,datetime.fromtimestamp(start).strftime('%H:%M'),face(7),'#8797aa')
+            text(p,left,189,datetime.fromtimestamp(start).strftime('%H:%M'),face(7),'#8797aa')
             label=datetime.fromtimestamp(end).strftime('%H:%M')
-            text(p,left+width-QFontMetricsF(face(7)).horizontalAdvance(label),153,label,face(7),'#8797aa')
+            text(p,left+width-QFontMetricsF(face(7)).horizontalAdvance(label),189,label,face(7),'#8797aa')
         if not points:
             p.setFont(face(8));p.setPen(QColor(TITLE_MUTED));p.drawText(QRectF(left,top,width,height),Qt.AlignmentFlag.AlignCenter,self.owner.label('Connecting to Codex…' if self.data.get('loading') else 'No records yet'))
         p.end()
@@ -1165,7 +1236,7 @@ class ResetPopup(TaskPopup):
         self.credits=data.get('reset_credits',[])
         self.history_height=26*max(1,len(self.rows) if self.owner.floating else min(6,len(self.rows)))
         self.credits_top=76+self.history_height+26
-        height=self.credits_top+24+26*max(1,len(self.credits))+46
+        height=self.credits_top+24+26*max(1,len(self.credits))+46+36
         self.full_height=height
         source_width=max([QFontMetricsF(face(7)).horizontalAdvance(self.history_label(row)) for row in self.rows]+[0])
         metrics=QFontMetricsF(face(8))
@@ -1174,7 +1245,7 @@ class ResetPopup(TaskPopup):
         number_width=max([metrics.horizontalAdvance(self.history_parts(row)[0]) for row in self.rows]+[0])
         unit_width=max([metrics.horizontalAdvance(self.history_parts(row)[1]) for row in self.rows]+[0])
         usage_width=label_width+6+number_width+4+unit_width
-        width=max(self.WIDTH,math.ceil(18+date_width+16+usage_width+24+source_width+18))
+        width=max(self.WIDTH,math.ceil(18+date_width+16+usage_width+24+source_width+18),math.ceil(QFontMetricsF(face(7)).horizontalAdvance(quota_update_label(self.owner,data))+36))
         self.place_panel(width,height)
         self.button.setGeometry(18,self.height()-48,self.width()-36,32)
         self.history_divider=self.width()-18-source_width-12
@@ -1189,6 +1260,7 @@ class ResetPopup(TaskPopup):
         label='Resetting…' if data.get('reset_busy') else 'Retry reset' if data.get('reset_retry') or data.get('reset_state')=='unavailable' else 'Nothing to reset' if data.get('reset_state')=='nothingToReset' else 'Reset quota'
         self.button.setText(self.owner.label(label))
         self.scroll=min(self.scroll,self.scroll_limit())
+        self.setToolTip(self.owner.label('Account quota')+'\n'+quota_update_label(self.owner,data)+'\n'+self.owner.label('Other recovery is inferred; its source is unconfirmed.'))
         self.update()
 
     def history_parts(self,row):
@@ -1200,14 +1272,18 @@ class ResetPopup(TaskPopup):
         return self.owner.label('Tokens')+' '+' '.join(part for part in self.history_parts(row) if part)
 
     def history_label(self,row):
-        label={'scheduled':'Scheduled','manual':'Manual','official':'Official'}.get(row['kind'],'')
+        label={'scheduled':'Scheduled','manual':'Manual','official':'Other recovery'}.get(row['kind'],'')
         if label:label=self.owner.label(label)
         windows_text=' + '.join({'300':'5h','10080':'7d'}.get(k,k+'m') for k in row.get('windows',[]))
         label=' · '.join(part for part in (label,windows_text) if part)
         return label
 
     def paintEvent(self,event):
-        p=panel_painter(self);window=countdown_window(self.data,self.owner.settings)
+        p=panel_painter(self);window=countdown_window(effective_quota_data(self.data),self.owner.settings)
+        context=self.owner.label('Account quota')+(' · '+self.owner.label('Cached') if quota_is_cached(self.data) else '')
+        text(p,18,17,context,face(7),MUTED)
+        text(p,18,35,quota_update_label(self.owner,self.data),face(7),TITLE_MUTED)
+        p.translate(0,36)
         right=self.width()-18
         def right_label(value,y,color=MUTED,font=None):
             font=font or face(8)
@@ -1218,7 +1294,7 @@ class ResetPopup(TaskPopup):
         value=datetime.fromtimestamp(window['resets_at']).strftime('%m.%d %H:%M') if window and window.get('resets_at') else '—'
         right_label(value,23,BLUE);divider(44)
         if self.owner.floating:
-            p.save();p.setClipRect(QRectF(0,48,self.width(),max(0,self.height()-104)));p.translate(0,-self.scroll)
+            p.save();p.setClipRect(QRectF(0,48,self.width(),max(0,self.height()-140)));p.translate(0,-self.scroll)
         text(p,18,64,self.owner.label('History'),face(8),'#94a2b3')
         p.save();p.setClipRect(QRectF(18,76,self.width()-36,self.history_height),Qt.ClipOperation.IntersectClip)
         if not self.rows:text(p,18,89,self.owner.label('No records yet'),face(8),'#94a2b3')
@@ -1275,13 +1351,13 @@ class TaskListPopup(TaskPopup):
         hovered=next((t for t in self.rows if t['id']==self.hovered),None)
         extra=side_tag_width(self.owner.language,task_role_label(hovered))+7 if hovered and task_role_label(hovered) else 0
         marquee=hovered and QFontMetricsF(face()).horizontalAdvance(task_title(hovered,self.owner.language))>self.TITLE_WIDTH-extra
-        needed=self.isVisible() and getattr(self.owner,'motion_enabled',True) and (any(t.get('running') and not t.get('needs_input') for t in self.rows) or marquee)
+        needed=self.isVisible() and getattr(self.owner,'motion_enabled',True) and marquee
         if needed and not self.animation.isActive():self.animation.start(33)
         elif not needed:self.animation.stop()
 
     def animate(self):
-        if self.isVisible() and getattr(self.owner,'motion_enabled',True) and (self.hovered or any(t.get('running') and not t.get('needs_input') for t in self.rows)):self.update()
-        else:self.animation.stop()
+        self.sync_animation()
+        if self.animation.isActive():self.update()
 
     def refresh(self,data):
         self.data=data;self.rows=panel_rows(data,self.mode)
@@ -1293,7 +1369,7 @@ class TaskListPopup(TaskPopup):
         self.values={t['id']:chart_number(t.get('tokens'),self.owner.chart_unit) if self.mode=='daily' else duration_text(t.get('round_seconds')) for t in self.rows}
         info_width=max([metrics.horizontalAdvance(value) for value in self.values.values()]+[24])
         width=min(getattr(self.owner,'content_limit',None) or self.owner.width(),max(260,math.ceil(self.TITLE_X+longest+24+info_width+18)))
-        if self.mode=='daily':width=max(360,width)
+        if self.mode=='daily':width=max(self.usage_width(),width)
         self.value_right=width-18
         self.info_divider=self.value_right-info_width-12
         self.TITLE_WIDTH=max(0,self.info_divider-12-self.TITLE_X)
@@ -1307,10 +1383,10 @@ class TaskListPopup(TaskPopup):
                 self.sections.append((section,y));y+=22;previous=section
             self.row_positions.append(y);y+=self.ROW_HEIGHT
         self.full_height=max(24+self.header_extra+self.ROW_HEIGHT,y)
-        height=min(round(self.full_height+16),500) if self.owner.floating else min(round(self.full_height+16),500,max(100,self.owner.y()-16))
+        height=min(round(self.full_height+16),500) if self.owner.floating or self.owner_unplaced() else min(round(self.full_height+16),500,max(100,self.owner.y()-16))
         screen=(self.owner.floating_screen() if self.owner.floating else self.owner.screen()).availableGeometry()
         left=max(screen.left(),min(self.owner.x(),screen.right()-width+1))
-        if self.owner.floating:
+        if self.owner.floating or self.owner_unplaced():
             self.place_panel(width,height);height=self.height()
         else:self.setGeometry(left,max(screen.top(),self.anchor_bottom()-height),width,height)
         self.scroll=min(self.scroll,max(0,self.full_height-(height-16)))
@@ -1357,8 +1433,7 @@ class TaskListPopup(TaskPopup):
                 p.drawRoundedRect(QRectF(19.5,y-2.5,5,5),.8,.8)
             elif task.get('needs_input'):text(p,19,y,'?',face(8),AMBER)
             elif task.get('running'):
-                if getattr(self.owner,'motion_enabled',True):icon(p,'task',22,y)
-                else:p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(ACCENT));p.drawEllipse(QPointF(22,y),2.4,2.4)
+                icon(p,'task',22,y)
             else:
                 p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(AMBER if task.get('unread') else '#718096'))
                 p.drawEllipse(QPointF(22,y),2.4,2.4)

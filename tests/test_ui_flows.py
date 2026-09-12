@@ -45,7 +45,7 @@ class UIFlowTests(unittest.TestCase):
                 control=self.dialog.checks[key]
                 for enabled in (False,True,False):
                     control.setChecked(enabled)
-                    if any(self.bar.settings[k] for k in app.DISPLAY_DEFAULTS):
+                    if any(self.bar.settings[k] for k in app.DISPLAY_DEFAULTS if k!='show_task_strip'):
                         self.assertEqual(self.bar.width(),self.bar.content_width(self.bar.content_limit),(placement,key,enabled))
             self.dialog.checks['show_daily'].setChecked(True)
             self.dialog.checks['show_countdown'].setChecked(True)
@@ -59,9 +59,9 @@ class UIFlowTests(unittest.TestCase):
         self.bar.set_placement('taskbar');self.dialog.refresh()
         self.assertFalse(self.dialog.topmost.row.isHidden())
         self.assertTrue(self.dialog.display_row.isHidden())
-        self.dialog.checks['show_tasks'].setChecked(False)
+        self.dialog.checks['show_task_strip'].setChecked(False)
         self.assertTrue(self.dialog.topmost.row.isHidden())
-        self.dialog.checks['show_tasks'].setChecked(True)
+        self.dialog.checks['show_task_strip'].setChecked(True)
         self.assertFalse(self.dialog.topmost.row.isHidden())
 
     def test_startup_failure_restores_actual_state_and_explains_failure(self):

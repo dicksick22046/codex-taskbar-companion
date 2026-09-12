@@ -5,6 +5,16 @@ from codex_taskbar import windows
 
 
 class TaskbarOrderTests(unittest.TestCase):
+    def test_placement_uses_actual_space_and_rejects_an_incomplete_content_width(self):
+        def child(parent,after,name,title):return 2 if name=='ReBarWindow32' else 3
+        boxes={1:(0,1040,1920,1080),2:(1000,1040,1400,1080),3:(1000,1040,1040,1080)}
+        with patch.object(windows.user32,'FindWindowW',return_value=1),patch.object(windows.user32,'GetDpiForWindow',return_value=96), \
+             patch.object(windows.user32,'FindWindowExW',side_effect=child),patch.object(windows,'rect',side_effect=boxes.get), \
+             patch.object(windows.user32,'GetSystemMetrics',return_value=1080),patch.object(windows.user32,'GetForegroundWindow',return_value=0):
+            placed=windows.placement(minimum_width=700)
+            self.assertIsNotNone(placed);self.assertEqual(placed[2],984)
+            self.assertIsNone(windows.placement(minimum_width=1000))
+
     def follow(self,order,owner=20,tray=20):
         with patch.object(windows.user32,'FindWindowW',return_value=tray), \
              patch.object(windows.user32,'GetWindowLongPtrW',return_value=owner), \

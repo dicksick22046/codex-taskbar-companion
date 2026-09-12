@@ -24,12 +24,12 @@ class InteractionTests(unittest.TestCase):
                      {'minutes':300,'remaining':60,'starts_at':now-3600,'resets_at':now+4*3600}],
             'daily_quota':'12%','reset_account':'fixture-account','reset_selected':credit(),'reset_available':3}
         self.provider=Mock();self.provider.get.side_effect=lambda:self.data
-        with patch('codex_taskbar.app.read_settings',return_value={**app.DISPLAY_DEFAULTS,'chart_unit':'M'}),patch('codex_taskbar.app.windows.animations_enabled',return_value=True), \
+        with patch('codex_taskbar.app.read_settings',return_value={**app.DISPLAY_DEFAULTS,'show_task_strip':True,'chart_unit':'M'}),patch('codex_taskbar.app.windows.animations_enabled',return_value=True), \
              patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.RELEASE_REPOSITORY',''),patch('codex_taskbar.app.QSystemTrayIcon'):
             self.bar=app.StatusBar(self.provider)
         self.bar.timer.stop();self.bar.animation.stop();self.bar.update_timer.stop();self.bar.tray.hide()
         self.bar.resize(1200,30);self.bar.data=self.data
-        self.bar.settings=dict(app.DISPLAY_DEFAULTS);self.bar.chart_unit='M';self.bar.grab()
+        self.bar.settings=dict(app.DISPLAY_DEFAULTS,show_task_strip=True);self.bar.chart_unit='M';self.bar.grab()
         self.strip=self.bar.task_strip;self.strip.refresh(self.data);self.strip.grab()
         pointer=patch('codex_taskbar.app.windows.pointer_over',return_value=True);pointer.start();self.addCleanup(pointer.stop)
 
@@ -373,7 +373,7 @@ class InteractionTests(unittest.TestCase):
         panel=app.ResetPopup(self.bar)
         for quotas in ([],self.data['quota'][:1],self.data['quota']):
             panel.refresh({**self.data,'quota':quotas})
-            self.assertEqual(panel.history_label({'kind':'official','windows':['10080']}),'Official · 7d')
+            self.assertEqual(panel.history_label({'kind':'official','windows':['10080']}),'Other recovery · 7d')
             self.assertEqual(panel.history_label({'kind':'scheduled','windows':['300','10080']}),'Scheduled · 5h + 7d')
             self.assertEqual(panel.history_label({'kind':'manual','windows':[]}),'Manual')
         panel.close();panel.deleteLater()
@@ -469,7 +469,7 @@ class InteractionTests(unittest.TestCase):
         self.data['reset_credits']=[credit()]
         for language in app.LANGUAGES:
             self.bar.settings['language']=language
-            for kind,key in ((app.TaskPopup,'Cycle · Tokens'),(app.SessionPopup,'Reset {time}'),(app.ResetPopup,'History')):
+            for kind,key in ((app.TaskPopup,'Local cycle · Tokens'),(app.SessionPopup,'Reset {time}'),(app.ResetPopup,'History')):
                 panel=kind(self.bar);panel.refresh(self.data)
                 with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
                 labels=[c.args[3] for c in draw.call_args_list]
@@ -503,7 +503,7 @@ class InteractionTests(unittest.TestCase):
         self.bar.settings['rotate_quotas']=True
         with patch.object(self.bar,'isVisible',return_value=True):
             positions=[]
-            for at,kind,mode,label in [(0,'quota','usage','Week 70%'),(8,'spent','daily','Today 12%'),(16,'session','session','5h 60%'),(24,'clock','resets','Reset 6d'),(32,'quota','usage','Week 70%')]:
+            for at,kind,mode,label in [(0,'quota','usage','Week left 70%'),(8,'spent','daily','Today used 12%'),(16,'session','session','5h left 60%'),(24,'clock','resets','Reset 6d'),(32,'quota','usage','Week left 70%')]:
                 self.bar.advance_quota(at);self.bar.quota_tween.setCurrentTime(self.bar.quota_tween.duration());self.bar.grab()
                 self.assertEqual(self.bar.quota_kind,kind)
                 self.assertEqual(self.bar.displayed_metrics()[0][1],label)
@@ -540,7 +540,7 @@ class InteractionTests(unittest.TestCase):
                 number=next(c for c in draw.call_args_list if c.args[3]=='5d 16h')
                 label_end=label.args[1]+app.QFontMetricsF(label.args[4]).horizontalAdvance('Reset')
                 self.assertGreaterEqual(number.args[1]-label_end,3.)
-                self.assertLess(number.args[1]-label_end,7.)
+                self.assertAlmostEqual(number.args[1],app.CONTENT_X+12+self.bar.metric_label_width()+3)
 
     def test_reset_item_uses_same_pause_and_transition_rules(self):
         self.bar.settings['rotate_quotas']=True;self.bar.quota_kind='clock';self.bar.quota_rotated_at=0;self.bar.grab()
@@ -600,7 +600,7 @@ class InteractionTests(unittest.TestCase):
             self.bar.settings['show_countdown']=False
             self.assertEqual(self.bar.displayed_metrics(),[])
             self.bar.settings.update(show_week=True,show_daily=True);self.data['quota']=[];self.data['daily_quota']='—'
-            self.assertEqual(self.bar.quota_choices(),[('quota','Week —',None),('spent','Today —',None)])
+            self.assertEqual(self.bar.quota_choices(),[('quota','Week left —',None),('spent','Today used —',None)])
             self.bar.quota_kind='session';self.bar.advance_quota(102)
             self.assertEqual(self.bar.quota_kind,'quota')
 
@@ -613,7 +613,7 @@ class InteractionTests(unittest.TestCase):
             self.bar.quota_kind='spent';self.bar.quota_rotated_at=12
             self.bar.set_language('zh-CN')
             self.assertEqual(dialog.rotation.text(),'轮换左侧指标')
-            self.assertEqual(self.bar.displayed_metrics()[0][1],'今日 12%')
+            self.assertEqual(self.bar.displayed_metrics()[0][1],'今日已记录 12%')
             self.assertEqual(self.bar.quota_rotated_at,12)
             self.strip.current_id='a';self.strip.rotated_at=0;self.bar.quota_hover=True
             with patch('codex_taskbar.app.time.monotonic',return_value=8):
@@ -665,12 +665,12 @@ class InteractionTests(unittest.TestCase):
             self.assertEqual(self.bar.quota_kind,'spent')
 
     def test_metric_labels_are_consistent_in_parallel_and_rotation_modes(self):
-        for language,week,today,reset in [('en','Week','Today','Reset'),('zh-CN','本周','今日','重置')]:
+        for language,week,today,reset in [('en','Week left','Today used','Reset'),('zh-CN','本周剩余','今日已记录','重置')]:
             self.bar.settings.update(language=language,rotate_quotas=False)
             parallel={kind:value for kind,value,fraction in self.bar.displayed_metrics()}
             self.assertEqual(parallel['quota'],week+' 70%')
             self.assertEqual(parallel['spent'],today+' 12%')
-            self.assertEqual(parallel['session'],'5h 60%')
+            self.assertEqual(parallel['session'],self.bar.label('5h left')+' 60%')
             self.assertTrue(parallel['clock'].startswith(reset+' '))
             self.bar.settings['rotate_quotas']=True
             for kind in ('quota','spent','session','clock'):
@@ -687,7 +687,7 @@ class InteractionTests(unittest.TestCase):
             for kind,value,fraction in self.bar.quota_choices():
                 self.bar.quota_kind=kind
                 with patch('codex_taskbar.app.text',wraps=app.text) as draw:self.bar.grab()
-                label,_,number=value.partition(' ')
+                label,number=self.bar.metric_parts(kind,value)
                 label_draw=next(c for c in draw.call_args_list if c.args[3]==label)
                 number_draw=next(c for c in draw.call_args_list if c.args[3]==number)
                 metric=self.bar.hit_regions[0][1]

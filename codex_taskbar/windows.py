@@ -123,7 +123,7 @@ def placement(minimum_width=240):
     edges = [r[0] for r in (start_box, icons) if r]
     if not edges or bottom-top > right-left:return None
     available = min(edges)-left-inset*2
-    width = round(min(540*scale,available))
+    width = round(available)
     if width < minimum_width*scale:return None
     x = left+inset
     y = top+max(0,(bottom-top-height)//2)

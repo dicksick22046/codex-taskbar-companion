@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QApplication,QWidget
 
 from . import app as visuals
 from . import windows
-from .i18n import project_label,task_title
+from .i18n import project_label,task_title,translate
 from .presentation import task_strip_rect,clamp_rect,remember_position,panel_rect
 from .tasks import panel_rows,task_role_label
 
@@ -43,7 +43,9 @@ class TaskStrip(QWidget):
 
     @property
     def needs_animation(self):
-        return bool(self.isVisible() and self.motion_enabled and self.task and not self.pressed and not self.dragging)
+        return bool(self.isVisible() and self.motion_enabled and self.task and self.task_hover and self.task_blend>=1.
+                    and not self.pressed and not self.dragging and self.task_rect.width()>0
+                    and QFontMetricsF(self.owner.font).horizontalAdvance(task_title(self.task,self.language))>self.task_rect.width()+.5)
 
     def sync_motion(self):
         if not self.motion_enabled:
@@ -95,12 +97,14 @@ class TaskStrip(QWidget):
     def refresh(self,data,resize=False,hidden=False):
         if self.stopped:return
         self.data=data;self.candidates=[dict(task) for task in panel_rows(data,'running')]
-        self.hidden=bool(hidden or not self.owner.settings.get('show_tasks',True))
+        self.hidden=bool(hidden or not self.owner.settings.get('show_task_strip',False))
+        self.setAccessibleName(translate(self.language,'Running task strip'))
         self._sync_pause(time.monotonic())
         if not self.candidates or self.hidden:
             self.hide();self.track_pointer(QPointF(-1,-1));self.cancel_press()
             if not self.candidates:
                 self.current_id=None;self.task=None;self.previous_task=None;self.task_tween.stop();self.task_blend=1.
+                self.setAccessibleDescription('')
             return
         if self.isVisible() and not self.dragging:
             point=QCursor.pos()
@@ -122,7 +126,13 @@ class TaskStrip(QWidget):
         frame_key=(tuple(self.task.get(key) for key in ('id','project','title','side_chat','task_role')) if self.task else None,
                    self.geometry().getRect(),self.language,self.owner.settings.get('capsule_theme'),
                    self.owner.settings.get('capsule_transparency'),self.task_hover)
-        if frame_key!=self.frame_key:self.frame_key=frame_key;self.update()
+        if frame_key!=self.frame_key:
+            self.frame_key=frame_key
+            if self.task:
+                role=task_role_label(self.task)
+                self.setAccessibleDescription(', '.join([project_label(self.task.get('project'),self.language),
+                    *([translate(self.language,role)] if role else []),task_title(self.task,self.language)]))
+            self.update()
 
     def ensure_visible(self):
         hwnd=int(self.winId());window=self.windowHandle();recovered=False
@@ -236,9 +246,7 @@ class TaskStrip(QWidget):
             if marquee:shift=visuals.marquee_offset(time.monotonic()-self.title_hover_started,metrics.horizontalAdvance(label)-available)
             else:label=metrics.elidedText(label,Qt.TextElideMode.ElideRight,available)
             p.setClipRect(QRectF(title_x,-offset,available,self.height()),Qt.ClipOperation.IntersectClip)
-            if self.task_blend<1:visuals.text(p,title_x,title_y,label,self.owner.font,palette['muted'])
-            elif shift>0 or not self.motion_enabled or self.pressed or self.dragging:visuals.text(p,title_x-shift,title_y,label,self.owner.font,palette['text'])
-            else:visuals.running_title(p,title_x,title_y,label,self.owner.font,title_x,min(available,metrics.horizontalAdvance(label)),palette['shimmer'])
+            visuals.text(p,title_x-shift,title_y,label,self.owner.font,palette['muted'] if self.task_blend<1 else palette['text'])
             p.restore()
         if self.previous_task and self.task_blend<1:task_label(self.previous_task,1-self.task_blend,-22*self.task_blend)
         task_label(self.task,self.task_blend,22*(1-self.task_blend),current=True);p.restore()
