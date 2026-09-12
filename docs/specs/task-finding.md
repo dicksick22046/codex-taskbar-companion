@@ -8,15 +8,15 @@ Add **Find task…** to the strip/tray context menu, above Settings and Quit. Ke
 
 Search task titles and project names locally, case-insensitively, requiring every whitespace-separated search term to match. Project selection filters only this browser; quota numbers and strip counts remain account-wide. Keep the query/filter while the window is hidden in this session, without storing search history. List tasks by most recent stored activity, with deterministic ID tie-breaking.
 
-Each row has a project tag, task title, known status if available and a compact activity timestamp. Keep titles elided with a full tooltip. Use existing colors and Side marking. Show no inferred status for catalog-only tasks. Keyboard arrows select and Enter opens; a pointer press/release must retain the same task ID when data changes. Preserve selection and scroll position on refresh when possible. No results should be a readable empty state.
+Each row has a project tag, task title, known status if available and a compact activity timestamp. Keep titles elided with a full tooltip and use existing colors. Show no inferred status for catalog-only tasks. Keyboard arrows select and Enter opens; a pointer press/release must retain the same task ID when data changes. Preserve selection and scroll position on refresh when possible. No results should be a readable empty state.
 
 ## Data contract
 
-Reuse the existing five-second catalog collection and single Provider. Publish a minimal in-memory `catalog` projection: ID, title, project, updated timestamp. No prompts, item bodies, paths or credentials. Exclude this projection from diagnostic snapshot persistence. Merge existing Running/Unread/Failed/Stopped/Side evidence in the browser; do not derive running or waiting state from `notLoaded`.
+Reuse the existing five-second catalog collection and single Provider. Publish a minimal in-memory `catalog` projection: ID, title, project, updated timestamp. No prompts, item bodies, paths or credentials. Exclude this projection from diagnostic snapshot persistence. Merge each ordinary task's existing state evidence in the browser; do not derive running or waiting state from `notLoaded`.
 
 Explicitly query recorded `cli`, `vscode`, `appServer` and `exec` sources, excluding child threads using the existing parent rule. Deduplicate by task ID. These are local persisted Codex sources; no remote aggregation or live client subscription is implied. Additional previously omitted execution tasks can contribute their recorded local usage through the existing cursor logic.
 
-Associated ephemeral Side chats appear as separate state rows alongside Main tasks, using distinct IDs and the same real parent title/project. Keep the parent navigation target and neutral, equally sized role labels. Side rows without their own saved log have unknown lifetime metrics; never copy the parent's totals. This does not add Agent children to the persisted catalog.
+Ephemeral Side chats are excluded from task search and lifetime statistics. Show each ordinary task once with its own state and recorded totals, without Main/Side labels or side-chat navigation metadata. Temporary Main/Side distinctions belong only to the strip and status-category panels; they do not add tasks to the persisted catalog or alter the parent's state or totals.
 
 Render with a virtualized list. Reuse the UI tick while visible and avoid model resets when relevant data is unchanged. Filter without API calls. Browser actions never start/resume/interrupt tasks, approve commands or consume reset credits.
 

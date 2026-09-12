@@ -2,7 +2,7 @@
 
 ## Scope
 
-Extend the existing Windows presentation with an optional floating capsule and reduce unnecessary background work. Keep one Provider, one strip, existing quota/task semantics and existing data directory. Default placement remains Taskbar; upgrading preserves existing preferences. This milestone does not claim macOS, Linux or untested Windows support.
+Extend the existing Windows presentation with an optional floating capsule and reduce unnecessary background work. Keep one Provider and the existing data directory. The quota/status strip retains its placement modes; the running task carousel is now a separate floating strip as specified in [interaction](interaction.md#进行中任务独立悬浮条). Default status placement remains Taskbar; upgrading preserves existing preferences. This milestone does not claim macOS, Linux or untested Windows support.
 
 ## Performance
 
@@ -20,7 +20,7 @@ The floating capsule is 30 DIP high, with a maximum width of 540 DIP constrained
 
 ### Adaptive capsule width
 
-Both placements fit the enabled metrics, nonempty status counts and task content, with balanced end padding. Keep the existing taskbar space limit and floating 540 DIP limit. Measure every current rotating task and use the longest required width, so switching tasks does not resize the capsule. Retain the quota rotation slot's existing stable width. Long content still elides and scrolls on hover. No extra setting is needed.
+Both status-strip placements fit the enabled metrics and nonempty status counts, with balanced end padding. Keep the existing taskbar space limit and floating 540 DIP limit. Task names no longer affect status-strip width; the separate task strip keeps a stable 420 DIP width constrained by its display. Retain the quota rotation slot's existing stable width. Long task titles still elide and scroll on hover. No extra setting is needed.
 
 Keep the left edge and ring positions fixed when content changes. Defer background-driven shrinking while hovering, pressing, dragging, or a panel/menu is open. A settings window alone never freezes geometry: explicit display, rotation, language and placement changes immediately recompute the capsule, including when other interaction guards are present. Opening a task panel continues to use its own readable minimum width even when the capsule is short.
 
