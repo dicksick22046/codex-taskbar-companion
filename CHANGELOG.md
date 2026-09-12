@@ -4,6 +4,16 @@
 
 ## Unreleased
 
+## 0.9.0
+
+- Show consistent unknown values for expired quota across the strip and open panels, with cached-reading and update-time context.
+- Distinguish remaining account quota, observed daily consumption and local Token statistics; show the observation start and label unconfirmed reset sources as Other recovery.
+- Control task status counts and the optional Running task strip independently. New installations use Auto placement; upgrades preserve previous display choices.
+- Add named task-status actions to the tray/context menu, including when the status strip cannot fit on screen.
+- Default task search to a simple four-column view. Reveal lifetime statistics on demand and pause history indexing when they are hidden.
+- Remove continuous Running shimmer and breathing; retain direct dragging, interruptible feedback and deliberate long-title scrolling.
+- Fit complete labels within actual taskbar/screen bounds and improve long settings labels in all four languages.
+
 - Move the running task carousel into its own draggable floating strip with a saved position; keep quota indicators, status counts and their menus on the original strip.
 - Keep temporary Main/Side distinctions in the strip and status lists; show ordinary tasks once without role labels in daily Token statistics and task search.
 
