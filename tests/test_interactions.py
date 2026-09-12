@@ -1,6 +1,8 @@
 from datetime import datetime,timedelta
 from unittest.mock import patch,Mock
 import unittest
+import tempfile
+from pathlib import Path
 from PySide6.QtCore import QEvent,QPointF
 from PySide6.QtGui import QMouseEvent
 
@@ -14,6 +16,8 @@ class InteractionTests(unittest.TestCase):
     def setUpClass(cls):cls.application=app.QApplication.instance() or app.QApplication([])
 
     def setUp(self):
+        runtime=tempfile.TemporaryDirectory();self.addCleanup(runtime.cleanup)
+        isolated=patch('codex_taskbar.app.RUNTIME',Path(runtime.name));isolated.start();self.addCleanup(isolated.stop)
         hidden=patch('codex_taskbar.task_strip.TaskStrip.ensure_visible',new=lambda self:False)
         hidden.start();self.addCleanup(hidden.stop)
         now=datetime.now().astimezone().timestamp()
