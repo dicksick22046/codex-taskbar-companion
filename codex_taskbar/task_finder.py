@@ -173,7 +173,7 @@ class TaskFinder(QDialog):
         self.units.currentTextChanged.connect(bar.set_chart_unit)
         self.statistics_button=QPushButton();self.statistics_button.setCheckable(True);self.statistics_button.setChecked(self.statistics)
         self.statistics_button.setAutoDefault(False)
-        self.statistics_button.setStyleSheet('QPushButton{padding:8px 12px;} QPushButton:checked{background:#405c7e;color:#e1e5ec;}')
+        self.statistics_button.setStyleSheet('QPushButton{padding:8px 12px;background:#30343c;color:#b8c3d0;border:1px solid #484f5c;border-radius:9px;} QPushButton:hover{background:#394352;} QPushButton:checked{background:#405c7e;color:#e1e5ec;border-color:#6483a6;} QPushButton:focus{border-color:#82b6ff;}')
         controls.addWidget(self.search,1);controls.addWidget(self.projects);controls.addWidget(self.statistics_button);controls.addWidget(self.units);layout.addLayout(controls)
         self.view=TaskView(self);self.view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows);self.view.setShowGrid(False)
