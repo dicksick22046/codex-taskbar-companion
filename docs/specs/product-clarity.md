@@ -59,5 +59,5 @@ Prepare a ready-to-run, consent-based usability protocol for five unfamiliar Cod
 - [x] Independent controls, accessible state entry and quiet motion
 - [x] Basic finder with optional historical statistics
 - [x] Integrated tests and visual verification
-- [ ] Upgrade/install verification, documentation and release
+- [x] Upgrade/install verification, documentation and release
 - [x] Usability protocol ready; real participant study reported separately

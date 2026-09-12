@@ -25,4 +25,8 @@ Real pointer manipulation, mixed-DPI multi-monitor hardware, a subsequent Window
 
 The [five-participant usability protocol](product-clarity-usability.md) is ready. No real participant sessions have occurred, and this release does not claim validated productivity, retention or universally preferred defaults.
 
-Public publication and CI are verified against the release tag after the versioned assets are uploaded; local packaging alone does not imply a published update.
+## Public release
+
+[0.9.0](https://github.com/dicksick22046/codex-taskbar-companion/releases/tag/v0.9.0) is published from `018acbebfd0922abd5c69be5790b11dd226b5998`. Both [main CI](https://github.com/dicksick22046/codex-taskbar-companion/actions/runs/34684307338) and [tag CI, including installer build](https://github.com/dicksick22046/codex-taskbar-companion/actions/runs/34684312062) passed.
+
+The published 33,042,944-byte installer was downloaded in full and matched the local verified package: SHA-256 `eb20e2f7a3c5a2bd9680cd4b56d35e134d1606682c97dc00f6fd88d83c1537a2`. The public checksum asset matches as well. The update resolver offers 0.9.0 to 0.8.1/0.8.0/0.7.0 clients and offers no update to 0.9.0 itself. Earlier published assets were not replaced.
