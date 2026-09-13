@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+## 0.10.1
+
 - Keep full popovers and context menus outside the combined status bar and pinned rows, including while rows expand or collapse.
 - Link pinned windows and popovers to their owners and repair relative order without stealing focus or repeatedly raising unrelated windows.
 - Shorten history percentages, mark missing readings with a dash, and identify reset-credit expiry explicitly.
