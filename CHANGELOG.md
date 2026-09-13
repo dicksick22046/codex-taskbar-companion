@@ -4,10 +4,11 @@
 
 ## Unreleased
 
-- Reduce cycle/today headers to two rows, use Token timestamps for freshness, and move duplicate account quota details into tooltips.
-- Restore Scheduled / Manual / Official reset labels and show a single Token column heading with aligned per-row amounts and units.
-
-- Clarify daily quota consumption, Token labels and Japanese/Spanish quota terminology; keep observation coverage in the supporting text.
+- Pin any task status from its list into one connected multi-row panel; each row rotates independently and supports hover feedback and direct unpinning.
+- Migrate the former Running strip preference and remove its separate display switch and drag position.
+- Place usage sums beside their periods; simplify reset history, distinguish Official in purple, and show recorded pre-reset quota percentages when available.
+- Show an on-demand, attributed community reset forecast with a time window and approximate probability; hide unavailable or stale forecasts.
+- Clarify daily-consumption labels and multilingual quota terminology.
 
 ## 0.9.0
 

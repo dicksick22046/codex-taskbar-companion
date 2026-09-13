@@ -18,9 +18,9 @@ Requires **Windows 11 x64** and the **Codex desktop app**, installed and signed 
 2. Run the installer, then start the app. Python, Qt, and fonts are included. Administrator access is not required.
 3. Right-click the strip to open Settings. Choose which items to show and whether to start at sign-in.
 
-New installations use **Auto** placement: prefer the primary taskbar and float when there is not enough room. Existing placement preferences are preserved. Right-click either strip or the tray for **Find task…**, **Task status**, Settings and Quit. Updates are checked on GitHub; installation starts only when you choose it.
+New installations use **Auto** placement: prefer the primary taskbar and float when there is not enough room. Existing placement preferences are preserved. Right-click the status bar or the tray for **Find task…**, **Task status**, Settings and Quit. Updates are checked on GitHub; installation starts only when you choose it.
 
-Choose **Status bar placement → Floating** to move the quota/status strip. The optional **Running task strip** is independent: drag it to a convenient position and that position is remembered. **Keep floating windows on top** applies to enabled floating windows; colors and transparency apply to both strips.
+Choose **Status bar placement → Floating** to move the quota/status strip. Pinned task rows stay attached to it and share its colors and transparency; they do not have a separate position.
 
 **Auto** prefers the primary taskbar and uses a floating capsule when there is not enough room. It waits for stable availability before switching back and avoids automatic overlays over fullscreen foreground apps. **Floating display** can follow primary or pin a display; disconnecting it temporarily uses primary, and reconnecting restores the saved relative position. This does not add secondary-taskbar embedding or claim validation on other Windows versions.
 
@@ -39,13 +39,13 @@ Choose **Status bar placement → Floating** to move the quota/status strip. The
 | Status dot and count | Tasks in that state, with the current or latest turn's duration |
 | Task title | That task in Codex |
 
-Enable **Running task strip** in Indicators to see a separate 420-DIP title carousel. It is off by default for new users; existing display choices are preserved on upgrade. **Task status counts** remains an independent control on the original strip. Hovering pauses task rotation and reveals long titles; empty Running lists hide the title strip. Main/Side markers appear only in live task surfaces; Side entries return to the parent task and do not add duplicate statistics/search rows. Running markers are static; motion is reserved for interactions and deliberate long-title reading.
+Open a status list and click its pin to keep one lightweight row above the status bar. Multiple pinned states share one connected panel, with a colored dot, task title and unpin button per row. Each row rotates independently; hovering highlights it, pauses rotation and reveals long titles. Empty rows hide while keeping the pin preference. Existing enabled Running strips migrate to a pinned Running row. Main/Side details remain in the full status list and tooltips; Side opens its parent task.
 
 Settings include English, Simplified Chinese, Japanese, and Spanish UI selection, optional hover-to-open panels, and optional quota rotation. With rotation enabled, all enabled left-side indicators, including the reset countdown, share one fixed-width position.
 
 Capsule colors and background transparency are set manually in Settings. Choose Dark or Light; 0% transparency gives a solid background. Text and ring opacity are unaffected.
 
-The status strip fits the actual enabled labels and counts within the available screen/taskbar space. It does not silently hide selected indicators or change quota-rotation preferences. If complete content cannot fit, task categories remain available in the tray/context menu. The separate task strip keeps a stable width during rotation.
+The status strip fits the enabled labels and counts within available space. Populated pins reserve enough width for a readable title and follow the bar; they hide when the bar is unavailable or a fullscreen app is foreground. Task categories, including empty pinned states, remain accessible from the tray menu.
 
 Right-click and choose **Find task…** to search recorded tasks by title or project. Filter to one project, then click a result or use the arrow keys and Enter to return to it in Codex. This filter affects the search window only; quota and strip counts keep their existing scope.
 
@@ -73,7 +73,7 @@ An unresolved synchronous `request_user_input` record appears as **Needs input**
 - Historical token totals cover locally recorded tasks. Other devices and temporary side chats without saved usage are excluded.
 - The task catalog includes recorded CLI, VS Code, app-server and CLI execution sources. Newly included records can increase local token totals. Persisted synchronous input requests are observable; live approval routing and unrecorded questions are not fully exposed.
 
-Reset history uses **Scheduled** for a natural rollover, **Manual** for a reset confirmed through this tool, and **Official** for recovery outside those two cases. Official is inferred from observed quota changes, rather than an explicit source supplied by the platform. Amounts retain their units beneath one Token heading. Using a reset credit requires confirmation and consumes a real credit.
+Reset history shows local usage with per-row units and any recorded pre-reset quota percentage. Missing old percentages stay absent. Scheduled, Manual and Official remain separate; Official uses purple and is inferred from recovery outside scheduled or confirmed in-app manual resets. The public [Codex Reset Today API](https://codex-reset.today/developers) provides an optional global-reset forecast below the account countdown, with a time window, approximate probability and confidence/source in the tooltip. It is not an account guarantee; stale or unavailable forecasts are hidden. Requests send no account or task data. Using a reset credit still requires confirmation.
 
 ## Data and limitations
 

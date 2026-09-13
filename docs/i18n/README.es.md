@@ -20,7 +20,7 @@ Requiere **Windows 11 x64** y la **aplicación de escritorio de Codex**, instala
 
 Las instalaciones nuevas usan Auto: prefieren la barra principal y flotan si falta espacio. Se conservan las preferencias anteriores al actualizar. El menú contextual y la bandeja permiten buscar tareas, abrir categorías de estado, cambiar ajustes y salir.
 
-La ubicación de la barra de estado controla la cuota y los recuentos. La barra independiente de tareas en curso se activa por separado y recuerda su posición al arrastrarla. Mantener las ventanas flotantes encima, los colores y la transparencia se comparten entre ambas barras.
+La ubicación de la barra de estado controla la cuota y los recuentos. Las filas fijadas permanecen conectadas a ella, comparten colores y transparencia y no se arrastran por separado.
 
 ![Cápsula flotante](../images/floating.png)
 
@@ -39,7 +39,7 @@ La ubicación de la barra de estado controla la cuota y los recuentos. La barra 
 | Punto de estado y cantidad | Tareas de ese estado, con la duración del turno actual o más reciente |
 | Nombre de una tarea | Esa tarea en Codex |
 
-Los nuevos usuarios ven recuentos de estado; la barra independiente de tareas está desactivada inicialmente. Las preferencias anteriores se conservan y ambos controles son independientes. La barra de tareas mantiene un ancho estable, pausa la rotación al pasar el cursor y permite leer títulos largos. Se oculta si no hay tareas en curso. Main/Side solo distingue estados temporales; Side abre la tarea principal y no duplica filas en las estadísticas o la búsqueda. Los indicadores de ejecución son estáticos.
+Abre una lista de estado y pulsa su chincheta para fijar una fila encima de la barra. Varios estados forman un solo panel: cada fila contiene un punto de color, el título y un botón para desfijar. La rotación es independiente; al pasar el cursor, la fila se resalta, se detiene el cambio de tarea y se puede leer el título largo. Las filas vacías se ocultan sin perder su preferencia. Las antiguas barras activas migran a una fila fijada. Los detalles Main/Side permanecen en la lista completa y las ayudas.
 
 En los ajustes puedes elegir inglés, chino simplificado, japonés o español, abrir paneles al pasar el ratón y activar la rotación de cuotas. En este modo, todos los indicadores activados de la izquierda, incluida la cuenta atrás, comparten una posición de ancho fijo.
 
@@ -47,7 +47,7 @@ En Ajustes puedes elegir manualmente el color oscuro o claro de la cápsula y la
 
 Haz clic derecho y elige **Buscar tarea…** para buscar tareas guardadas por título o proyecto. Filtra por proyecto y abre un resultado con un clic o con las flechas y Enter. La búsqueda es local y no guarda el texto introducido. El filtro solo afecta a esta ventana.
 
-La barra de estado se ajusta al ancho real de las etiquetas y los recuentos dentro del espacio disponible. No oculta indicadores elegidos ni cambia la rotación automáticamente. Si no cabe completa, el menú de estados sigue disponible en la bandeja. La barra de títulos mantiene un ancho estable.
+La barra se ajusta al contenido y al espacio disponible. Las filas fijadas reservan un ancho legible, siguen a la barra y se ocultan si esta no está disponible o hay una aplicación a pantalla completa. Los estados fijados vacíos siguen accesibles en el menú de la bandeja para poder desfijarlos.
 
 ![Búsqueda de tareas](../images/task-search.png)
 
@@ -72,7 +72,7 @@ Una pregunta síncrona sin respuesta aparece como «Requiere respuesta», con un
 - La lista diaria incluye los turnos de hoy. Los paneles de estado muestran la duración del turno actual o más reciente, incluida la espera de herramientas.
 - Los totales históricos solo cubren tareas registradas en este equipo. Excluyen otros dispositivos y chats laterales temporales sin consumo guardado.
 
-El historial distingue reinicios programados, manuales y oficiales. Se infiere un reinicio oficial cuando la cuota se recupera fuera de un reinicio programado o manual confirmado en esta herramienta; la plataforma no proporciona esa clasificación directamente. Tokens aparece una sola vez como encabezado y cada fila conserva su importe y unidad. Usar un crédito de reinicio requiere confirmación y consume un crédito real.
+El historial muestra cantidades con unidad y el último porcentaje de cuota registrado antes de cada reinicio, cuando existe. Los reinicios oficiales inferidos aparecen en morado; se distinguen de los programados y manuales. La [API pública de Codex Reset Today](https://codex-reset.today/developers) ofrece una previsión global con intervalo y probabilidad aproximada; la ayuda indica confianza y fuente. No garantiza un reinicio de tu cuenta. Se oculta si está caducada o no está disponible, y no se envían datos de cuenta ni de tareas. Los créditos siguen requiriendo confirmación.
 
 ## Datos y limitaciones
 
