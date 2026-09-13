@@ -24,14 +24,14 @@ No real pointer input was injected. The user's intermittent taskbar-click occlus
 
 ## Unreleased reset overview and selection
 
-The current design is delivered locally from `d1e1bd1`. Review scope: opening the reset panel, comparing periods, inspecting one period, navigating long history, and reaching reset-credit controls. This review used fresh native-widget captures with synthetic data; it is not a real-user usability study or screen-reader certification.
+The current design is delivered locally from `d836462`. Review scope: opening the reset panel, comparing periods, inspecting one period, navigating long history, and reaching reset-credit controls. This review used fresh native-widget captures with synthetic data; it is not a real-user usability study or screen-reader certification.
 
 | Step | Finding and resulting behavior | Verification |
 | --- | --- | --- |
-| 1. Overview | Floating value labels and repeated per-period metadata scattered the reading order. Values now share one row, columns share a baseline and dates stay on the axis. | Four-language default renders; complete labels at scrolling edges |
-| 2. Inspect a period | A fixed detail line shows exact time, recorded quota usage and source. Hover previews, clicking retains selection, and leaving restores it. Missing readings remain a dash. | Pointer-down feedback, click/leave, stable IDs on refresh, interrupted selection motion and reduced motion |
+| 1. Overview | Values share one row and columns share a baseline. Chart and footer spacing is 32 DIP shorter than the prior layout, with unchanged width. | Four-language default renders; complete labels at scrolling edges |
+| 2. Inspect a period | Opening selects the latest history. Clicks and keyboard actions change the fixed detail line; hovering and scrolling leave the selection unchanged. Missing readings remain a dash. | Latest default, inert hover, pointer-down feedback, canceled clicks, stable IDs on refresh, interrupted motion and reduced motion |
 | 3. Browse and act | Chart dragging cancels click selection; native scrollbar and arrow/Home/End keys remain available. Selected periods scroll fully into view; short screens retain access to credits and the reset button. | Direct widget drag/key/wheel tests, fixed-header pixel comparison and reset-request isolation |
 
-Native regression: 354 tests, one offscreen-only skip; four separate offscreen journeys pass. Final input checks and Windows/portable CI pass. The installed executable matches the tested build, normalized preferences are preserved and native bar/pinned windows remain attached without changing foreground focus. Public 0.10.1 assets were not replaced.
+Native regression: 355 tests, one offscreen-only skip; four separate offscreen journeys pass. Windows/portable CI pass. The installed executable matches the tested build, normalized preferences are preserved and native bar/pinned windows remain attached without changing foreground focus. Public 0.10.1 assets were not replaced.
 
 The design uses selection to disclose details, as illustrated in [Apple's chart interaction guidance](https://developer.apple.com/videos/play/wwdc2023/10037/). The earlier intermittent shell-click occlusion remains a recurrence check; controlled rendering and a correct installed snapshot do not prove every shell activation path is fixed.
