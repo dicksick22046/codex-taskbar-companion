@@ -21,3 +21,9 @@ Historical percentages are last recorded account values, not exact closing measu
 - Installer SHA-256: `c41aa50a1d4ff5cd4cc8aeaf8f33145b0c5b023953b69d11142941afcd9c5e2c`. Public asset metadata, checksum and download prefix match; the updater detects this version from 0.10.0.
 
 No real pointer input was injected. The user's intermittent taskbar-click occlusion remains a live recurrence check; offscreen recovery and a correct installed snapshot do not prove that every shell activation path is fixed. Old missing percentages now show a dash, while future in-tool manual resets retain their before snapshot.
+
+## Unreleased history chart
+
+Commit `63d89fa` replaces the textual history with shared-scale horizontal Token bars and a separate recorded-quota column. Native regression: 345 tests, one skipped; main Windows and portable-core CI passed. Four-language renders cover explicit units and the old manual record's absent quota snapshot. A constrained 280-DIP screen test verifies scrolling in both placement modes, unchanged header pixels and a fixed reset button. Zero values and absent/invalid values produce no bar fill and retain distinct labels.
+
+The local installation includes this development update, matches its build and preserves normalized preferences, startup/relaunch and native attached windows without changing foreground focus. The public version remains 0.10.1; its installer and checksum were not replaced. README examples use current synthetic data. The earlier shell-click recurrence limitation remains open.

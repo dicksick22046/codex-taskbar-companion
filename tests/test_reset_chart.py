@@ -45,7 +45,10 @@ class ResetChartTests(unittest.TestCase):
             self.assertTrue(panel.scroll_body);self.assertGreater(panel.scroll_limit(),0)
             self.assertTrue(screen.availableGeometry().contains(panel.geometry()))
             button=panel.button.geometry();self.assertEqual(button.bottom(),panel.height()-17)
-            panel.scroll=panel.scroll_limit();panel.grab()
+            panel.scroll=0;before=panel.grab().toImage()
+            panel.scroll=panel.scroll_limit();after=panel.grab().toImage()
+            header_height=round(48*panel.devicePixelRatioF())
+            self.assertEqual(before.copy(0,0,before.width(),header_height),after.copy(0,0,after.width(),header_height))
             self.assertEqual(panel.button.geometry(),button)
             last_credit_y=panel.forecast_height+panel.credits_top+26*max(1,len(panel.credits))-panel.scroll
             self.assertLess(last_credit_y+8,button.top())
