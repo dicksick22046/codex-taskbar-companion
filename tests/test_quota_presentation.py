@@ -145,16 +145,20 @@ class QuotaPresentationTests(unittest.TestCase):
         self.assertTrue(self.bar.status_menu.actions()[0].isEnabled())
         self.assertEqual(self.bar.status_menu.actions()[0].data(),'running')
 
-    def test_running_list_animation_requires_visible_hover_overflow(self):
+    def test_running_list_animates_visible_dots_and_stops_outside_viewport(self):
         panel=app.TaskListPopup(self.bar,'running');panel.refresh(self.data)
         try:
             with patch.object(panel,'isVisible',return_value=True):
-                panel.sync_animation();self.assertFalse(panel.animation.isActive())
-                panel.hovered='running';panel.sync_animation();self.assertFalse(panel.animation.isActive())
+                panel.sync_animation();self.assertTrue(panel.animation.isActive())
+                with patch.object(panel,'update') as draw:
+                    panel.animate();self.assertEqual(draw.call_count,1);self.assertEqual(draw.call_args.args[0].width(),12)
+                panel.hovered='running';panel.sync_animation();self.assertTrue(panel.animation.isActive())
                 self.data['tasks'][0]['title']='Long task title '*60
                 panel.refresh(self.data);panel.hovered='running';panel.sync_animation();self.assertTrue(panel.animation.isActive())
                 self.bar.motion_enabled=False;panel.sync_animation();self.assertFalse(panel.animation.isActive())
-                self.bar.motion_enabled=True;panel.hovered=None;panel.sync_animation();self.assertFalse(panel.animation.isActive())
+                self.bar.motion_enabled=True;panel.hovered=None;panel.scroll=10000;panel.sync_animation();self.assertFalse(panel.animation.isActive())
+                panel.scroll=0;panel.sync_animation();self.assertTrue(panel.animation.isActive())
+            with patch.object(panel,'isVisible',return_value=False):panel.sync_animation();self.assertFalse(panel.animation.isActive())
         finally:panel.close();panel.deleteLater()
 
     def test_all_metrics_cached_and_all_states_fit_by_measured_content_in_every_language(self):

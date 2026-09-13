@@ -3,7 +3,7 @@ import time
 from html import escape
 
 from PySide6.QtCore import Qt,QPointF,QRectF,QVariantAnimation,QEasingCurve,QAbstractAnimation
-from PySide6.QtGui import QColor,QFontMetricsF,QPainter,QPainterPath,QCursor,QLinearGradient
+from PySide6.QtGui import QColor,QFontMetricsF,QPainter,QPainterPath,QCursor
 from PySide6.QtWidgets import QApplication,QWidget
 
 from . import app as visuals
@@ -177,12 +177,6 @@ class TaskStrip(QWidget):
             color=QColor('#ffffff' if theme=='dark' else '#22354b');color.setAlpha(30 if self.pressed and self.press_inside else 18)
             p.setPen(Qt.PenStyle.NoPen);p.setBrush(color);p.drawRoundedRect(QRectF(4,3,self.width()-8,self.height()-6),5,5)
         color=palette[{'running':'green','waiting':'amber','unread':'amber','failed':'failed','stopped':'stopped'}[self.category]]
-        if self.category=='running' and self.motion_enabled:
-            region=QRectF(5,3,max(0,self.width()-41),self.height()-6);span=80.
-            center=region.left()-span+(time.monotonic()%6)/6*(region.width()+2*span)
-            glow=QLinearGradient(center-span,0,center+span,0);clear=QColor(color);clear.setAlpha(0);peak=QColor(color);peak.setAlpha(24 if theme=='dark' else 18)
-            glow.setColorAt(0,clear);glow.setColorAt(.5,peak);glow.setColorAt(1,clear)
-            p.setPen(Qt.PenStyle.NoPen);p.setBrush(glow);p.drawRoundedRect(region,5,5)
         visuals.running_dot(p,17,y,color,self.category=='running' and self.motion_enabled)
         def label(task,opacity,offset,current=False):
             metrics=QFontMetricsF(self.owner.font);title=task_title(task,self.language);available=max(0,self.width()-70)
@@ -195,7 +189,10 @@ class TaskStrip(QWidget):
             if self.task_hover and self.motion_enabled and self.task_blend>=1 and not self.pressed and not self.dragging:
                 shift=visuals.marquee_offset(time.monotonic()-self.title_hover_started,metrics.horizontalAdvance(title)-available)
             else:title=metrics.elidedText(title,Qt.TextElideMode.ElideRight,available)
-            visuals.text(p,30-shift,y+offset,title,self.owner.font,palette['text']);p.restore()
+            if self.category=='running' and self.motion_enabled and self.task_blend>=1 and not self.task_hover and not self.pressed:
+                visuals.running_title(p,30,y+offset,title,self.owner.font,30,shown,palette['text'],theme=='light')
+            else:visuals.text(p,30-shift,y+offset,title,self.owner.font,palette['text'])
+            p.restore()
         if self.previous_task and self.task_blend<1:label(self.previous_task,1-self.task_blend,-14*self.task_blend)
         label(self.task,self.task_blend,14*(1-self.task_blend),True)
         self.hit_regions=[('task',QRectF(self.task_area),dict(self.displayed_task()))];p.end()

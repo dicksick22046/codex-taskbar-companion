@@ -17,24 +17,25 @@ class AdaptiveWidthTests(unittest.TestCase):
 
     def tearDown(self):fixtures.InteractionTests.tearDown(self)
 
-    def test_title_length_does_not_change_status_width_or_task_strip_width(self):
+    def test_longer_candidate_uses_capped_title_allowance(self):
         width=self.bar.content_width(540);self.assertLess(width,400)
         self.bar.resize(width,30);self.bar.grab();self.strip.refresh(self.data)
         strip_width=self.strip.width()
         self.data['tasks'][0]['title']='Long task title '*30
         self.strip.refresh(self.data)
-        self.assertEqual(self.bar.content_width(540),width)
-        self.assertEqual(self.bar.content_width(400),width)
+        self.assertEqual(self.bar.content_width(540),240)
+        self.assertEqual(self.bar.content_width(400),240)
         self.assertEqual(self.strip.width(),strip_width)
         self.assertNotIn('task',[mode for mode,rect,task in self.bar.hit_regions])
 
-    def test_rotation_order_and_title_do_not_change_status_width(self):
+    def test_rotation_keeps_width_until_candidate_titles_change(self):
         self.data['tasks'].append({**self.data['tasks'][0],'id':'second','title':'A slightly longer task'})
         width=self.bar.content_width(540)
         self.strip.task=self.data['tasks'][1];self.data['tasks'].reverse()
         self.assertEqual(self.bar.content_width(540),width)
         self.data['tasks'][0]['title']='Long task '*100
-        self.assertEqual(self.bar.content_width(540),width)
+        self.assertEqual(self.bar.content_width(540),240)
+        self.data['tasks'].reverse();self.assertEqual(self.bar.content_width(540),240)
 
     def test_task_display_switch_hides_rotation_and_counts_together(self):
         with_task=self.bar.content_width(540)

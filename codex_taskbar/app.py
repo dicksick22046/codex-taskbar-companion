@@ -16,7 +16,7 @@ from .preferences import runtime_dir, migrate_legacy, read_settings, write_setti
 RUNTIME = runtime_dir()
 try:
     from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QPointF, QVariantAnimation, QEasingCurve,QAbstractAnimation
-    from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPen, QCursor, QLinearGradient
+    from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPen, QCursor, QLinearGradient, QBrush
     from PySide6.QtWidgets import QApplication, QWidget, QMenu, QSystemTrayIcon, QPushButton, QMessageBox,QButtonGroup,QToolTip
     from PySide6.QtSvg import QSvgRenderer
 except ImportError:
@@ -160,6 +160,14 @@ def running_dot(p,x,y,color,animated):
         halo=QColor(color);halo.setAlpha(round(25+35*wave));p.setBrush(halo)
         p.drawEllipse(QPointF(x,y),4.+.7*wave,4.+.7*wave)
     p.setBrush(QColor(color));radius=2.5+.3*wave;p.drawEllipse(QPointF(x,y),radius,radius)
+
+
+def running_title(p,x,y,value,font,left,width,color,light=False):
+    span=32.;phase=time.monotonic()%4.8/4.8;center=left-span+(width+2*span)*phase
+    gradient=QLinearGradient(center-span,0,center+span,0)
+    gradient.setColorAt(0,QColor(color));gradient.setColorAt(.5,QColor('#155b77' if light else '#e3f3ff'));gradient.setColorAt(1,QColor(color))
+    p.setFont(font);p.setPen(QPen(QBrush(gradient),1));metrics=QFontMetricsF(font)
+    p.drawText(QPointF(x,y+(metrics.ascent()-metrics.descent())/2),value)
 
 
 def activity_count(p,x,y,count,color=ACCENT,pulse=True,text_color=None,glyph=None,emphasis=0):
@@ -1517,13 +1525,18 @@ class TaskListPopup(TaskPopup):
         hovered=next((t for t in self.rows if t['id']==self.hovered),None)
         extra=side_tag_width(self.owner.language,task_role_label(hovered))+7 if hovered and task_role_label(hovered) else 0
         marquee=hovered and QFontMetricsF(face()).horizontalAdvance(task_title(hovered,self.owner.language))>self.TITLE_WIDTH-extra
-        needed=self.isVisible() and getattr(self.owner,'motion_enabled',True) and marquee
+        clip_top=32+self.TITLE_HEIGHT if self.mode=='daily' else 8
+        running=any(task.get('running') and not task.get('needs_input') and clip_top<8+top+self.ROW_HEIGHT-self.scroll and 8+top-self.scroll<self.height()-8 for task,top in zip(self.rows,self.row_positions))
+        needed=self.isVisible() and getattr(self.owner,'motion_enabled',True) and (marquee or running)
         if needed and not self.animation.isActive():self.animation.start(33)
         elif not needed:self.animation.stop()
 
     def animate(self):
         self.sync_animation()
-        if self.animation.isActive():self.update()
+        if self.animation.isActive():
+            for task,top in zip(self.rows,self.row_positions):
+                if task['id']==self.hovered:self.update(QRect(10,round(8+top-self.scroll),self.width()-20,self.ROW_HEIGHT))
+                elif task.get('running') and not task.get('needs_input'):self.update(QRect(16,round(8+top-self.scroll),12,self.ROW_HEIGHT))
 
     def refresh(self,data):
         self.data=data;self.rows=panel_rows(data,self.mode)
@@ -1600,7 +1613,7 @@ class TaskListPopup(TaskPopup):
                 p.drawRoundedRect(QRectF(19.5,y-2.5,5,5),.8,.8)
             elif task.get('needs_input'):text(p,19,y,'?',face(8),AMBER)
             elif task.get('running'):
-                icon(p,'task',22,y)
+                running_dot(p,22,y,ACCENT,getattr(self.owner,'motion_enabled',True))
             else:
                 p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(AMBER if task.get('unread') else '#718096'))
                 p.drawEllipse(QPointF(22,y),2.4,2.4)
@@ -1643,7 +1656,7 @@ class TaskListPopup(TaskPopup):
     def wheelEvent(self,event):
         self.pressed_task=None
         self.scroll=max(0,min(max(0,self.full_height-(self.height()-16)),self.scroll-wheel_distance(event,self.ROW_HEIGHT)))
-        self.track_hover(self.mapFromGlobal(QCursor.pos()));self.update()
+        self.track_hover(self.mapFromGlobal(QCursor.pos()));self.sync_animation();self.update()
 
     def keyPressEvent(self,event):
         if self.focusWidget() in self.unit_buttons.values():super().keyPressEvent(event);return
@@ -1656,7 +1669,7 @@ class TaskListPopup(TaskPopup):
             self.keyboard_task=ids[index];top=32+self.TITLE_HEIGHT if self.mode=='daily' else 8;position=self.row_positions[index]+8
             self.scroll=max(0,min(max(0,self.full_height-(self.height()-16)),max(position+self.ROW_HEIGHT-self.height()+8,min(self.scroll,position-top))))
             if index==0:self.scroll=0
-            self.update();event.accept();return
+            self.sync_animation();self.update();event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self.keyboard_task in ids:
             self.owner.open_task(self.rows[ids.index(self.keyboard_task)]);event.accept();return
         super().keyPressEvent(event)

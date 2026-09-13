@@ -6,11 +6,15 @@
 
 ## 0.10.1
 
+- Restore synchronized Running dot breathing and a gentler travelling title highlight; keep hidden and reduced-motion views still.
+- Add “Show indicator names” in Settings > Indicators, with immediate compact layout and preserved hover descriptions.
+- Keep rotating metric names and values together, align status counts at the right inset, and size pinned groups from their content.
+- Reconcile window order and repaint immediately after taskbar interaction, using existing events instead of additional polling.
 - Keep full popovers and context menus outside the combined status bar and pinned rows, including while rows expand or collapse.
 - Link pinned windows and popovers to their owners and repair relative order without stealing focus or repeatedly raising unrelated windows.
 - Shorten history percentages, mark missing readings with a dash, and identify reset-credit expiry explicitly.
 
-- Replace the oversized hand-drawn pin with a standard compact Lucide icon; align it with panel headings, retain the hit area, and fix light-capsule/dark-panel contrast and focus feedback.
+- Replace the oversized hand-drawn pin with a compact Lucide icon; keep row pins muted until interaction, retain the hit area, and fix light-capsule/dark-panel contrast and focus feedback.
 
 ## 0.10.0
 

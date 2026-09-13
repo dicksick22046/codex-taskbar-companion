@@ -4,7 +4,7 @@
 
 Help Windows Codex users understand capacity, notice tasks requiring action and return to the right task. Retain Qt, the existing Provider, account/token calculations, native reset confirmation and the opaque visual surfaces. This coherent batch follows the 2026-09-12 product review. It changes presentation, validity handling and preferences; it does not add signal inference, telemetry or a new provider.
 
-Apple Design principles govern this batch: immediate pressed feedback, direct dragging, interruptible transitions, restrained motion, progressive disclosure and reduced-motion support. Keep the established font and readable opaque panels. Do not add decorative glass, momentum throws, sounds or continuous shimmer.
+Apple Design principles govern this batch: immediate pressed feedback, direct dragging, interruptible transitions, progressive disclosure and reduced-motion support. Keep the established font and readable opaque panels. Running feedback follows the updated [pinned status specification](pinned-status.md#running-feedback-and-optional-metric-names).
 
 ## 1. Quota validity and meaning
 
@@ -44,9 +44,9 @@ The optional reset forecast uses the public [Codex Reset Today API](https://code
 
 ## 4. Purposeful motion
 
-- Remove the continuously sweeping title highlight and breathing Running markers from the two strips and task lists. Running remains legible through static semantic color and labels.
+- Running markers breathe consistently across the footer, attached row and visible task lists. The attached Running title retains a soft travelling highlight; semantic color remains readable throughout.
 - Retain existing interruptible panel/selection springs, pressed feedback, stable task carousel transitions and direct 1:1 dragging. Long titles move only during deliberate hover. Task changes and marquee must not compete; reduced motion remains static/readable.
-- Stop the shared 33ms animation timer when no visible marquee needs it. Existing Qt property animations may run for a bounded transition. Static Running data alone is not a reason to repaint continuously. No new timer, polling, thread or input hook.
+- Reuse the shared 33ms clock for visible Running feedback and deliberate marquee; repaint affected regions and stop when hidden, reduced motion is enabled, or no animated content remains. Existing Qt property animations may run for a bounded transition. No new timer, polling, thread or input hook.
 
 ## 5. Verification and delivery
 
