@@ -1458,7 +1458,7 @@ class ResetPopup(TaskPopup):
         value=self.history_tokens(row)
         fraction=value/self.history_max if value is not None and self.history_max else 0
         center=18+(index+.5)*self.column_width-self.history_scroll.value()
-        return QRectF(center-10,174-78*fraction,20,78*fraction)
+        return QRectF(center-4.5,174-78*fraction,9,78*fraction)
 
     def layout_history_scroll(self):
         y=216+self.forecast_height-self.scroll
@@ -1471,7 +1471,7 @@ class ResetPopup(TaskPopup):
             box=self.history_bar_rect(row,index);center=box.center().x()
             if center+self.column_width/2<18 or center-self.column_width/2>self.width()-18:continue
             if box.height()>0:
-                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(BLUE));p.drawRoundedRect(box,3,min(3,box.height()/2))
+                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(BLUE));p.drawRoundedRect(box,2,min(2,box.height()/2))
             centered(' '.join(part for part in self.history_parts(row) if part),center,box.top()-10,face(8),'#d3dfeb')
             centered(datetime.fromtimestamp(row['at']).strftime('%m.%d'),center,190,face(7),'#9aa9ba')
             source=self.history_label(row);prefix=self.history_percent(row)+(' · ' if source else '')
