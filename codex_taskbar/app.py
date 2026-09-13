@@ -17,7 +17,7 @@ RUNTIME = runtime_dir()
 try:
     from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QPointF, QVariantAnimation, QEasingCurve,QAbstractAnimation
     from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPen, QCursor, QLinearGradient, QBrush
-    from PySide6.QtWidgets import QApplication, QWidget, QMenu, QSystemTrayIcon, QPushButton, QMessageBox,QButtonGroup,QToolTip
+    from PySide6.QtWidgets import QApplication, QWidget, QMenu, QSystemTrayIcon, QPushButton, QMessageBox,QButtonGroup,QToolTip,QScrollBar
     from PySide6.QtSvg import QSvgRenderer
 except ImportError:
     if '--smoke-test' in sys.argv:raise SystemExit(1)
@@ -1382,46 +1382,37 @@ class SessionPopup(TaskPopup):
 class ResetPopup(TaskPopup):
     mode='resets'
     WIDTH=300
-    ROW_HEIGHT=28
+    HISTORY_HEIGHT=152
 
     def __init__(self,owner):
         super().__init__(owner)
         self.button=QPushButton(owner.label('Reset quota'),self);self.button.setFont(face(8))
         self.button.setStyleSheet('QPushButton{color:#d2dce7;background:#354a5c;border:0;border-radius:6px;} QPushButton:hover{background:#405a71;} QPushButton:pressed{background:#293f52;} QPushButton:focus{border:1px solid #86b6e6;} QPushButton:disabled{color:#8795a5;background:#303740;}')
         self.button.clicked.connect(owner.confirm_reset)
+        self.history_scroll=QScrollBar(Qt.Orientation.Horizontal,self)
+        self.history_scroll.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.history_scroll.setStyleSheet('QScrollBar:horizontal{background:transparent;height:12px;} QScrollBar::handle:horizontal{background:#59616f;min-width:28px;border-radius:3px;margin:3px 0;} QScrollBar::handle:horizontal:hover,QScrollBar::handle:horizontal:pressed{background:#79b6f5;} QScrollBar:horizontal:focus{background:#35414f;border-radius:4px;} QScrollBar::add-line:horizontal,QScrollBar::sub-line:horizontal{width:0;} QScrollBar::add-page:horizontal,QScrollBar::sub-page:horizontal{background:none;}')
+        self.history_point=None
+        self.history_scroll.valueChanged.connect(self.history_scrolled)
 
     def refresh(self,data):
         self.data=data;self.rows=data.get('reset_events',[])
         self.owner.forecast.request();self.forecast=self.owner.forecast.get()
         self.forecast_height=24 if self.forecast else 0
         self.credits=data.get('reset_credits',[])
-        self.history_height=self.ROW_HEIGHT*max(1,len(self.rows) if self.owner.floating else min(6,len(self.rows)))
+        self.history_height=self.HISTORY_HEIGHT if self.rows else 28
         self.credits_top=76+self.history_height+26
         height=self.credits_top+24+26*max(1,len(self.credits))+46+self.forecast_height
         self.full_height=height
-        source_width=max([QFontMetricsF(face(7)).horizontalAdvance(self.history_label(row)) for row in self.rows]+[0])
         metrics=QFontMetricsF(face(8))
-        date_width=max([metrics.horizontalAdvance(datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M')) for row in self.rows]+[0])
-        number_width=max([metrics.horizontalAdvance(self.history_parts(row)[0]) for row in self.rows]+[0])
-        unit_width=max([metrics.horizontalAdvance(self.history_parts(row)[1]) for row in self.rows]+[0])
-        percent_width=max([QFontMetricsF(face(7)).horizontalAdvance(self.history_percent(row)) for row in self.rows]+[0])
-        usage_width=number_width+4+unit_width
-        self.bar_left=18+date_width+12
-        width=max(self.WIDTH,math.ceil(self.bar_left+6+usage_width+16+percent_width+24+source_width+18))
-        self.place_panel(width,height)
-        self.scroll_body=self.owner.floating or self.height()<height
-        if self.scroll_body:
-            self.history_height=self.ROW_HEIGHT*max(1,len(self.rows))
-            self.credits_top=76+self.history_height+26
-            self.full_height=self.credits_top+24+26*max(1,len(self.credits))+46+self.forecast_height
+        self.column_width=math.ceil(max([64]+[max(metrics.horizontalAdvance(' '.join(part for part in self.history_parts(row) if part)),QFontMetricsF(face(7)).horizontalAdvance(self.history_percent(row)+' · '+self.history_label(row)))+16 for row in self.rows]))
+        self.place_panel(self.WIDTH,height)
+        self.scroll_body=self.height()<height
         self.button.setGeometry(18,self.height()-48,self.width()-36,32)
-        self.history_divider=self.width()-18-source_width-12
-        self.percent_right=self.history_divider-12
-        self.token_right=self.percent_right-percent_width-16
-        self.token_left=self.token_right-usage_width
-        self.number_right=self.token_left+number_width
-        self.unit_left=self.number_right+4
         self.history_max=max([self.history_tokens(row) or 0 for row in self.rows]+[0])
+        self.history_scroll.setRange(0,max(0,len(self.rows)*self.column_width-(self.width()-36)))
+        self.history_scroll.setPageStep(self.width()-36);self.history_scroll.setSingleStep(self.column_width)
+        self.history_scroll.setAccessibleName(self.owner.label('Usage history'))
         credit=data.get('reset_selected')
         eligible=bool(credit and data.get('reset_account'))
         if credit and not data.get('reset_retry') and credit.get('expiresAt') is not None:eligible=eligible and credit['expiresAt']>time.time()
@@ -1429,10 +1420,13 @@ class ResetPopup(TaskPopup):
         label='Resetting…' if data.get('reset_busy') else 'Retry reset' if data.get('reset_retry') or data.get('reset_state')=='unavailable' else 'Nothing to reset' if data.get('reset_state')=='nothingToReset' else 'Reset quota'
         self.button.setText(self.owner.label(label))
         self.scroll=min(self.scroll,self.scroll_limit())
+        self.layout_history_scroll()
         self.setToolTip(self.owner.label('Local tokens; account quota percentages.')+'\n'+quota_update_label(self.owner,data)+'\n'+self.owner.label('Official resets are inferred from recovery outside scheduled or confirmed manual resets.')+'\n'+self.owner.label('Percentages are the last recorded quota usage before each reset; missing records show a dash.'))
         if self.forecast:
             confidence=self.owner.label({'low':'Low confidence','medium':'Medium confidence','high':'High confidence'}[self.forecast['confidence']])
             self.setToolTip(self.toolTip()+'\n'+self.owner.label('Community forecast for global resets, not your account schedule.')+' '+confidence+'\n'+FORECAST_SOURCE)
+        self.history_tooltip=self.toolTip()
+        self.update_history_tooltip()
         self.setAccessibleDescription(self.owner.label('Usage history')+'. '+self.owner.label('Local tokens; account quota percentages.')+'\n'+'\n'.join(
             datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M')+' · '+self.history_usage(row)+' · '+self.owner.label('Quota used')+' '+self.history_percent(row)+' · '+self.history_label(row) for row in self.rows))
         self.update()
@@ -1460,10 +1454,30 @@ class ResetPopup(TaskPopup):
         if type(remaining) not in (int,float) or not math.isfinite(remaining) or not 0<=remaining<=100:return '—'
         return f'{100-remaining:g}%'
 
-    def history_bar_rect(self,row,y):
+    def history_bar_rect(self,row,index):
         value=self.history_tokens(row)
         fraction=value/self.history_max if value is not None and self.history_max else 0
-        return QRectF(self.bar_left,y-9,max(0,self.token_right+6-self.bar_left)*fraction,18)
+        center=18+(index+.5)*self.column_width-self.history_scroll.value()
+        return QRectF(center-10,174-78*fraction,20,78*fraction)
+
+    def layout_history_scroll(self):
+        y=216+self.forecast_height-self.scroll
+        self.history_scroll.setGeometry(18,round(y),self.width()-36,12)
+        self.history_scroll.setVisible(bool(self.history_scroll.maximum() and y>=48+self.forecast_height and y+12<=self.height()-56))
+
+    def draw_history(self,p):
+        def centered(value,x,y,font,color):text(p,x-QFontMetricsF(font).horizontalAdvance(value)/2,y,value,font,color)
+        for index,row in enumerate(self.rows):
+            box=self.history_bar_rect(row,index);center=box.center().x()
+            if center+self.column_width/2<18 or center-self.column_width/2>self.width()-18:continue
+            if box.height()>0:
+                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(BLUE));p.drawRoundedRect(box,3,min(3,box.height()/2))
+            centered(' '.join(part for part in self.history_parts(row) if part),center,box.top()-10,face(8),'#d3dfeb')
+            centered(datetime.fromtimestamp(row['at']).strftime('%m.%d'),center,190,face(7),'#9aa9ba')
+            source=self.history_label(row);prefix=self.history_percent(row)+(' · ' if source else '')
+            font=face(7);metrics=QFontMetricsF(font);left=center-metrics.horizontalAdvance(prefix+source)/2
+            text(p,left,208,prefix,font,TITLE_MUTED)
+            if source:text(p,left+metrics.horizontalAdvance(prefix),208,source,font,LILAC if row['kind']=='official' else BLUE)
 
     def paintEvent(self,event):
         p=panel_painter(self);window=countdown_window(effective_quota_data(self.data),self.owner.settings)
@@ -1484,26 +1498,9 @@ class ResetPopup(TaskPopup):
         if self.scroll_body:
             p.save();p.setClipRect(QRectF(0,48,self.width(),max(0,self.height()-104-self.forecast_height)));p.translate(0,-self.scroll)
         text(p,18,64,self.owner.label('Usage history'),face(8),'#94a2b3')
-        heading=self.owner.label('Quota used')
-        text(p,self.percent_right-QFontMetricsF(face(7)).horizontalAdvance(heading),64,heading,face(7),TITLE_MUTED)
         p.save();p.setClipRect(QRectF(18,76,self.width()-36,self.history_height),Qt.ClipOperation.IntersectClip)
         if not self.rows:text(p,18,89,self.owner.label('No records yet'),face(8),'#94a2b3')
-        for i,row in enumerate(self.rows):
-            y=89+i*self.ROW_HEIGHT-(0 if self.scroll_body else self.scroll)
-            text(p,18,y,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),face(8),'#9aa9ba')
-            box=self.history_bar_rect(row,y)
-            if box.width()>0:
-                fill=QColor(BLUE);fill.setAlpha(38)
-                p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill);p.drawRoundedRect(box,min(4,box.width()/2),4)
-            number,unit=self.history_parts(row)
-            text(p,self.number_right-QFontMetricsF(face(8)).horizontalAdvance(number),y,number,face(8),'#d3dfeb')
-            if unit:text(p,self.unit_left,y,unit,face(8),'#d3dfeb')
-            percent=self.history_percent(row)
-            text(p,self.percent_right-QFontMetricsF(face(7)).horizontalAdvance(percent),y,percent,face(7),TITLE_MUTED)
-            label=self.history_label(row)
-            if label:
-                pen(p,'#53606d',.6);p.drawLine(QPointF(self.history_divider,y-5),QPointF(self.history_divider,y+5))
-                right_label(label,y,LILAC if row['kind']=='official' else BLUE,face(7))
+        self.draw_history(p)
         p.restore()
         divider(self.credits_top-20)
         count=self.data.get('reset_available');credit=self.data.get('reset_selected')
@@ -1520,10 +1517,41 @@ class ResetPopup(TaskPopup):
         p.end()
 
     def scroll_limit(self):
-        return max(0,self.full_height-self.height()) if self.scroll_body else max(0,len(self.rows)*self.ROW_HEIGHT-self.history_height)
+        return max(0,self.full_height-self.height())
+
+    def history_at(self,point):
+        local_y=point.y()-self.forecast_height+self.scroll
+        if not (18<=point.x()<self.width()-18 and 76<=local_y<220 and point.y()>=48+self.forecast_height and point.y()<self.height()-56):return None
+        index=int((point.x()-18+self.history_scroll.value())//self.column_width)
+        return index if 0<=index<len(self.rows) else None
+
+    def mouseMoveEvent(self,event):
+        self.history_point=event.position();self.update_history_tooltip()
+        super().mouseMoveEvent(event)
+
+    def update_history_tooltip(self):
+        if not hasattr(self,'history_tooltip'):return
+        index=self.history_at(self.history_point) if self.history_point is not None else None;tip=self.history_tooltip
+        if index is not None:
+            row=self.rows[index]
+            tip=datetime.fromtimestamp(row['at']).strftime('%Y.%m.%d %H:%M')+'\n'+self.history_usage(row)+'\n'+self.owner.label('Quota used')+' '+self.history_percent(row)+' · '+self.history_label(row)
+        if tip!=self.toolTip():self.setToolTip(tip)
+    def history_scrolled(self):self.update_history_tooltip();self.update()
+
+    def leaveEvent(self,event):self.history_point=None;self.update_history_tooltip();super().leaveEvent(event)
 
     def wheelEvent(self,event):
-        self.scroll=max(0,min(self.scroll_limit(),self.scroll-wheel_distance(event,self.ROW_HEIGHT)));self.update()
+        pixels=event.pixelDelta();angle=event.angleDelta();horizontal=pixels.x() or angle.x()
+        if self.history_scroll.maximum() and self.history_at(event.position()) is not None and (horizontal or event.modifiers()&Qt.KeyboardModifier.ShiftModifier or not self.scroll_limit()):
+            delta=(pixels.x() or pixels.y()) if not pixels.isNull() else (angle.x() or angle.y())/120*self.column_width
+            self.history_scroll.setValue(round(self.history_scroll.value()-delta));event.accept();return
+        self.scroll=max(0,min(self.scroll_limit(),self.scroll-wheel_distance(event,28)));self.layout_history_scroll();self.update_history_tooltip();self.update();event.accept()
+
+    def keyPressEvent(self,event):
+        if self.history_scroll.maximum() and event.key() in (Qt.Key.Key_Left,Qt.Key.Key_Right,Qt.Key.Key_Home,Qt.Key.Key_End):
+            values={Qt.Key.Key_Left:self.history_scroll.value()-self.column_width,Qt.Key.Key_Right:self.history_scroll.value()+self.column_width,Qt.Key.Key_Home:0,Qt.Key.Key_End:self.history_scroll.maximum()}
+            self.history_scroll.setValue(values[event.key()]);event.accept();return
+        super().keyPressEvent(event)
 
 
 class TaskListPopup(TaskPopup):

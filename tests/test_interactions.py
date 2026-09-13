@@ -232,7 +232,8 @@ class InteractionTests(unittest.TestCase):
         self.assertIn('3 available',labels)
         self.assertNotIn('Unknown',labels)
         self.assertNotIn('来源未确认',labels)
-        self.assertIn(datetime.fromtimestamp(now-100).strftime('%m.%d %H:%M'),labels)
+        self.assertIn(datetime.fromtimestamp(now-100).strftime('%m.%d'),labels)
+        self.assertIn(datetime.fromtimestamp(now-100).strftime('%m.%d %H:%M'),panel.accessibleDescription())
         self.assertTrue(any(label.startswith('Scheduled') for label in labels))
         self.assertGreater(panel.button.y(),panel.credits_top+26+2*26+8)
         self.assertEqual(len(panel.findChildren(app.QPushButton)),1)
@@ -347,10 +348,7 @@ class InteractionTests(unittest.TestCase):
         panel=app.ResetPopup(self.bar);panel.refresh(self.data)
         self.assertGreaterEqual(panel.width(),300)
         self.assertEqual(panel.button.geometry().width(),panel.width()-36)
-        metrics=app.QFontMetricsF(app.face(8))
-        number_left=panel.token_left
-        date_right=18+metrics.horizontalAdvance(datetime.now().strftime('%m.%d %H:%M'))
-        self.assertGreaterEqual(number_left-date_right,12)
+        self.assertEqual(panel.history_bar_rect(self.data['reset_events'][0],0).bottom(),174)
         panel.close();panel.deleteLater()
 
     def test_history_rows_identify_usage_and_units_and_use_blue_categories(self):
@@ -366,7 +364,7 @@ class InteractionTests(unittest.TestCase):
             category=next(call for call in draw.call_args_list if call.args[3]==panel.history_label(self.data['reset_events'][0]))
             self.assertEqual(category.args[5],app.BLUE)
             self.assertEqual(panel.history_usage({'tokens':None}),self.bar.label('Tokens')+' —')
-            self.assertGreater(panel.history_divider,panel.percent_right)
+            self.assertIn('20.37 '+panel.history_parts(self.data['reset_events'][0])[1],labels)
             panel.close();panel.deleteLater()
 
     def test_history_uses_100m_for_both_small_and_large_totals(self):
@@ -376,7 +374,7 @@ class InteractionTests(unittest.TestCase):
         self.assertEqual(panel.history_usage({'tokens':0}),'Tokens 0 ×100M')
         panel.close();panel.deleteLater()
 
-    def test_history_labels_numbers_and_units_have_separate_aligned_columns(self):
+    def test_history_amount_labels_keep_units_above_their_period_bars(self):
         self.data['reset_events']=[{'kind':'scheduled','at':datetime.now().timestamp()+i,'tokens':value,'windows':['10080']}
                                    for i,value in enumerate((2037000000,522000000,None))]
         for language in app.LANGUAGES:
@@ -387,14 +385,10 @@ class InteractionTests(unittest.TestCase):
             labels=[c for c in calls if c.args[3]==self.bar.label('Usage history')]
             self.assertEqual(len(labels),1)
             self.assertEqual(len({c.args[1] for c in labels}),1)
-            row_y={89+i*panel.ROW_HEIGHT for i in range(3)}
-            numbers=[c for c in calls if c.args[3] in ('20.37','5.22','—') and c.args[2] in row_y and c.args[1]<=panel.number_right]
-            self.assertEqual(len(numbers),3)
-            for call in numbers:
-                self.assertAlmostEqual(call.args[1]+app.QFontMetricsF(call.args[4]).horizontalAdvance(call.args[3]),panel.number_right)
-            units=[c for c in calls if c.args[3] in ('×100M','亿','億')]
-            self.assertEqual(len(units),2)
-            self.assertEqual({c.args[1] for c in units},{panel.unit_left})
+            for index,row in enumerate(panel.rows):
+                box=panel.history_bar_rect(row,index);value=' '.join(part for part in panel.history_parts(row) if part)
+                call=next(c for c in calls if c.args[3]==value and c.args[2]==box.top()-10)
+                self.assertAlmostEqual(call.args[1]+app.QFontMetricsF(call.args[4]).horizontalAdvance(value)/2,box.center().x())
             panel.close();panel.deleteLater()
 
     def test_history_window_labels_depend_on_event_not_current_account_windows(self):
@@ -507,8 +501,7 @@ class InteractionTests(unittest.TestCase):
                 else:self.assertIn(self.bar.label(key),labels)
                 if kind is app.ResetPopup:
                     self.assertEqual(panel.button.text(),self.bar.label('Reset quota'))
-                    date_right=18+app.QFontMetricsF(app.face(8)).horizontalAdvance(datetime.now().strftime('%m.%d %H:%M'))
-                    self.assertGreaterEqual(panel.token_left-date_right,12)
+                    self.assertGreaterEqual(panel.column_width,64)
                 panel.close();panel.deleteLater()
             self.dialog(False)
         self.provider.request_reset.assert_not_called()

@@ -4,7 +4,7 @@
 
 ## Unreleased
 
-- Compare reset-history Token consumption with compact inline bars, exact units and a separate quota-percentage column, keeping each period on one line. Keep zero and missing values distinct, and scroll constrained panels above the reset button.
+- Compare reset periods across a fixed-height, horizontally scrollable Token chart. Show exact units, dates and recorded quota percentages; browse with the touchpad, wheel, draggable scrollbar or keyboard. Keep zero and missing values distinct and reset controls visible on short screens.
 ## 0.10.1
 
 - Restore synchronized Running dot breathing and a gentler travelling title highlight; keep hidden and reduced-motion views still.
