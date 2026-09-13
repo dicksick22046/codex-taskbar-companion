@@ -324,14 +324,14 @@ class InteractionTests(unittest.TestCase):
         self.assertGreaterEqual(panel.width(),300)
         self.assertEqual(panel.button.geometry().width(),panel.width()-36)
         metrics=app.QFontMetricsF(app.face(8))
-        number_left=panel.token_right-metrics.horizontalAdvance(panel.history_usage(self.data['reset_events'][0]))
+        number_left=panel.token_left
         date_right=18+metrics.horizontalAdvance(datetime.now().strftime('%m.%d %H:%M'))
         self.assertGreaterEqual(number_left-date_right,12)
         panel.close();panel.deleteLater()
 
     def test_history_rows_identify_usage_and_units_and_use_blue_categories(self):
         self.data['reset_events']=[{'kind':'scheduled','at':datetime.now().timestamp(),'tokens':2036647183,'windows':['10080']}]
-        for language,expected in [('en','Tokens 20.37 ×100M'),('zh-CN','用量 20.37 亿'),('ja','使用量 20.37 億'),('es','Tokens 20.37 ×100M')]:
+        for language,expected in [('en','Tokens 20.37 ×100M'),('zh-CN','Token 20.37 亿'),('ja','Token 20.37 億'),('es','Tokens 20.37 ×100M')]:
             self.bar.settings['language']=language
             panel=app.ResetPopup(self.bar);panel.refresh(self.data)
             with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
@@ -361,9 +361,9 @@ class InteractionTests(unittest.TestCase):
             with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
             calls=draw.call_args_list
             labels=[c for c in calls if c.args[3]==self.bar.label('Tokens')]
-            self.assertEqual(len(labels),3)
+            self.assertEqual(len(labels),1)
             self.assertEqual(len({c.args[1] for c in labels}),1)
-            row_y={c.args[2] for c in labels}
+            row_y={89+i*26 for i in range(3)}
             numbers=[c for c in calls if c.args[3] in ('20.37','5.22','—') and c.args[2] in row_y]
             self.assertEqual(len(numbers),3)
             for call in numbers:
@@ -377,7 +377,7 @@ class InteractionTests(unittest.TestCase):
         panel=app.ResetPopup(self.bar)
         for quotas in ([],self.data['quota'][:1],self.data['quota']):
             panel.refresh({**self.data,'quota':quotas})
-            self.assertEqual(panel.history_label({'kind':'official','windows':['10080']}),'Other recovery · 7d')
+            self.assertEqual(panel.history_label({'kind':'official','windows':['10080']}),'Official · 7d')
             self.assertEqual(panel.history_label({'kind':'scheduled','windows':['300','10080']}),'Scheduled · 5h + 7d')
             self.assertEqual(panel.history_label({'kind':'manual','windows':[]}),'Manual')
         panel.close();panel.deleteLater()
@@ -473,7 +473,7 @@ class InteractionTests(unittest.TestCase):
         self.data['reset_credits']=[credit()]
         for language in app.LANGUAGES:
             self.bar.settings['language']=language
-            for kind,key in ((app.TaskPopup,'Local cycle · Tokens'),(app.SessionPopup,'Reset {time}'),(app.ResetPopup,'History')):
+            for kind,key in ((app.TaskPopup,'Cycle · Tokens'),(app.SessionPopup,'Reset {time}'),(app.ResetPopup,'History')):
                 panel=kind(self.bar);panel.refresh(self.data)
                 with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
                 labels=[c.args[3] for c in draw.call_args_list]
@@ -484,7 +484,7 @@ class InteractionTests(unittest.TestCase):
                 if kind is app.ResetPopup:
                     self.assertEqual(panel.button.text(),self.bar.label('Reset quota'))
                     date_right=18+app.QFontMetricsF(app.face(8)).horizontalAdvance(datetime.now().strftime('%m.%d %H:%M'))
-                    self.assertGreaterEqual(panel.token_right-app.QFontMetricsF(app.face(8)).horizontalAdvance(panel.history_usage(self.data['reset_events'][0]))-date_right,12)
+                    self.assertGreaterEqual(panel.token_left-date_right,12)
                 panel.close();panel.deleteLater()
             self.dialog(False)
         self.provider.request_reset.assert_not_called()
@@ -617,7 +617,7 @@ class InteractionTests(unittest.TestCase):
             self.bar.quota_kind='spent';self.bar.quota_rotated_at=12
             self.bar.set_language('zh-CN')
             self.assertEqual(dialog.rotation.text(),'轮换左侧指标')
-            self.assertEqual(self.bar.displayed_metrics()[0][1],'今日已记录 12%')
+            self.assertEqual(self.bar.displayed_metrics()[0][1],'今日消耗 12%')
             self.assertEqual(self.bar.quota_rotated_at,12)
             self.strip.current_id='a';self.strip.rotated_at=0;self.bar.quota_hover=True
             with patch('codex_taskbar.app.time.monotonic',return_value=8):
@@ -669,7 +669,7 @@ class InteractionTests(unittest.TestCase):
             self.assertEqual(self.bar.quota_kind,'spent')
 
     def test_metric_labels_are_consistent_in_parallel_and_rotation_modes(self):
-        for language,week,today,reset in [('en','Week left','Today used','Reset'),('zh-CN','本周剩余','今日已记录','重置')]:
+        for language,week,today,reset in [('en','Week left','Today used','Reset'),('zh-CN','本周剩余','今日消耗','重置')]:
             self.bar.settings.update(language=language,rotate_quotas=False)
             parallel={kind:value for kind,value,fraction in self.bar.displayed_metrics()}
             self.assertEqual(parallel['quota'],week+' 70%')

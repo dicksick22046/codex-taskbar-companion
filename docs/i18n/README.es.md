@@ -72,7 +72,7 @@ Una pregunta síncrona sin respuesta aparece como «Requiere respuesta», con un
 - La lista diaria incluye los turnos de hoy. Los paneles de estado muestran la duración del turno actual o más reciente, incluida la espera de herramientas.
 - Los totales históricos solo cubren tareas registradas en este equipo. Excluyen otros dispositivos y chats laterales temporales sin consumo guardado.
 
-En el historial, Scheduled indica un cambio natural; Manual, un reinicio confirmado mediante esta herramienta; y Other recovery, una recuperación cuyo origen no se ha confirmado. No se atribuye automáticamente a OpenAI. Usar un crédito de reinicio requiere confirmación y consume un crédito real.
+El historial distingue reinicios programados, manuales y oficiales. Se infiere un reinicio oficial cuando la cuota se recupera fuera de un reinicio programado o manual confirmado en esta herramienta; la plataforma no proporciona esa clasificación directamente. Tokens aparece una sola vez como encabezado y cada fila conserva su importe y unidad. Usar un crédito de reinicio requiere confirmación y consume un crédito real.
 
 ## Datos y limitaciones
 

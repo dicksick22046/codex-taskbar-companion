@@ -67,13 +67,13 @@ An unresolved synchronous `request_user_input` record appears as **Needs input**
 
 ## About the numbers
 
-- Quota percentages come from the account; Token statistics come from this computer. Local cycle/today panels label both scopes explicitly. A quiet **Cached** marker identifies retained readings after a quota failure, with the last successful update in tooltips/details. Expired balances and reset times become unknown across all quota surfaces.
+- Quota percentages come from the account; Token statistics come from this computer. Cycle/today panels show a compact summary and the last Token update; tooltips explain local scope, account quota and observation coverage. A quiet **Cached** marker identifies retained readings after a quota failure. Expired balances and reset times become unknown across all quota surfaces.
 - **Week left / 5h left** show remaining account quota; **Today used** is observed consumption, not necessarily a complete day. The detail shows the observation start time. Restarting preserves the baseline, earlier usage is not reconstructed, and resets are accumulated as separate intervals.
 - The daily task list includes today's turns. Status panels show the current or latest turn's duration, including time waiting for tools.
 - Historical token totals cover locally recorded tasks. Other devices and temporary side chats without saved usage are excluded.
 - The task catalog includes recorded CLI, VS Code, app-server and CLI execution sources. Newly included records can increase local token totals. Persisted synchronous input requests are observable; live approval routing and unrecorded questions are not fully exposed.
 
-Reset history uses **Scheduled** for an observed natural rollover, **Manual** for a reset confirmed through this tool, and **Other recovery** for other observed recoveries. The latter has an unconfirmed source; its stored historical classification is unchanged. Using a reset credit requires confirmation and consumes a real credit.
+Reset history uses **Scheduled** for a natural rollover, **Manual** for a reset confirmed through this tool, and **Official** for recovery outside those two cases. Official is inferred from observed quota changes, rather than an explicit source supplied by the platform. Amounts retain their units beneath one Token heading. Using a reset credit requires confirmation and consumes a real credit.
 
 ## Data and limitations
 

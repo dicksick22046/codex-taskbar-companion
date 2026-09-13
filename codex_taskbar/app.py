@@ -190,6 +190,13 @@ def quota_context_lines(owner,data,mode):
     return context,freshness
 
 
+def usage_update_label(owner,data,compact=True):
+    try:at=datetime.fromisoformat(data.get('usage_at')).astimezone()
+    except (TypeError,ValueError):return owner.label('Update time unknown')
+    pattern='%H:%M' if compact and at.date()==datetime.now().astimezone().date() else '%m.%d %H:%M'
+    return owner.label('Updated {time}',time=at.strftime(pattern))
+
+
 def chart_values(days, history, today):
     values=[history.get(day.isoformat()) if day<=today else None for day in days]
     completed=[value for day,value in zip(days,values) if day<today and value is not None]
@@ -1029,7 +1036,7 @@ class StatusBar(QWidget):
 class TaskPopup(QWidget):
     mode='usage'
     GAP=8
-    TITLE_HEIGHT=58
+    TITLE_HEIGHT=26
     UNIT_RECTS={'M':QRectF(277,9,28,24),'100M':QRectF(309,9,40,24)}
     def __init__(self,owner):
         super().__init__(None,FLAGS & ~Qt.WindowType.WindowDoesNotAcceptFocus)
@@ -1107,12 +1114,10 @@ class TaskPopup(QWidget):
         self.end=datetime.fromtimestamp(week["resets_at"]).astimezone() if week and week.get("resets_at") else self.start+timedelta(days=7)
         self.days=[];day=self.start.date()
         while day<=self.end.date():self.days.append(day);day+=timedelta(days=1)
-        self.window_summary=quota_window(effective_quota_data(data),300)
-        self.extra=24 if self.window_summary else 0
-        self.full_height=158+self.extra+self.TITLE_HEIGHT
+        self.full_height=158+self.TITLE_HEIGHT
         shown=round(self.full_height) if self.owner.floating else min(round(self.full_height),max(180,self.owner.y()-16))
         self.place_panel(self.usage_width(),shown)
-        self.setToolTip('\n'.join(quota_context_lines(self.owner,data,self.mode)))
+        self.setToolTip(self.usage_tooltip())
         self.scroll=min(self.scroll,max(0,self.full_height-self.height()));self.sync_units();self.update()
 
     def paintEvent(self,event):
@@ -1125,12 +1130,9 @@ class TaskPopup(QWidget):
         self.usage_header(p,f"{self.start:%m.%d} — {self.end:%m.%d %H:%M}",chart_total(values))
         p.setClipRect(QRectF(0,32+self.TITLE_HEIGHT,self.width(),max(0,self.height()-32-self.TITLE_HEIGHT)))
         p.translate(0,-self.scroll)
-        if self.window_summary:
-            window=self.window_summary
-            text(p,18,43+self.TITLE_HEIGHT,self.owner.label('5h left')+f"  {window['remaining']:g}%   ·   {reset_countdown_text(window)}",face(8),'#51adb4')
         maximum=max([v for v in values if v is not None]+[1]);step=(self.width()-36)/len(self.days)
         for i,(day,value) in enumerate(zip(self.days,values)):
-            x=18+(i+.5)*step;bottom=121.+self.extra+self.TITLE_HEIGHT;height=(value or 0)/maximum*64
+            x=18+(i+.5)*step;bottom=121.+self.TITLE_HEIGHT;height=(value or 0)/maximum*64
             color=ACCENT if day==today else ("#687583" if value is None else (LILAC if day in extremes else BLUE))
             if value:
                 h=max(2,height);radius=min(2,h/2);left=x-4.5;top=bottom-h
@@ -1152,17 +1154,20 @@ class TaskPopup(QWidget):
         return {unit:rect.translated(self.width()-360,0) for unit,rect in self.UNIT_RECTS.items()}
 
     def usage_width(self):
-        context=quota_context_lines(self.owner,self.data,self.mode)
-        return math.ceil(max(360,*[QFontMetricsF(face(7)).horizontalAdvance(line)+36 for line in context],
-                             QFontMetricsF(face(9)).horizontalAdvance(self.owner.label('Local today · Tokens' if self.mode=='daily' else 'Local cycle · Tokens'))+118))
+        if self.mode=='session':return 360
+        title=self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens')
+        return math.ceil(max(360,QFontMetricsF(face(9)).horizontalAdvance(title)+
+                             QFontMetricsF(face(7)).horizontalAdvance(usage_update_label(self.owner,self.data))+134))
+
+    def usage_tooltip(self):
+        return '\n'.join((self.owner.label('Local today · Tokens' if self.mode=='daily' else 'Local cycle · Tokens'),
+                          usage_update_label(self.owner,self.data,False),*quota_context_lines(self.owner,self.data,self.mode)))
 
     def usage_header(self,p,period,total):
-        text(p,18,21,self.owner.label('Local today · Tokens' if self.mode=='daily' else 'Local cycle · Tokens'),face(9),'#d7dfe9')
+        width=text(p,18,21,self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens'),face(9),'#d7dfe9')
+        text(p,18+width+12,21,usage_update_label(self.owner,self.data),face(7),TITLE_MUTED)
         boxes=list(self.unit_rects().values());unit_box=boxes[0].united(boxes[1]).adjusted(-2,-2,2,2)
         p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('#20242b'));p.drawRoundedRect(unit_box,7,7)
-        context,freshness=quota_context_lines(self.owner,self.data,self.mode)
-        text(p,18,41,context,face(7),MUTED)
-        text(p,18,59,freshness,face(7),TITLE_MUTED)
         y=21+self.TITLE_HEIGHT
         icon(p,'chart',23,y,LILAC)
         total_label='Σ '+chart_number(total,self.owner.chart_unit);metrics=QFontMetricsF(face(8))
@@ -1236,7 +1241,7 @@ class ResetPopup(TaskPopup):
         self.credits=data.get('reset_credits',[])
         self.history_height=26*max(1,len(self.rows) if self.owner.floating else min(6,len(self.rows)))
         self.credits_top=76+self.history_height+26
-        height=self.credits_top+24+26*max(1,len(self.credits))+46+36
+        height=self.credits_top+24+26*max(1,len(self.credits))+46
         self.full_height=height
         source_width=max([QFontMetricsF(face(7)).horizontalAdvance(self.history_label(row)) for row in self.rows]+[0])
         metrics=QFontMetricsF(face(8))
@@ -1244,14 +1249,14 @@ class ResetPopup(TaskPopup):
         label_width=metrics.horizontalAdvance(self.owner.label('Tokens'))
         number_width=max([metrics.horizontalAdvance(self.history_parts(row)[0]) for row in self.rows]+[0])
         unit_width=max([metrics.horizontalAdvance(self.history_parts(row)[1]) for row in self.rows]+[0])
-        usage_width=label_width+6+number_width+4+unit_width
-        width=max(self.WIDTH,math.ceil(18+date_width+16+usage_width+24+source_width+18),math.ceil(QFontMetricsF(face(7)).horizontalAdvance(quota_update_label(self.owner,data))+36))
+        usage_width=max(label_width,number_width+4+unit_width)
+        width=max(self.WIDTH,math.ceil(18+date_width+16+usage_width+24+source_width+18))
         self.place_panel(width,height)
         self.button.setGeometry(18,self.height()-48,self.width()-36,32)
         self.history_divider=self.width()-18-source_width-12
         self.token_right=self.history_divider-12
         self.token_left=self.token_right-usage_width
-        self.number_right=self.token_left+label_width+6+number_width
+        self.number_right=self.token_right-unit_width-4
         self.unit_left=self.number_right+4
         credit=data.get('reset_selected')
         eligible=bool(credit and data.get('reset_account'))
@@ -1260,7 +1265,7 @@ class ResetPopup(TaskPopup):
         label='Resetting…' if data.get('reset_busy') else 'Retry reset' if data.get('reset_retry') or data.get('reset_state')=='unavailable' else 'Nothing to reset' if data.get('reset_state')=='nothingToReset' else 'Reset quota'
         self.button.setText(self.owner.label(label))
         self.scroll=min(self.scroll,self.scroll_limit())
-        self.setToolTip(self.owner.label('Account quota')+'\n'+quota_update_label(self.owner,data)+'\n'+self.owner.label('Other recovery is inferred; its source is unconfirmed.'))
+        self.setToolTip(self.owner.label('Account quota')+'\n'+quota_update_label(self.owner,data)+'\n'+self.owner.label('Official resets are inferred from recovery outside scheduled or confirmed manual resets.'))
         self.update()
 
     def history_parts(self,row):
@@ -1272,7 +1277,7 @@ class ResetPopup(TaskPopup):
         return self.owner.label('Tokens')+' '+' '.join(part for part in self.history_parts(row) if part)
 
     def history_label(self,row):
-        label={'scheduled':'Scheduled','manual':'Manual','official':'Other recovery'}.get(row['kind'],'')
+        label={'scheduled':'Scheduled','manual':'Manual','official':'Official'}.get(row['kind'],'')
         if label:label=self.owner.label(label)
         windows_text=' + '.join({'300':'5h','10080':'7d'}.get(k,k+'m') for k in row.get('windows',[]))
         label=' · '.join(part for part in (label,windows_text) if part)
@@ -1280,10 +1285,6 @@ class ResetPopup(TaskPopup):
 
     def paintEvent(self,event):
         p=panel_painter(self);window=countdown_window(effective_quota_data(self.data),self.owner.settings)
-        context=self.owner.label('Account quota')+(' · '+self.owner.label('Cached') if quota_is_cached(self.data) else '')
-        text(p,18,17,context,face(7),MUTED)
-        text(p,18,35,quota_update_label(self.owner,self.data),face(7),TITLE_MUTED)
-        p.translate(0,36)
         right=self.width()-18
         def right_label(value,y,color=MUTED,font=None):
             font=font or face(8)
@@ -1294,15 +1295,15 @@ class ResetPopup(TaskPopup):
         value=datetime.fromtimestamp(window['resets_at']).strftime('%m.%d %H:%M') if window and window.get('resets_at') else '—'
         right_label(value,23,BLUE);divider(44)
         if self.owner.floating:
-            p.save();p.setClipRect(QRectF(0,48,self.width(),max(0,self.height()-140)));p.translate(0,-self.scroll)
+            p.save();p.setClipRect(QRectF(0,48,self.width(),max(0,self.height()-104)));p.translate(0,-self.scroll)
         text(p,18,64,self.owner.label('History'),face(8),'#94a2b3')
+        text(p,self.token_left,64,self.owner.label('Tokens'),face(8),'#94a2b3')
         p.save();p.setClipRect(QRectF(18,76,self.width()-36,self.history_height),Qt.ClipOperation.IntersectClip)
         if not self.rows:text(p,18,89,self.owner.label('No records yet'),face(8),'#94a2b3')
         for i,row in enumerate(self.rows):
             y=89+i*26-(0 if self.owner.floating else self.scroll)
             text(p,18,y,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),face(8),MUTED)
             number,unit=self.history_parts(row)
-            text(p,self.token_left,y,self.owner.label('Tokens'),face(8),MUTED)
             text(p,self.number_right-QFontMetricsF(face(8)).horizontalAdvance(number),y,number,face(8),MUTED)
             if unit:text(p,self.unit_left,y,unit,face(8),MUTED)
             label=self.history_label(row)
@@ -1390,6 +1391,7 @@ class TaskListPopup(TaskPopup):
             self.place_panel(width,height);height=self.height()
         else:self.setGeometry(left,max(screen.top(),self.anchor_bottom()-height),width,height)
         self.scroll=min(self.scroll,max(0,self.full_height-(height-16)))
+        if self.mode=='daily' and self.hovered is None:self.setToolTip(self.usage_tooltip())
         self.sync_units();self.track_hover(self.mapFromGlobal(QCursor.pos()));self.sync_animation()
         if self.keyboard_task not in {t['id'] for t in self.rows}:self.keyboard_task=self.rows[0]['id'] if self.rows else None
         self.update()
@@ -1405,7 +1407,7 @@ class TaskListPopup(TaskPopup):
         task=self.task_at(point);hovered=task['id'] if task else None
         if hovered!=self.hovered:
             self.hovered=hovered;self.hover_started=time.monotonic()
-            self.setToolTip('<qt>'+escape(task_title(task,self.owner.language))+'</qt>' if task else '')
+            self.setToolTip('<qt>'+escape(task_title(task,self.owner.language))+'</qt>' if task else self.usage_tooltip() if self.mode=='daily' else '')
         over_unit=self.mode=='daily' and any(rect.contains(point) for rect in self.unit_rects().values())
         self.setCursor(Qt.CursorShape.PointingHandCursor if task or over_unit else Qt.CursorShape.ArrowCursor)
 

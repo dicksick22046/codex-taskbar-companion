@@ -42,7 +42,8 @@ class QuotaPresentationTests(unittest.TestCase):
         try:
             chart.refresh(self.data);resets.refresh(self.data)
             self.assertTrue(chart.window_known);self.assertEqual(chart.end.timestamp(),reset)
-            self.assertIn('Account quota · Week left — · Cached',self.rendered_labels(chart))
+            self.assertIn('Account quota · Week left — · Cached',chart.toolTip())
+            self.assertNotIn('Account quota · Week left — · Cached',self.rendered_labels(chart))
             labels=self.rendered_labels(resets)
             self.assertNotIn(datetime.fromtimestamp(reset).strftime('%m.%d %H:%M'),labels)
             self.assertIn('—',labels)
@@ -66,7 +67,8 @@ class QuotaPresentationTests(unittest.TestCase):
 
     def test_local_panel_headers_fit_all_languages_and_large_totals(self):
         stamp=datetime.now().astimezone().replace(hour=9,minute=12).isoformat()
-        self.data.update(quota_updated_at=stamp,daily_observed_at=stamp,quota_error='failed',totals={'total_tokens':987654321123})
+        usage_stamp=datetime.now().astimezone().replace(hour=8,minute=34).isoformat()
+        self.data.update(quota_updated_at=stamp,usage_at=usage_stamp,daily_observed_at=stamp,quota_error='failed',totals={'total_tokens':987654321123})
         self.bar.setGeometry(20,700,540,30)
         for language in app.LANGUAGES:
             self.bar.settings['language']=language
@@ -76,13 +78,16 @@ class QuotaPresentationTests(unittest.TestCase):
                     panel.refresh(self.data)
                     with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
                     calls=draw.call_args_list
-                    title=self.bar.label('Local today · Tokens' if mode=='daily' else 'Local cycle · Tokens')
+                    title=self.bar.label('Today · Tokens' if mode=='daily' else 'Cycle · Tokens')
                     title_call=next(call for call in calls if call.args[3]==title)
                     title_right=title_call.args[1]+app.QFontMetricsF(title_call.args[4]).horizontalAdvance(title)
                     self.assertLess(title_right,min(rect.left() for rect in panel.unit_rects().values())-6)
                     for context in app.quota_context_lines(self.bar,self.data,mode):
-                        call=next(call for call in calls if call.args[3]==context)
-                        self.assertLessEqual(call.args[1]+app.QFontMetricsF(call.args[4]).horizontalAdvance(context),panel.width()-18)
+                        self.assertNotIn(context,[c.args[3] for c in calls]);self.assertIn(context,panel.toolTip())
+                    updated=self.bar.label('Updated {time}',time='08:34')
+                    update_call=next(c for c in calls if c.args[3]==updated)
+                    self.assertEqual(update_call.args[2],title_call.args[2])
+                    self.assertLessEqual(update_call.args[1]+app.QFontMetricsF(update_call.args[4]).horizontalAdvance(updated),min(r.left() for r in panel.unit_rects().values())-6)
                     total_call=next(call for call in calls if call.args[3].startswith('Σ '))
                     date_call=next(call for call in calls if call.args[1]==39 and call.args[2]==total_call.args[2])
                     self.assertLessEqual(date_call.args[1]+app.QFontMetricsF(date_call.args[4]).horizontalAdvance(date_call.args[3])+12,total_call.args[1]+1)
@@ -93,10 +98,11 @@ class QuotaPresentationTests(unittest.TestCase):
 
     def test_missing_observation_is_not_claimed_as_full_day_and_recovery_is_inferred(self):
         self.assertIn('Observation start unknown',app.quota_context_lines(self.bar,self.data,'daily')[1])
+        self.assertEqual(app.usage_update_label(self.bar,{'quota_updated_at':datetime.now().isoformat()}),'Update time unknown')
         panel=app.ResetPopup(self.bar);panel.refresh(self.data)
         try:
-            self.assertEqual(panel.history_label({'kind':'official','windows':['10080']}),'Other recovery · 7d')
-            self.assertIn('source is unconfirmed',panel.toolTip())
+            self.assertEqual(panel.history_label({'kind':'official','windows':['10080']}),'Official · 7d')
+            self.assertIn('inferred',panel.toolTip())
         finally:panel.close();panel.deleteLater()
 
     def test_waiting_has_a_visible_name_and_menu_categories_dispatch_existing_panels(self):

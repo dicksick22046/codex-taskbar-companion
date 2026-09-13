@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+- Reduce cycle/today headers to two rows, use Token timestamps for freshness, and move duplicate account quota details into tooltips.
+- Restore Scheduled / Manual / Official reset labels and show a single Token column heading with aligned per-row amounts and units.
+
+- Clarify daily quota consumption, Token labels and Japanese/Spanish quota terminology; keep observation coverage in the supporting text.
+
 ## 0.9.0
 
 - Show consistent unknown values for expired quota across the strip and open panels, with cached-reading and update-time context.
