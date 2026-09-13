@@ -16,6 +16,10 @@ Apple Design principles govern this batch: immediate pressed feedback, direct dr
 - Publish `daily_observed_at` from the first valid quota sample in the current local day, excluding future samples and following the existing baseline requirements. This is display metadata, not a new sampling source or ledger.
 - Reset history displays the existing three categories: Scheduled, Manual and Official. Official remains an inferred classification for recovery outside a scheduled reset or confirmed in-app manual reset; explain this in the tooltip, not with a fourth visible category. A single Token column heading replaces the repeated row caption; numbers stay right-aligned with per-row 100M units. The reset panel starts with Next reset; account scope and last quota-read time remain in its tooltip.
 
+The history group now has one localized History usage heading, with no separate Token heading or repeated quota-window suffix. Official uses muted purple; Scheduled and Manual keep blue. Cycle/today sums sit beside their period label rather than flush right. Display a known pre-reset account used percentage alongside the amount, clearly labeled as used; use the stored weekly before-snapshot (or 5h when weekly is absent). It is the last recorded value, not a guaranteed exact closing value. Never derive account percentages from local tokens or fill missing history. Preserve before/after snapshots for future confirmed manual resets as well; existing records without them remain without a percentage.
+
+The pinned status interaction is governed by [pinned status](pinned-status.md), replacing the independent Running-strip preference and placement described in this milestone.
+
 ## 2. Independent windows and defaults
 
 - `show_tasks` now controls the original strip's task status counts. Add independently persisted `show_task_strip` for the Running task strip. Turning either off must not change the other or the Provider state.
