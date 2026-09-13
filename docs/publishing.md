@@ -37,6 +37,8 @@ GitHub Actions的build工作流提供编译产物，不会自动公开发布。
 - `CodexTaskbarCompanion-X.Y.Z-Setup-x64.exe.sha256`
 
 先建立草稿Release、上传两份资产，再发布。客户端跳过预发布和不完整的资产，不把检查失败显示为“已是最新版”。
+
+发布草稿时显式提供正式tag_name及其已验证的target_commitish，发布后重新读取并检查实际标签、提交与资产下载URL；不能只凭Release标题判断版本。草稿临时标签不作为正式版本发布。
 安装包尚无签名证书；不要声称已签名或已通过SmartScreen信誉验证。
 
 ## 更新与回退
