@@ -1,6 +1,6 @@
 import tempfile,unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch,Mock
 from codex_taskbar import app
 from codex_taskbar.preferences import read_settings,write_settings
 from tests import test_interactions as fixtures
@@ -41,6 +41,12 @@ class PinnedPanelTests(unittest.TestCase):
         self.assertFalse(self.group.needs_animation)
         self.bar.move(100,0);self.group.refresh(self.data)
         self.assertEqual(self.group.joined_edge,'bottom');self.assertEqual(self.group.y(),self.bar.geometry().bottom())
+
+    def test_taskbar_inset_does_not_leave_a_gap_at_work_area_boundary(self):
+        screen=Mock();screen.availableGeometry.return_value=app.QRect(0,0,1200,800);screen.geometry.return_value=app.QRect(0,0,1200,840)
+        self.bar.settings['placement']='taskbar';self.bar.setGeometry(100,808,300,30)
+        with patch.object(self.bar,'screen',return_value=screen):self.group.refresh(self.data)
+        self.assertEqual(self.group.geometry().bottom(),808)
 
     def test_pin_from_popover_and_unpin_row_do_not_open_task(self):
         self.bar.settings['pinned_statuses']=[]
