@@ -31,6 +31,7 @@ user32.SetWindowLongPtrW.argtypes = [w.HWND, ctypes.c_int, ctypes.c_ssize_t]
 user32.SetWindowLongPtrW.restype = ctypes.c_ssize_t
 user32.WindowFromPoint.argtypes=[w.POINT]
 user32.WindowFromPoint.restype=w.HWND
+user32.GetAncestor.argtypes=[w.HWND,w.UINT];user32.GetAncestor.restype=w.HWND
 user32.GetClassNameW.argtypes=[w.HWND,w.LPWSTR,ctypes.c_int]
 
 
@@ -44,6 +45,19 @@ user32.GetMonitorInfoW.argtypes=[w.HANDLE,ctypes.POINTER(MonitorInfo)]
 
 def pointer_over(hwnd,x,y):
     return user32.WindowFromPoint(w.POINT(round(x),round(y)))==hwnd
+
+
+def taskbar_at_point(x,y):
+    tray=user32.FindWindowW('Shell_TrayWnd',None);hit=user32.WindowFromPoint(w.POINT(round(x),round(y)))
+    return bool(tray and hit and (hit==tray or user32.GetAncestor(hit,2)==tray))
+
+
+class WindowPos(ctypes.Structure):
+    _fields_=[('hwnd',w.HWND),('after',w.HWND),('x',ctypes.c_int),('y',ctypes.c_int),('width',ctypes.c_int),('height',ctypes.c_int),('flags',w.UINT)]
+
+
+def z_order_changed(message):
+    return bool(message.message==0x0047 and message.lParam and not WindowPos.from_address(message.lParam).flags&0x0004)
 
 
 class ClickHook:

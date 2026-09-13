@@ -30,6 +30,9 @@ class PinControlTests(unittest.TestCase):
         self.assertEqual(render.call_args.args[0],'#99a6b5')
         row=self.bar.task_strip.rows['running'];row.pin_button.sync(True)
         with patch('codex_taskbar.app.pin_renderer',wraps=app.pin_renderer) as render:row.pin_button.grab()
+        self.assertEqual(render.call_args.args[0],'#667588')
+        row.pin_button.set_hover_value(1.)
+        with patch('codex_taskbar.app.pin_renderer',wraps=app.pin_renderer) as render:row.pin_button.grab()
         self.assertEqual(render.call_args.args[0],'#2169ad')
 
     def test_drag_out_cancels_and_pointer_focus_is_not_keyboard_focus(self):

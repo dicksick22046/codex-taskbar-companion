@@ -65,7 +65,8 @@ class PinnedPanelTests(unittest.TestCase):
         with patch('codex_taskbar.task_strip.time.monotonic',return_value=9):self.group.refresh(self.data)
         self.assertEqual(first.task['id'],'running');self.assertEqual(second.task['id'],'unread2')
         for key in ('show_week','show_session','show_daily','show_countdown'):self.bar.settings[key]=False
-        self.assertGreaterEqual(self.bar.content_width(float('inf')),240)
+        required=70+max(app.QFontMetricsF(self.bar.font).horizontalAdvance(t['title']) for t in self.data['tasks'])
+        self.assertGreaterEqual(self.bar.content_width(float('inf')),min(240,required))
 
     def test_height_motion_reverses_and_hidden_state_stops_it(self):
         self.bar.motion_enabled=True;self.group.refresh(self.data)
@@ -127,3 +128,22 @@ class PinnedPanelTests(unittest.TestCase):
             self.group.refresh(self.data);self.bar.open_menu()
             point=opened.call_args.args[0]
             self.assertLessEqual(point.y()+self.bar.menu.sizeHint().height()+app.TaskPopup.GAP,self.group.occupied_geometry().top())
+
+    def test_short_titles_do_not_leave_the_old_fixed_minimum(self):
+        self.bar.settings.update(rotate_quotas=True,pinned_statuses=['running']);self.data['recent_tasks']=[]
+        self.data['tasks'][0]['title']='Review'
+        widths=[]
+        for kind,value,fraction in self.bar.quota_choices():
+            self.bar.quota_kind=kind;widths.append(self.bar.content_width(800))
+        self.assertEqual(len(set(widths)),1);self.assertLess(widths[0],240)
+
+    def test_shell_release_queues_one_repair_without_intercepting_click(self):
+        self.bar.stack_repair_pending=False;self.bar.pressed=None
+        with patch('codex_taskbar.app.windows.taskbar_at_point',return_value=True),patch('codex_taskbar.app.QTimer.singleShot') as queued:
+            self.assertFalse(self.bar.desktop_click(-10,900,'left_up'))
+            self.assertFalse(self.bar.desktop_click(-10,900,'right_up'))
+            queued.assert_called_once();self.assertTrue(self.bar.stack_repair_pending)
+        with patch('codex_taskbar.app.windows.follow_taskbar',side_effect=lambda hwnd:self.bar.schedule_stack_repair()) as repair,patch('codex_taskbar.app.QTimer.singleShot') as queued,patch.object(self.bar,'update') as paint:
+            self.bar.repair_stack();repair.assert_called_once();queued.assert_not_called();paint.assert_called()
+        self.assertFalse(self.bar.stack_repair_pending)
+        self.provider.refresh.assert_not_called()

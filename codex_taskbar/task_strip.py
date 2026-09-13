@@ -203,6 +203,11 @@ class PinnedPanel(QWidget):
         self.size_motion=Spring(self,response=.18);self.size_motion.changed.connect(self.layout_rows)
         self.host_key=None;self.surface_loss_since=None;self.surface_repaired=False;self.frame_key=None
 
+    def nativeEvent(self,event_type,message):
+        native=windows.w.MSG.from_address(int(message))
+        if hasattr(self,'owner') and hasattr(self.owner,'native_handle') and windows.z_order_changed(native):self.owner.schedule_stack_repair()
+        return super().nativeEvent(event_type,message)
+
     @property
     def needs_animation(self):return any(row.needs_animation for row in self.rows.values())
     def animate(self):

@@ -409,11 +409,11 @@ class InteractionTests(unittest.TestCase):
                 if baseline is None:baseline=positions
                 self.assertEqual(positions,baseline)
                 image=pixmap.toImage();ratio=image.devicePixelRatio()
-                pixel=image.pixelColor(round((self.bar.width()-40)*ratio),round(self.bar.height()/2*ratio))
+                pixel=image.pixelColor(round(self.bar.width()/2*ratio),round(self.bar.height()/2*ratio))
                 self.assertLessEqual(abs(pixel.alpha()-round(255*(1-transparency/100))),1)
                 if transparency==0:self.assertEqual(pixel.name(),app.CAPSULE_COLORS[theme]['background'])
                 colors=[app.QColor(c.args[5]).name() for c in draw.call_args_list if c.args[3]=='12%']
-                self.assertEqual(colors,[app.CAPSULE_COLORS[theme]['muted']]);foreground.append(colors)
+                self.assertEqual(colors,[app.CAPSULE_COLORS[theme]['text']]);foreground.append(colors)
                 self.assertEqual(self.bar.windowOpacity(),1.)
                 self.assertEqual(image.pixelColor(0,0).alpha(),0)
             self.assertEqual(foreground[0],foreground[1]);self.assertEqual(foreground[0],foreground[2])
@@ -546,7 +546,7 @@ class InteractionTests(unittest.TestCase):
                 number=next(c for c in draw.call_args_list if c.args[3]=='5d 16h')
                 label_end=label.args[1]+app.QFontMetricsF(label.args[4]).horizontalAdvance('Reset')
                 self.assertGreaterEqual(number.args[1]-label_end,3.)
-                self.assertAlmostEqual(number.args[1],app.CONTENT_X+12+self.bar.metric_label_width()+3)
+                self.assertAlmostEqual(number.args[1],label_end+3)
 
     def test_reset_item_uses_same_pause_and_transition_rules(self):
         self.bar.settings['rotate_quotas']=True;self.bar.quota_kind='clock';self.bar.quota_rotated_at=0;self.bar.grab()
@@ -685,11 +685,11 @@ class InteractionTests(unittest.TestCase):
                 self.assertEqual(rotated[kind],parallel[kind])
                 self.assertEqual(len(rotated),1)
 
-    def test_rotating_numbers_share_a_compact_left_aligned_column(self):
+    def test_rotating_pairs_are_compact_and_status_group_keeps_right_inset(self):
         self.bar.settings['rotate_quotas']=True
         for language in app.LANGUAGES:
             self.bar.settings['language']=language
-            number_positions=set()
+            pill_positions=set()
             for kind,value,fraction in self.bar.quota_choices():
                 self.bar.quota_kind=kind
                 with patch('codex_taskbar.app.text',wraps=app.text) as draw:self.bar.grab()
@@ -701,12 +701,13 @@ class InteractionTests(unittest.TestCase):
                 divider_x=metric.right()+2
                 number_end=number_draw.args[1]+app.QFontMetricsF(number_draw.args[4]).horizontalAdvance(number)
                 self.assertGreaterEqual(divider_x-number_end,7-1e-6)
-                self.assertAlmostEqual(pill.left()+2-divider_x,7)
+                self.assertGreaterEqual(pill.left()+2-divider_x,7)
                 label_end=label_draw.args[1]+app.QFontMetricsF(label_draw.args[4]).horizontalAdvance(label)
-                self.assertGreaterEqual(number_draw.args[1]-label_end,3-1e-6)
-                number_positions.add(number_draw.args[1])
+                self.assertAlmostEqual(number_draw.args[1]-label_end,3)
+                pill_positions.add(pill.left())
+                last=self.bar.hit_regions[-1][1];self.assertAlmostEqual(self.bar.width()-(last.right()-2),12)
                 if language=='en' and kind=='spent':self.assertAlmostEqual(number_draw.args[1]-label_end,3)
-            self.assertEqual(len(number_positions),1)
+            self.assertEqual(len(pill_positions),1)
 
     def test_press_during_transition_returns_smoothly_to_visible_item(self):
         self.bar.settings['rotate_quotas']=True

@@ -239,16 +239,21 @@ class PinButton(QPushButton):
         self.setAccessibleName(label);self.setToolTip(label);self.update()
     def paintEvent(self,event):
         p=QPainter(self);p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        light=self.light_surface;color=('#2169ad' if light else BLUE) if self.isChecked() else '#526174' if light else '#99a6b5'
+        light=self.light_surface;accent='#2169ad' if light else BLUE
+        color=accent if self.isChecked() else '#526174' if light else '#99a6b5'
+        if not self.dark_panel:color='#667588' if light else '#8795a5'
         strength=1. if self.isDown() or self.keyboard_focus else self.hover_value
         if strength:
             fill=QColor('#c8d3df' if light else '#465364' if self.isDown() else '#35414f');fill.setAlphaF(strength)
             p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill);p.drawRoundedRect(QRectF(3,3,20,20),5,5)
         if self.keyboard_focus:pen(p,'#2169ad' if light else BLUE,.8);p.drawRoundedRect(QRectF(3,3,20,20),5,5)
-        pin_renderer(color).render(p,self.glyph_rect());p.end()
+        pin_renderer(color).render(p,self.glyph_rect())
+        if not self.dark_panel and strength:
+            p.setOpacity(strength);pin_renderer(accent).render(p,self.glyph_rect())
+        p.end()
 
 
-@lru_cache(maxsize=4)
+@lru_cache(maxsize=6)
 def pin_renderer(color):
     source=(BASE/'assets/icons/pin.svg').read_bytes().replace(b'currentColor',color.encode('ascii'))
     return QSvgRenderer(source)
@@ -346,6 +351,7 @@ class StatusBar(QWidget):
         self.forecast=ResetForecast(self)
         self.timer=QTimer(self);self.timer.timeout.connect(self.tick);self.timer.start(150)
         self.animation=QTimer(self);self.animation.timeout.connect(self.animate)
+        self.stack_repair_pending=False
         self.native_handle=int(self.winId())  # Create the native handle only after transparency attributes are set.
         self.click_hook=windows.ClickHook(self.desktop_click)
         self.tick()
@@ -355,7 +361,21 @@ class StatusBar(QWidget):
         if native.message==windows.OPEN_SETTINGS_MESSAGE:
             QTimer.singleShot(0,self.open_settings);return True,0
         if native.message==0x001A:QTimer.singleShot(0,self.sync_motion)
+        if hasattr(self,'native_handle') and windows.z_order_changed(native):self.schedule_stack_repair()
         return super().nativeEvent(event_type,message)
+
+    def schedule_stack_repair(self):
+        if self.stack_repair_pending:return
+        self.stack_repair_pending=True;QTimer.singleShot(0,self.repair_stack)
+
+    def repair_stack(self):
+        try:
+            if not self.isVisible() or self.confirming_reset:return
+            if not self.floating:windows.follow_taskbar(int(self.winId()))
+            if self.task_strip.isVisible():self.task_strip.ensure_visible();self.task_strip.update()
+            if self.popup and self.popup.isVisible():self.popup.sync_owner();self.popup.update()
+            self.update()
+        finally:self.stack_repair_pending=False
 
     def sync_motion(self):
         enabled=windows.animations_enabled()
@@ -373,6 +393,7 @@ class StatusBar(QWidget):
 
     def desktop_click(self,x,y,button="left"):
         if self.confirming_reset:return False
+        if not self.floating and button in ('left_up','right_up') and windows.taskbar_at_point(x,y):self.schedule_stack_repair()
         if self.floating:
             # Qt supplies normal press/move/release capture. Global interception
             # would also steal clicks from other windows covering a floating strip.
@@ -595,17 +616,13 @@ class StatusBar(QWidget):
         if not self.settings.get('rotate_quotas'):return metrics.horizontalAdvance(value)
         widths=[]
         for item,labelled,fraction in self.quota_choices():
-            _,number=self.metric_parts(item,labelled)
+            label,number=self.metric_parts(item,labelled)
             if item=='clock':
                 template='6d 23h' if 'd' in number or number=='—' else '23h 59m' if 'h' in number else '59m'
                 number_width=metrics.horizontalAdvance(template)
             else:number_width=max(metrics.horizontalAdvance('100%'),metrics.horizontalAdvance(number))
-            widths.append(number_width)
-        return self.metric_label_width()+3+max(widths)
-
-    def metric_label_width(self):
-        metrics=QFontMetricsF(face(8))
-        return max((metrics.horizontalAdvance(self.metric_label(kind)) for kind,value,fraction in self.quota_choices()),default=0)
+            widths.append(metrics.horizontalAdvance(label)+3+number_width)
+        return max(widths,default=0)
 
     def content_width(self,limit):
         metrics=self.displayed_metrics();rotating=self.settings.get('rotate_quotas')
@@ -621,8 +638,9 @@ class StatusBar(QWidget):
         font_metrics=QFontMetricsF(face(8));badge_x=x-6
         for kind in statuses:badge_x+=font_metrics.horizontalAdvance(self.count_label(kind,counts[kind]))+30
         if statuses:right=badge_x-6
-        minimum=240 if any(counts[kind] for kind in self.settings.get('pinned_statuses',[]) if kind in counts) else 0
-        return min(limit,max(minimum,math.ceil(right+12)))
+        titles=[task_title(task,self.language) for kind in self.settings.get('pinned_statuses',[]) if kind in counts for task in panel_rows(self.data,kind)]
+        minimum=min(240,70+max(QFontMetricsF(self.font).horizontalAdvance(title) for title in titles)) if titles else 0
+        return min(limit,math.ceil(max(minimum,right+12)))
 
     def fitted_width(self,limit,resize=False):
         target=self.content_width(limit)
@@ -1039,8 +1057,8 @@ class StatusBar(QWidget):
                 if self.settings.get('rotate_quotas'):
                     label,number=self.metric_parts(draw_kind,value)
                     text(p,x+12,line_y,label,face(8),palette['muted'])
-                    number_x=x+12+self.metric_label_width()+3
-                    text(p,number_x,line_y,number,face(8),palette['muted'])
+                    number_x=x+12+QFontMetricsF(face(8)).horizontalAdvance(label)+3
+                    text(p,number_x,line_y,number,face(8),palette['text'])
                 else:text(p,x+12,line_y,value,face(8),palette['muted'])
             current_fraction=None if fraction is None else self.ring_values.get(kind,fraction)
             previous=self.quota_previous if self.settings.get('rotate_quotas') else None
@@ -1059,7 +1077,13 @@ class StatusBar(QWidget):
                 p.restore()
             else:draw_value(kind,value,y)
             icon(p,kind,x,y,color,fraction=current_fraction)
-            feedback=QRectF(x-11,4,width+28,self.height()-8)
+            shown_width=width
+            if self.settings.get('rotate_quotas'):
+                font=QFontMetricsF(face(8));label,number=self.metric_parts(kind,value)
+                shown_width=font.horizontalAdvance(label)+3+font.horizontalAdvance(number)
+                if previous and self.quota_progress<.5:
+                    label,number=self.metric_parts(previous[0],previous[1]);shown_width=font.horizontalAdvance(label)+3+font.horizontalAdvance(number)
+            feedback=QRectF(x-11,4,shown_width+28,self.height()-8)
             x+=12+width+(13 if self.settings.get('rotate_quotas') else 17)
             mode={'quota':'usage','session':'session','spent':'daily','clock':'resets'}[hit_kind]
             self.hit_regions.append((mode,QRectF(feedback.x(),0,feedback.width(),self.height()),None))
@@ -1079,6 +1103,10 @@ class StatusBar(QWidget):
         if not any(counts[k] for k in STATUS_CATEGORIES):finish();return
         if x>CONTENT_X:separator()
         badge_x=x-6
+        if self.settings.get('rotate_quotas'):
+            visible=[mode for mode in STATUS_CATEGORIES if counts[mode]];font=QFontMetricsF(face(8))
+            total=sum(font.horizontalAdvance(self.count_label(mode,counts[mode]))+24 for mode in visible)+6*(len(visible)-1)
+            badge_x=self.width()-12-total
         for mode,color in [('waiting',palette['amber']),('running',palette['green']),('unread',palette['amber']),('failed',palette['failed']),('stopped',palette['stopped'])]:
             if counts[mode]:
                 width=activity_count(p,badge_x,y,self.count_label(mode,counts[mode]),color,pulse=False,text_color=color if theme=='light' else None,emphasis=emphasis(mode))

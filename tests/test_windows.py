@@ -1,4 +1,5 @@
 import unittest
+import ctypes
 from unittest.mock import patch
 
 from codex_taskbar import windows
@@ -48,6 +49,19 @@ class TaskbarOrderTests(unittest.TestCase):
 
 
 class OwnedWindowOrderTests(unittest.TestCase):
+    def test_z_order_messages_ignore_plain_move_resize_and_unrelated_messages(self):
+        position=windows.WindowPos();message=windows.w.MSG();message.message=0x0047;message.lParam=ctypes.addressof(position)
+        self.assertTrue(windows.z_order_changed(message))
+        position.flags=0x0004;self.assertFalse(windows.z_order_changed(message))
+        position.flags=0;message.message=0x001A;self.assertFalse(windows.z_order_changed(message))
+        message.message=0x0047;message.lParam=0;self.assertFalse(windows.z_order_changed(message))
+
+    def test_taskbar_click_requires_actual_shell_target(self):
+        with patch.object(windows.user32,'FindWindowW',return_value=20),patch.object(windows.user32,'WindowFromPoint',return_value=21),patch.object(windows.user32,'GetAncestor',return_value=20):
+            self.assertTrue(windows.taskbar_at_point(100,900))
+        with patch.object(windows.user32,'FindWindowW',return_value=20),patch.object(windows.user32,'WindowFromPoint',return_value=10),patch.object(windows.user32,'GetAncestor',return_value=10):
+            self.assertFalse(windows.taskbar_at_point(100,900))
+
     def follow(self,order,owner=20,topmost=True,keep=True):
         with patch.object(windows.user32,'GetWindowLongPtrW',side_effect=lambda h,index:owner if index==-8 else 8 if topmost else 0), \
              patch.object(windows.user32,'SetWindowLongPtrW') as set_owner, \
