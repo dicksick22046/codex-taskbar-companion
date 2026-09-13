@@ -15,3 +15,7 @@ __pycache__/
 build/
 dist/
 release/
+
+# Keep source icons tracked even when a global macOS Icon? rule matches this folder.
+!assets/icons/
+!assets/icons/**
