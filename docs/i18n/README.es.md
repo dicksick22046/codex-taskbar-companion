@@ -72,7 +72,7 @@ Una pregunta síncrona sin respuesta aparece como «Requiere respuesta», con un
 - La lista diaria incluye los turnos de hoy. Los paneles de estado muestran la duración del turno actual o más reciente, incluida la espera de herramientas.
 - Los totales históricos solo cubren tareas registradas en este equipo. Excluyen otros dispositivos y chats laterales temporales sin consumo guardado.
 
-El historial muestra cantidades con unidad y el último porcentaje de cuota registrado antes de cada reinicio, cuando existe. Los reinicios oficiales inferidos aparecen en morado; se distinguen de los programados y manuales. La [API pública de Codex Reset Today](https://codex-reset.today/developers) ofrece una previsión global con intervalo y probabilidad aproximada; la ayuda indica confianza y fuente. No garantiza un reinicio de tu cuenta. Se oculta si está caducada o no está disponible, y no se envían datos de cuenta ni de tareas. Los créditos siguen requiriendo confirmación.
+El historial compara el consumo local de tokens con barras horizontales y valores con unidad en cada fila. Los porcentajes de cuota aparecen en una columna independiente; los datos ausentes se indican con un guion. La longitud de las barras no representa la cuota de la cuenta. Los reinicios oficiales inferidos aparecen en morado; se distinguen de los programados y manuales. La [API pública de Codex Reset Today](https://codex-reset.today/developers) ofrece una previsión global con intervalo y probabilidad aproximada; la ayuda indica confianza y fuente. No garantiza un reinicio de tu cuenta. Se oculta si está caducada o no está disponible, y no se envían datos de cuenta ni de tareas. Los créditos siguen requiriendo confirmación.
 
 ## Datos y limitaciones
 

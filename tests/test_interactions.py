@@ -366,7 +366,7 @@ class InteractionTests(unittest.TestCase):
             category=next(call for call in draw.call_args_list if call.args[3]==panel.history_label(self.data['reset_events'][0]))
             self.assertEqual(category.args[5],app.BLUE)
             self.assertEqual(panel.history_usage({'tokens':None}),self.bar.label('Tokens')+' —')
-            self.assertGreater(panel.history_divider,panel.token_right)
+            self.assertGreater(panel.history_divider,panel.percent_right)
             panel.close();panel.deleteLater()
 
     def test_history_uses_100m_for_both_small_and_large_totals(self):
@@ -387,7 +387,7 @@ class InteractionTests(unittest.TestCase):
             labels=[c for c in calls if c.args[3]==self.bar.label('Usage history')]
             self.assertEqual(len(labels),1)
             self.assertEqual(len({c.args[1] for c in labels}),1)
-            row_y={89+i*26 for i in range(3)}
+            row_y={108+i*panel.ROW_HEIGHT for i in range(3)}
             numbers=[c for c in calls if c.args[3] in ('20.37','5.22','—') and c.args[2] in row_y and c.args[1]<=panel.number_right]
             self.assertEqual(len(numbers),3)
             for call in numbers:

@@ -4,6 +4,7 @@ LANGUAGE_NAMES = (('en','English'),('zh-CN','简体中文'),('ja','日本語'),(
 LANGUAGES = tuple(code for code,name in LANGUAGE_NAMES)
 COPY = {
     'Usage history':'历史用量',
+    'Quota used':'额度消耗',
     'Local tokens; account quota percentages.':'数值为本机Token用量，百分比为账户额度消耗。',
     'Percentages are the last recorded quota usage before each reset; missing records show a dash.':'百分比为重置前最后记录的额度消耗；缺少记录时显示横杠。',
     'Pin status':'固定此状态','Unpin status':'取消固定','Pinned tasks':'固定任务',
@@ -85,6 +86,7 @@ COPY = {
 
 TRANSLATIONS = {'zh-CN': COPY, 'ja': {
     'Usage history':'使用量の履歴',
+    'Quota used':'利用枠使用率',
     'Local tokens; account quota percentages.':'数値は本機のToken使用量、割合はアカウント利用枠の使用率です。',
     'Percentages are the last recorded quota usage before each reset; missing records show a dash.':'割合は各リセット前に最後に記録された利用枠の使用率です。記録がない場合はダッシュで表示します。',
     'Pin status':'この状態を固定','Unpin status':'固定を解除','Pinned tasks':'固定タスク',
@@ -164,6 +166,7 @@ TRANSLATIONS = {'zh-CN': COPY, 'ja': {
     'Version {version} is available. Update from Settings.': 'バージョン{version}が公開されました。設定から更新できます。',
 }, 'es': {
     'Usage history':'Historial de consumo',
+    'Quota used':'Cuota usada',
     'Local tokens; account quota percentages.':'Tokens locales; porcentajes de cuota de la cuenta.',
     'Percentages are the last recorded quota usage before each reset; missing records show a dash.':'Los porcentajes son el último uso de cuota registrado antes de cada reinicio; se muestra un guion si faltan registros.',
     'Pin status':'Fijar estado','Unpin status':'Desfijar','Pinned tasks':'Tareas fijadas',

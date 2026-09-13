@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- Compare reset-history Token consumption with horizontal bars, exact per-row units and a separate quota-percentage column. Keep zero and missing values distinct, and scroll constrained panels above the reset button.
 ## 0.10.1
 
 - Restore synchronized Running dot breathing and a gentler travelling title highlight; keep hidden and reduced-motion views still.

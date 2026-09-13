@@ -73,7 +73,9 @@ An unresolved synchronous `request_user_input` record appears as **Needs input**
 - Historical token totals cover locally recorded tasks. Other devices and temporary side chats without saved usage are excluded.
 - The task catalog includes recorded CLI, VS Code, app-server and CLI execution sources. Newly included records can increase local token totals. Persisted synchronous input requests are observable; live approval routing and unrecorded questions are not fully exposed.
 
-Reset history shows local usage with per-row units and any recorded pre-reset quota percentage. Missing old percentages stay absent. Scheduled, Manual and Official remain separate; Official uses purple and is inferred from recovery outside scheduled or confirmed in-app manual resets. The public [Codex Reset Today API](https://codex-reset.today/developers) provides an optional global-reset forecast below the account countdown, with a time window, approximate probability and confidence/source in the tooltip. It is not an account guarantee; stale or unavailable forecasts are hidden. Requests send no account or task data. Using a reset credit still requires confirmation.
+Reset history compares local Token consumption with horizontal bars and exact per-row units. Recorded quota percentages appear in a separate column; missing readings show a dash. Bar lengths compare Token totals, not account quota. Scheduled, Manual and Official remain separate; Official uses purple and is inferred from recovery outside scheduled or confirmed in-app manual resets. The public [Codex Reset Today API](https://codex-reset.today/developers) provides an optional global-reset forecast below the account countdown, with a time window, approximate probability and confidence/source in the tooltip. It is not an account guarantee; stale or unavailable forecasts are hidden. Requests send no account or task data. Using a reset credit still requires confirmation.
+
+![Reset history with sample data](docs/images/reset-history.png)
 
 ## Data and limitations
 
