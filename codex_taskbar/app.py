@@ -1383,7 +1383,10 @@ class SessionPopup(TaskPopup):
 class ResetPopup(TaskPopup):
     mode='resets'
     WIDTH=300
-    HISTORY_HEIGHT=152
+    HISTORY_HEIGHT=128
+    VALUE_Y=104
+    BASELINE=168
+    DATE_Y=181
 
     def __init__(self,owner):
         super().__init__(owner)
@@ -1393,20 +1396,20 @@ class ResetPopup(TaskPopup):
         self.history_scroll=QScrollBar(Qt.Orientation.Horizontal,self)
         self.history_scroll.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.history_scroll.setStyleSheet('QScrollBar:horizontal{background:transparent;height:12px;} QScrollBar::handle:horizontal{background:#59616f;min-width:28px;border-radius:3px;margin:3px 0;} QScrollBar::handle:horizontal:hover,QScrollBar::handle:horizontal:pressed{background:#79b6f5;} QScrollBar:horizontal:focus{background:#35414f;border-radius:4px;} QScrollBar::add-line:horizontal,QScrollBar::sub-line:horizontal{width:0;} QScrollBar::add-page:horizontal,QScrollBar::sub-page:horizontal{background:none;}')
-        self.history_point=None;self.history_selected=None;self.history_press=None;self.history_structure=None
+        self.history_selected=None;self.history_press=None;self.history_structure=None
         self.history_focus=Spring(self,response=.16);self.history_focus.changed.connect(lambda value:self.update())
         self.history_scroll.valueChanged.connect(self.history_scrolled)
 
     def refresh(self,data):
         self.data=data;self.rows=data.get('reset_events',[])
         keys=[self.history_key(row) for row in self.rows]
-        if self.history_selected not in keys:self.history_selected=keys[0] if keys else None
+        if self.history_selected not in keys:self.history_selected=keys[-1] if keys else None
         self.owner.forecast.request();self.forecast=self.owner.forecast.get()
         self.forecast_height=24 if self.forecast else 0
         self.credits=data.get('reset_credits',[])
         self.history_height=self.HISTORY_HEIGHT if self.rows else 28
         self.credits_top=76+self.history_height+26
-        height=self.credits_top+24+26*max(1,len(self.credits))+46+self.forecast_height
+        height=self.credits_top+16+26*max(1,len(self.credits))+46+self.forecast_height
         self.full_height=height
         metrics=QFontMetricsF(face(8))
         self.column_width=math.ceil(max([64]+[metrics.horizontalAdvance(' '.join(part for part in self.history_parts(row) if part))+16 for row in self.rows]))
@@ -1435,8 +1438,6 @@ class ResetPopup(TaskPopup):
         if self.forecast:
             confidence=self.owner.label({'low':'Low confidence','medium':'Medium confidence','high':'High confidence'}[self.forecast['confidence']])
             self.setToolTip(self.toolTip()+'\n'+self.owner.label('Community forecast for global resets, not your account schedule.')+' '+confidence+'\n'+FORECAST_SOURCE)
-        self.history_tooltip=self.toolTip()
-        self.update_history_tooltip()
         self.sync_history_focus()
         self.setAccessibleDescription(self.owner.label('Usage history')+'. '+self.owner.label('Local tokens; account quota percentages.')+'\n'+'\n'.join(
             datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M')+' · '+self.history_usage(row)+' · '+self.owner.label('Quota used')+' '+self.history_percent(row)+' · '+self.history_label(row) for row in self.rows))
@@ -1452,8 +1453,7 @@ class ResetPopup(TaskPopup):
         return next((index for index,row in enumerate(self.rows) if self.history_key(row)==self.history_selected),None)
 
     def active_history_index(self):
-        hovered=self.history_at(self.history_point) if self.history_point is not None else None
-        return hovered if hovered is not None else self.selected_history_index()
+        return self.selected_history_index()
 
     def sync_history_focus(self):
         index=self.active_history_index()
@@ -1464,9 +1464,9 @@ class ResetPopup(TaskPopup):
 
     def select_history(self,index):
         if not 0<=index<len(self.rows):return
-        self.history_selected=self.history_key(self.rows[index]);self.history_point=None
+        self.history_selected=self.history_key(self.rows[index])
         self.ensure_history_visible(index)
-        self.sync_history_focus();self.update_history_tooltip();self.update()
+        self.sync_history_focus();self.update()
 
     def ensure_history_visible(self,index):
         left=index*self.column_width;right=left+self.column_width;visible=self.width()-36;offset=self.history_scroll.value()
@@ -1495,10 +1495,14 @@ class ResetPopup(TaskPopup):
         value=self.history_tokens(row)
         fraction=value/self.history_max if value is not None and self.history_max else 0
         center=18+(index+.5)*self.column_width-self.history_scroll.value()
-        return QRectF(center-4.5,185-55*fraction,9,55*fraction)
+        return QRectF(center-4.5,self.BASELINE-48*fraction,9,48*fraction)
+
+    def history_column_rect(self,center):
+        top=self.VALUE_Y-14
+        return QRectF(center-self.column_width/2+3,top,self.column_width-6,self.DATE_Y+10-top)
 
     def layout_history_scroll(self):
-        y=216+self.forecast_height-self.scroll
+        y=76+self.HISTORY_HEIGHT-12+self.forecast_height-self.scroll
         self.history_scroll.setGeometry(18,round(y),self.width()-36,12)
         self.history_scroll.setVisible(bool(self.history_scroll.maximum() and y>=48+self.forecast_height and y+12<=self.height()-56))
 
@@ -1509,21 +1513,26 @@ class ResetPopup(TaskPopup):
         active=self.active_history_index()
         if active is not None:
             row=self.rows[active];font=face(7);source=self.history_label(row);prefix=self.history_percent(row)+(' · ' if source else '')
-            text(p,18,86,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),font,TITLE_MUTED)
+            text(p,18,82,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),font,TITLE_MUTED)
             left=self.width()-18-QFontMetricsF(font).horizontalAdvance(prefix+source)
-            text(p,left,86,prefix,font,MUTED)
-            text(p,left+QFontMetricsF(font).horizontalAdvance(prefix),86,source,font,LILAC if row['kind']=='official' else BLUE)
+            text(p,left,82,prefix,font,MUTED)
+            text(p,left+QFontMetricsF(font).horizontalAdvance(prefix),82,source,font,LILAC if row['kind']=='official' else BLUE)
             center=18+self.history_focus.value-self.history_scroll.value()
-            fill=QColor(BLUE);fill.setAlpha(26 if self.history_press and not self.history_press['dragged'] else 18);p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill)
-            p.drawRoundedRect(QRectF(center-self.column_width/2+3,98,self.column_width-6,113),5,5)
-        pen(p,'#3c4551',.5);p.drawLine(QPointF(18,185),QPointF(self.width()-18,185))
+            fill=QColor(BLUE);fill.setAlpha(18);p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill)
+            p.drawRoundedRect(self.history_column_rect(center),5,5)
+        if self.history_press and not self.history_press['dragged']:
+            index=next((i for i,row in enumerate(self.rows) if self.history_key(row)==self.history_press['key']),None)
+            if index is not None:
+                center=18+(index+.5)*self.column_width-self.history_scroll.value()
+                fill=QColor(BLUE);fill.setAlpha(10);p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill);p.drawRoundedRect(self.history_column_rect(center),5,5)
+        pen(p,'#3c4551',.5);p.drawLine(QPointF(18,self.BASELINE),QPointF(self.width()-18,self.BASELINE))
         for index,row in enumerate(self.rows):
             box=self.history_bar_rect(row,index);center=box.center().x()
             if center+self.column_width/2<18 or center-self.column_width/2>self.width()-18:continue
             if box.height()>0:
                 p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(BLUE if index==active else '#648aae'));p.drawRoundedRect(box,2,min(2,box.height()/2))
-            centered(' '.join(part for part in self.history_parts(row) if part),center,112,face(8),'#e4edf7' if index==active else MUTED)
-            centered(datetime.fromtimestamp(row['at']).strftime('%m.%d'),center,201,face(7),BLUE if index==active else TITLE_MUTED)
+            centered(' '.join(part for part in self.history_parts(row) if part),center,self.VALUE_Y,face(8),'#e4edf7' if index==active else MUTED)
+            centered(datetime.fromtimestamp(row['at']).strftime('%m.%d'),center,self.DATE_Y,face(7),BLUE if index==active else TITLE_MUTED)
 
     def paintEvent(self,event):
         p=panel_painter(self);window=countdown_window(effective_quota_data(self.data),self.owner.settings)
@@ -1567,7 +1576,7 @@ class ResetPopup(TaskPopup):
 
     def history_at(self,point):
         local_y=point.y()-self.forecast_height+self.scroll
-        if not (18<=point.x()<self.width()-18 and 98<=local_y<214 and point.y()>=48+self.forecast_height and point.y()<self.height()-56):return None
+        if not (18<=point.x()<self.width()-18 and self.VALUE_Y-14<=local_y<76+self.HISTORY_HEIGHT-12 and point.y()>=48+self.forecast_height and point.y()<self.height()-56):return None
         index=int((point.x()-18+self.history_scroll.value())//self.column_width)
         return index if 0<=index<len(self.rows) else None
 
@@ -1576,53 +1585,35 @@ class ResetPopup(TaskPopup):
             press=self.history_press;distance=event.position().x()-press['point'].x()
             if abs(distance)>=QApplication.startDragDistance():press['dragged']=True
             if press['dragged']:
-                self.history_point=None;self.history_scroll.setValue(round(press['offset']-distance));event.accept();return
-        self.history_point=event.position();self.update_history_tooltip()
-        self.sync_history_focus();self.update()
+                self.history_scroll.setValue(round(press['offset']-distance));event.accept();return
         self.setCursor(Qt.CursorShape.PointingHandCursor if self.history_at(event.position()) is not None else Qt.CursorShape.ArrowCursor)
 
     def mousePressEvent(self,event):
         index=self.history_at(event.position())
         if event.button()==Qt.MouseButton.LeftButton and index is not None:
             self.history_press={'point':QPointF(event.position()),'key':self.history_key(self.rows[index]),'offset':self.history_scroll.value(),'dragged':False}
-            self.history_point=QPointF(event.position());self.update_history_tooltip();self.sync_history_focus();self.update();event.accept();return
+            self.update();event.accept();return
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self,event):
         if event.button()==Qt.MouseButton.LeftButton and self.history_press is not None:
             press=self.history_press;self.history_press=None;index=self.history_at(event.position())
             if not press['dragged'] and index is not None and self.history_key(self.rows[index])==press['key']:self.select_history(index)
-            self.history_point=QPointF(event.position()) if index is not None else None
-            self.update_history_tooltip();self.sync_history_focus()
+            self.sync_history_focus()
             self.update();event.accept();return
         super().mouseReleaseEvent(event)
 
-    def update_history_tooltip(self):
-        if not hasattr(self,'history_tooltip'):return
-        index=self.history_at(self.history_point) if self.history_point is not None else None;tip=self.history_tooltip
-        if index is not None:
-            row=self.rows[index]
-            tip=datetime.fromtimestamp(row['at']).strftime('%Y.%m.%d %H:%M')+'\n'+self.history_usage(row)+'\n'+self.owner.label('Quota used')+' '+self.history_percent(row)+' · '+self.history_label(row)
-        if tip!=self.toolTip():self.setToolTip(tip)
     def history_scrolled(self):
-        selected=self.selected_history_index()
-        if selected is not None:
-            center=(selected+.5)*self.column_width;offset=self.history_scroll.value();visible=self.width()-36
-            if not offset<=center<=offset+visible:
-                index=min(len(self.rows)-1,max(0,int((offset+visible/2)/self.column_width)))
-                self.history_selected=self.history_key(self.rows[index])
-        self.update_history_tooltip();self.sync_history_focus();self.update()
+        self.sync_history_focus();self.update()
 
-    def leaveEvent(self,event):self.history_point=None;self.update_history_tooltip();self.sync_history_focus();self.update();super().leaveEvent(event)
-
-    def hideEvent(self,event):self.history_press=None;self.history_point=None;self.history_focus.stop();super().hideEvent(event)
+    def hideEvent(self,event):self.history_press=None;self.history_focus.stop();super().hideEvent(event)
 
     def wheelEvent(self,event):
         pixels=event.pixelDelta();angle=event.angleDelta();horizontal=pixels.x() or angle.x()
         if self.history_scroll.maximum() and self.history_at(event.position()) is not None and (horizontal or event.modifiers()&Qt.KeyboardModifier.ShiftModifier or not self.scroll_limit()):
             delta=(pixels.x() or pixels.y()) if not pixels.isNull() else (angle.x() or angle.y())/120*self.column_width
             self.history_scroll.setValue(round(self.history_scroll.value()-delta));event.accept();return
-        self.scroll=max(0,min(self.scroll_limit(),self.scroll-wheel_distance(event,28)));self.layout_history_scroll();self.update_history_tooltip();self.sync_history_focus();self.update();event.accept()
+        self.scroll=max(0,min(self.scroll_limit(),self.scroll-wheel_distance(event,28)));self.layout_history_scroll();self.sync_history_focus();self.update();event.accept()
 
     def keyPressEvent(self,event):
         if self.rows and event.key() in (Qt.Key.Key_Left,Qt.Key.Key_Right,Qt.Key.Key_Home,Qt.Key.Key_End):

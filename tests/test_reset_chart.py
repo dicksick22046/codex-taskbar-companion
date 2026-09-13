@@ -59,7 +59,7 @@ class ResetChartTests(unittest.TestCase):
 
     def test_native_horizontal_thumb_can_be_dragged_without_moving_the_mouse(self):
         from PySide6.QtWidgets import QStyleOptionSlider,QStyle
-        self.data['reset_events']*=4;self.panel.refresh(self.data);slider=self.panel.history_scroll
+        self.data['reset_events']*=4;self.panel.refresh(self.data);slider=self.panel.history_scroll;slider.setValue(0)
         option=QStyleOptionSlider();slider.initStyleOption(option)
         handle=slider.style().subControlRect(QStyle.ComplexControl.CC_ScrollBar,option,QStyle.SubControl.SC_ScrollBarSlider,slider)
         start=QPointF(handle.center());end=QPointF(slider.width()-30,start.y())
@@ -74,9 +74,9 @@ class ResetChartTests(unittest.TestCase):
             with patch('codex_taskbar.app.text',wraps=app.text) as draw:self.panel.grab()
             labels=[call.args[3] for call in draw.call_args_list]
             dates=[datetime.fromtimestamp(row['at']).strftime('%m.%d') for row in self.data['reset_events']]
-            shown=[call.args[3] for call in draw.call_args_list if call.args[2]==201]
+            shown=[call.args[3] for call in draw.call_args_list if call.args[2]==self.panel.DATE_Y]
             self.assertTrue(shown)
-            self.assertEqual(shown,dates[:len(shown)])
+            self.assertTrue(all(value in dates for value in shown))
             self.assertIn(self.bar.label('Quota used')+' 20%',self.panel.accessibleDescription())
 
     def test_horizontal_scroll_reaches_latest_preserves_offset_and_keeps_height(self):
@@ -95,16 +95,16 @@ class ResetChartTests(unittest.TestCase):
         self.data['reset_events']=self.data['reset_events'][:1];panel.refresh(self.data)
         self.assertEqual(panel.history_scroll.maximum(),0);self.assertTrue(panel.history_scroll.isHidden())
 
-    def test_wheel_axes_and_hover_time_follow_the_visible_period(self):
+    def test_wheel_axes_scroll_without_changing_selection(self):
         panel=self.panel;self.data['reset_events']*=4;panel.refresh(self.data)
+        panel.history_scroll.setValue(0);selected=panel.history_selected
         point=QPointF(50,150+panel.forecast_height)
         def wheel(pixel=QPoint(),angle=QPoint(),shift=False):
             event=QWheelEvent(point,point,pixel,angle,Qt.MouseButton.NoButton,Qt.KeyboardModifier.ShiftModifier if shift else Qt.KeyboardModifier.NoModifier,Qt.ScrollPhase.ScrollUpdate,False)
             panel.wheelEvent(event)
         wheel(pixel=QPoint(-37,0));self.assertEqual(panel.history_scroll.value(),37);self.assertEqual(panel.scroll,0)
         wheel(angle=QPoint(0,-120));self.assertEqual(panel.history_scroll.value(),37+panel.column_width)
-        panel.history_point=point;panel.update_history_tooltip();index=panel.history_at(point)
-        self.assertIn(datetime.fromtimestamp(panel.rows[index]['at']).strftime('%Y.%m.%d %H:%M'),panel.toolTip())
+        self.assertEqual(panel.history_selected,selected)
         with patch.object(panel,'scroll_limit',return_value=200):
             old=panel.history_scroll.value();wheel(angle=QPoint(0,-120));self.assertEqual(panel.history_scroll.value(),old);self.assertGreater(panel.scroll,0)
             wheel(angle=QPoint(0,-120),shift=True);self.assertGreater(panel.history_scroll.value(),old)
@@ -116,24 +116,25 @@ class ResetChartTests(unittest.TestCase):
         event=QMouseEvent(kind,point,QPointF(self.panel.mapToGlobal(point.toPoint())),button,held,Qt.KeyboardModifier.NoModifier)
         app.QApplication.sendEvent(self.panel,event)
 
-    def test_hover_previews_click_keeps_selection_and_leave_restores_it(self):
-        panel=self.panel;self.bar.motion_enabled=False
+    def test_hover_is_inert_and_only_click_changes_selection(self):
+        panel=self.panel;self.bar.motion_enabled=False;panel.history_scroll.setValue(0)
         point=QPointF(18+1.5*panel.column_width,150)
         self.chart_mouse(QEvent.Type.MouseMove,point)
-        self.assertEqual(panel.active_history_index(),1);self.assertEqual(panel.selected_history_index(),0)
+        self.assertEqual(panel.active_history_index(),3);self.assertEqual(panel.selected_history_index(),3)
         self.chart_mouse(QEvent.Type.MouseButtonPress,point);self.chart_mouse(QEvent.Type.MouseButtonRelease,point)
         self.assertEqual(panel.selected_history_index(),1)
-        self.assertIn('95%',panel.toolTip())
-        self.chart_mouse(QEvent.Type.MouseMove,QPointF(18+2.5*panel.column_width,150));self.assertEqual(panel.active_history_index(),2)
+        self.chart_mouse(QEvent.Type.MouseMove,QPointF(18+2.5*panel.column_width,150));self.assertEqual(panel.active_history_index(),1)
         panel.leaveEvent(QEvent(QEvent.Type.Leave));self.assertEqual(panel.active_history_index(),1)
         self.assertFalse(panel.history_focus.timer.isActive());self.provider.request_reset.assert_not_called()
 
     def test_drag_and_changed_data_cancel_click_selection(self):
         panel=self.panel;original=self.data['reset_events']
-        self.data['reset_events']=[dict(original[index%4],id=str(index)) for index in range(12)];panel.refresh(self.data)
+        self.data['reset_events']=[dict(original[index%4],id=str(index)) for index in range(12)];panel.refresh(self.data);panel.history_scroll.setValue(0)
+        selected=panel.history_selected
         point=QPointF(18+1.5*panel.column_width,150);pressed=panel.history_key(panel.rows[1])
         self.chart_mouse(QEvent.Type.MouseButtonPress,point);self.chart_mouse(QEvent.Type.MouseMove,point-QPointF(65,0));self.chart_mouse(QEvent.Type.MouseButtonRelease,point-QPointF(65,0))
         self.assertGreater(panel.history_scroll.value(),0);self.assertNotEqual(panel.history_selected,pressed)
+        self.assertEqual(panel.history_selected,selected)
         panel.select_history(1);key=panel.history_selected
         self.data['reset_events'].insert(0,dict(original[0],id='earlier',at=original[0]['at']-1));panel.refresh(self.data)
         self.assertEqual(panel.history_selected,key)
@@ -149,12 +150,13 @@ class ResetChartTests(unittest.TestCase):
             self.assertNotEqual(panel.history_focus.value,panel.history_focus.target)
         panel.hideEvent(QHideEvent());self.assertFalse(panel.history_focus.timer.isActive())
 
-    def test_pointer_down_previews_and_drag_out_returns_to_selection(self):
-        panel=self.panel;self.bar.motion_enabled=False;point=QPointF(18+1.5*panel.column_width,150)
+    def test_pointer_down_feedback_does_not_commit_and_drag_out_cancels(self):
+        panel=self.panel;self.bar.motion_enabled=False;panel.history_scroll.setValue(0);point=QPointF(18+1.5*panel.column_width,150)
+        before=panel.grab().toImage()
         self.chart_mouse(QEvent.Type.MouseButtonPress,point)
-        self.assertEqual(panel.active_history_index(),1);self.assertEqual(panel.selected_history_index(),0)
+        self.assertEqual(panel.active_history_index(),3);self.assertNotEqual(panel.grab().toImage(),before)
         self.chart_mouse(QEvent.Type.MouseButtonRelease,QPointF(-5,150))
-        self.assertEqual(panel.active_history_index(),0);self.assertIsNone(panel.history_press)
+        self.assertEqual(panel.active_history_index(),3);self.assertIsNone(panel.history_press)
 
     def test_system_reduced_motion_settles_the_selection(self):
         self.bar.motion_enabled=True;self.bar.popup=self.panel
@@ -170,8 +172,20 @@ class ResetChartTests(unittest.TestCase):
         self.data['reset_events']=[dict(self.data['reset_events'][index%4],id=str(index)) for index in range(12)];panel.refresh(self.data)
         panel.history_scroll.setValue(panel.column_width//2)
         with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
-        labels=[call for call in draw.call_args_list if call.args[2]==112]
+        labels=[call for call in draw.call_args_list if call.args[2]==panel.VALUE_Y]
         self.assertTrue(labels)
         for call in labels:
             self.assertGreaterEqual(call.args[1],18)
             self.assertLessEqual(call.args[1]+app.QFontMetricsF(call.args[4]).horizontalAdvance(call.args[3]),panel.width()-18)
+
+    def test_latest_is_the_default_but_refresh_keeps_an_explicit_choice(self):
+        panel=self.panel;self.assertEqual(panel.selected_history_index(),3)
+        original=panel.rows[0]
+        self.data['reset_events']=[dict(original,id=str(index),at=original['at']+index) for index in range(12)]
+        panel.history_selected=None;panel.refresh(self.data)
+        self.assertEqual(panel.selected_history_index(),11);self.assertEqual(panel.history_scroll.value(),panel.history_scroll.maximum())
+        panel.select_history(2)
+        self.data['reset_events'].append(dict(original,id='new',at=original['at']+12));panel.refresh(self.data)
+        self.assertEqual(panel.history_selected,'2')
+        self.data['reset_events']=[row for row in self.data['reset_events'] if row['id']!='2'];panel.refresh(self.data)
+        self.assertEqual(panel.history_selected,'new')

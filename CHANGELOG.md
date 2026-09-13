@@ -4,7 +4,7 @@
 
 ## Unreleased
 
-- Compare reset periods with aligned values, a shared baseline and one fixed detail line. Hover to preview, click to keep a period selected, and drag or use the scrollbar/keyboard to browse. Selection motion is interruptible and honors reduced motion; zero and missing readings stay distinct.
+- Compare reset periods with aligned values, a shared baseline and one fixed detail line. Open on the latest period and use clicks or arrow keys to select; hovering and scrolling keep the selection unchanged. Tighten chart and footer spacing while preserving readable labels. Selection motion is interruptible and honors reduced motion; zero and missing readings stay distinct.
 ## 0.10.1
 
 - Restore synchronized Running dot breathing and a gentler travelling title highlight; keep hidden and reduced-motion views still.

@@ -114,6 +114,7 @@ class QuotaPresentationTests(unittest.TestCase):
             self.assertEqual(panel.history_percent(self.data['reset_events'][0]),'49%')
             self.assertEqual(panel.history_percent(dict(self.data['reset_events'][0],windows=['300'])),'20%')
             self.assertEqual(panel.history_percent(self.data['reset_events'][1]),'—')
+            panel.select_history(0)
             with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
             official=next(c for c in draw.call_args_list if c.args[3]=='Official')
             self.assertEqual(official.args[5],app.LILAC)
