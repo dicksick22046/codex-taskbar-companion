@@ -8,6 +8,7 @@ No Codex executable, account credential, or conversation is distributed in this 
   Qt libraries are shipped separately, without modifications. Users may replace compatible library files and debug modifications as permitted by those licenses. Bundled upstream license texts are in `licenses/`. Corresponding upstream source: https://download.qt.io/official_releases/qt/6.11/ and https://download.qt.io/official_releases/QtForPython/pyside6/
 - **PyInstaller** — GPL with bootloader exception; build tool only. https://pyinstaller.org/en/stable/license.html
 - **Inno Setup** — independent installer tool. https://jrsoftware.org/files/is/license.txt
+- **Lucide pin icon** — ISC License, copyright Lucide Icons and Contributors. The upstream SVG is bundled unchanged; color and display size are applied by the renderer. Source: https://github.com/lucide-icons/lucide/blob/main/icons/pin.svg . License: `assets/icons/LUCIDE-LICENSE`.
 - **Alibaba PuHuiTi 3.0 Regular** — unchanged font from the official Alibaba font site. Font source, copyright and hash: `assets/fonts/SOURCE.md`. The official site describes the family as globally free for personal and commercial use. The original copyright remains with Alibaba; the font is not covered by this project's MIT license and is not sold separately. The source and usage notice accompany the package.
 
 The published source and build instructions allow rebuilding the application with modified dependencies. Release archives must retain third-party notices.

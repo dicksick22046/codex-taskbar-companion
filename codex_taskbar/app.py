@@ -15,9 +15,10 @@ BASE = Path(__file__).resolve().parents[1]
 from .preferences import runtime_dir, migrate_legacy, read_settings, write_settings, DISPLAY_DEFAULTS, legacy_runtime_dirs
 RUNTIME = runtime_dir()
 try:
-    from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QPointF, QVariantAnimation, QEasingCurve
+    from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QPointF, QVariantAnimation, QEasingCurve,QAbstractAnimation
     from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPen, QCursor, QLinearGradient
     from PySide6.QtWidgets import QApplication, QWidget, QMenu, QSystemTrayIcon, QPushButton, QMessageBox,QButtonGroup,QToolTip
+    from PySide6.QtSvg import QSvgRenderer
 except ImportError:
     if '--smoke-test' in sys.argv:raise SystemExit(1)
     raise
@@ -207,21 +208,50 @@ def connected_surface(box,edge=None):
 
 
 class PinButton(QPushButton):
-    def __init__(self,owner,parent):
-        super().__init__(parent);self.owner=owner;self.setCheckable(True);self.setAutoDefault(False)
+    ICON_SIZE=12
+    def __init__(self,owner,parent,dark_panel=True):
+        super().__init__(parent);self.owner=owner;self.dark_panel=dark_panel;self.setCheckable(True);self.setAutoDefault(False)
         self.setCursor(Qt.CursorShape.PointingHandCursor);self.setFixedSize(26,26)
+        self.keyboard_focus=False;self.hover_value=0.;self.visual_key=None
+        self.hover_tween=QVariantAnimation(self);self.hover_tween.setDuration(140);self.hover_tween.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self.hover_tween.valueChanged.connect(self.set_hover_value)
+    @property
+    def light_surface(self):return not self.dark_panel and self.owner.settings.get('capsule_theme')=='light'
+    def glyph_rect(self):return QRectF((self.width()-self.ICON_SIZE)/2,(self.height()-self.ICON_SIZE)/2,self.ICON_SIZE,self.ICON_SIZE)
+    def set_hover_value(self,value):self.hover_value=float(value);self.update()
+    def hover_to(self,target):
+        self.hover_tween.stop()
+        if not self.owner.motion_enabled:self.set_hover_value(target);return
+        self.hover_tween.setStartValue(self.hover_value);self.hover_tween.setEndValue(target);self.hover_tween.start()
+    def enterEvent(self,event):self.hover_to(1.);super().enterEvent(event)
+    def leaveEvent(self,event):self.hover_to(0.);super().leaveEvent(event)
+    def hideEvent(self,event):self.hover_tween.stop();self.hover_value=0.;super().hideEvent(event)
+    def focusInEvent(self,event):
+        self.keyboard_focus=event.reason() in (Qt.FocusReason.TabFocusReason,Qt.FocusReason.BacktabFocusReason,Qt.FocusReason.ShortcutFocusReason)
+        super().focusInEvent(event);self.update()
+    def focusOutEvent(self,event):self.keyboard_focus=False;super().focusOutEvent(event);self.update()
     def sync(self,checked):
-        self.setChecked(checked);label=self.owner.label('Unpin status' if checked else 'Pin status')
+        label=self.owner.label('Unpin status' if checked else 'Pin status');key=(checked,label,self.light_surface)
+        if not self.owner.motion_enabled and self.hover_tween.state()!=QAbstractAnimation.State.Stopped:
+            target=self.hover_tween.endValue();self.hover_tween.stop();self.set_hover_value(target)
+        if key==self.visual_key and self.isChecked()==checked:return
+        self.visual_key=key;self.setChecked(checked)
         self.setAccessibleName(label);self.setToolTip(label);self.update()
     def paintEvent(self,event):
         p=QPainter(self);p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        light=self.owner.settings.get('capsule_theme')=='light';color='#40566d' if light else '#9eacbc'
-        if self.underMouse() or self.isDown() or self.hasFocus():
-            p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('#c8d3df' if light else '#465364' if self.isDown() else '#35414f'))
-            p.drawRoundedRect(QRectF(1,1,24,24),5,5)
-        pen(p,('#2169ad' if light else BLUE) if self.isChecked() else color,1.3)
-        p.drawLine(QPointF(9,6),QPointF(17,6));p.drawLine(QPointF(10,6),QPointF(10,12));p.drawLine(QPointF(16,6),QPointF(16,12))
-        p.drawLine(QPointF(10,12),QPointF(7,16));p.drawLine(QPointF(7,16),QPointF(19,16));p.drawLine(QPointF(19,16),QPointF(16,12));p.drawLine(QPointF(13,16),QPointF(13,22));p.end()
+        light=self.light_surface;color=('#2169ad' if light else BLUE) if self.isChecked() else '#526174' if light else '#99a6b5'
+        strength=1. if self.isDown() or self.keyboard_focus else self.hover_value
+        if strength:
+            fill=QColor('#c8d3df' if light else '#465364' if self.isDown() else '#35414f');fill.setAlphaF(strength)
+            p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill);p.drawRoundedRect(QRectF(3,3,20,20),5,5)
+        if self.keyboard_focus:pen(p,'#2169ad' if light else BLUE,.8);p.drawRoundedRect(QRectF(3,3,20,20),5,5)
+        pin_renderer(color).render(p,self.glyph_rect());p.end()
+
+
+@lru_cache(maxsize=4)
+def pin_renderer(color):
+    source=(BASE/'assets/icons/pin.svg').read_bytes().replace(b'currentColor',color.encode('ascii'))
+    return QSvgRenderer(source)
 
 
 def chart_values(days, history, today):
@@ -1451,7 +1481,7 @@ class TaskListPopup(TaskPopup):
         else:self.setGeometry(left,max(screen.top(),self.anchor_bottom()-height),width,height)
         self.scroll=min(self.scroll,max(0,self.full_height-(height-16)))
         if self.pin_button:
-            self.pin_button.move(self.width()-34,3);self.pin_button.sync(self.mode in self.owner.settings.get('pinned_statuses',[]))
+            self.pin_button.move(self.width()-34,5);self.pin_button.sync(self.mode in self.owner.settings.get('pinned_statuses',[]))
         if self.mode=='daily' and self.hovered is None:self.setToolTip(self.usage_tooltip())
         self.sync_units();self.track_hover(self.mapFromGlobal(QCursor.pos()));self.sync_animation()
         if self.keyboard_task not in {t['id'] for t in self.rows}:self.keyboard_task=self.rows[0]['id'] if self.rows else None

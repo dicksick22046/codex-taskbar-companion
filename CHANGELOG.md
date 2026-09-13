@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Replace the oversized hand-drawn pin with a standard compact Lucide icon; align it with panel headings, retain the hit area, and fix light-capsule/dark-panel contrast and focus feedback.
+
 ## 0.10.0
 
 - Pin any task status from its list into one connected multi-row panel; each row rotates independently and supports hover feedback and direct unpinning.

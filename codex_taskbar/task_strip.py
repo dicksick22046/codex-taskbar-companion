@@ -35,7 +35,7 @@ class TaskStrip(QWidget):
         self.task_tween.setDuration(450);self.task_tween.setEasingCurve(QEasingCurve.Type.InOutCubic)
         self.task_tween.valueChanged.connect(self.set_task_blend)
         self.task_tween.finished.connect(self.finish_transition)
-        self.pin_button=visuals.PinButton(owner,self);self.pin_button.sync(True)
+        self.pin_button=visuals.PinButton(owner,self,dark_panel=False);self.pin_button.sync(True)
         self.pin_button.clicked.connect(lambda checked:owner.set_status_pinned(self.category,False))
 
     @property
