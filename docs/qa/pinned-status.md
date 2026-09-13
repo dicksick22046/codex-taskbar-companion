@@ -9,3 +9,15 @@ The [pinned-status contract](../specs/pinned-status.md) and [quota presentation 
 - GitHub main and tag CI passed. The release's final tag, installer checksum and public download were checked; a 0.9.0 client recognizes 0.10.0 as an update. The temporary draft tag was removed after the release was associated with the verified version tag.
 
 Historical percentages are last recorded account values, not exact closing measurements. Old manual history without a before snapshot remains blank. The community forecast is global and may have low confidence; it cannot promise a reset for an individual account. Physical multi-monitor hardware beyond existing validation remains unverified.
+
+## 0.10.1 follow-up
+
+[0.10.1](https://github.com/dicksick22046/codex-taskbar-companion/releases/tag/v0.10.1) is published from `7224de0`.
+
+- 341 native regression tests passed, with one offscreen-only skip. Main and tag CI passed, including the installer build.
+- English, Chinese, Japanese and Spanish settings and caption-on/off strip renders were inspected. Dark/light motion phase captures verify synchronized breathing, readable title highlights and stable targets. Source comparison confirms the pre-removal ring/quota animation methods and spring/control modules are preserved.
+- A real offscreen Qt window with deliberately broken native ownership/topmost state recovered through its native event callback exactly once; no idle repair loop or foreground change followed. Combined popup geometry, expansion, menus and relative ownership have focused regression coverage.
+- The installed executable matches the verified build. Normalized user preferences, actual startup registration and exit/relaunch are preserved. Read-only buffer captures and hit tests confirm the connected installed bar and pinned row are visible above the taskbar at inspection time.
+- Installer SHA-256: `c41aa50a1d4ff5cd4cc8aeaf8f33145b0c5b023953b69d11142941afcd9c5e2c`. Public asset metadata, checksum and download prefix match; the updater detects this version from 0.10.0.
+
+No real pointer input was injected. The user's intermittent taskbar-click occlusion remains a live recurrence check; offscreen recovery and a correct installed snapshot do not prove that every shell activation path is fixed. Old missing percentages now show a dash, while future in-tool manual resets retain their before snapshot.

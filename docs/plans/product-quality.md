@@ -13,6 +13,7 @@
 | 1.7 Inspect installed strip pixels on an available desktop | Completed; follow-up paused | Desktop capture recovered; the installed 0.7.0 strip rendered with quota text, rings, counts and task content. Native hit/foreground checks passed. This confirms rendering, not that every interaction is defect-free; the reported selection issue is tracked below. |
 | 1.8 Correct selection clearance across strip entries | Included in 0.8.0 | Approximately 5 DIP optical padding, complete nonoverlapping targets, existing-pill status emphasis and consistent short/elided-title end clearance. Originally delivered as local fix b12ecd1; now included in the coherent 0.8.0 release. Published 0.7.0 remains unchanged. |
 | 1.9 Make large task-history indexing useful before completion | Released in 0.8.1 | Progressive lower bounds and byte progress; faster payload skipping with cache continuity. 250 native tests, four offscreen journeys, matching real-history aggregates, completed 115-task local index and installed restart checks. See [verification](../qa/progressive-statistics.md). |
+| 1.10 Connected pinned panels, compact rotation, optional metric names and restored Running motion | Released in 0.10.1; shell-click recurrence check remains open | 341 native tests, four-language renders, preserved ring/rotation source comparison, native event recovery and installed visibility. See [verification and limits](../qa/pinned-status.md#0101-follow-up). |
 
 ## 2. Actionable attention and failures
 
