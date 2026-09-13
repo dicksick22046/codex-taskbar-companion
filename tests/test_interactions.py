@@ -234,7 +234,7 @@ class InteractionTests(unittest.TestCase):
         self.assertNotIn('来源未确认',labels)
         self.assertIn(datetime.fromtimestamp(now-100).strftime('%m.%d'),labels)
         self.assertIn(datetime.fromtimestamp(now-100).strftime('%m.%d %H:%M'),panel.accessibleDescription())
-        self.assertTrue(any(label.startswith('Scheduled') for label in labels))
+        self.assertIn('Scheduled',panel.accessibleDescription())
         self.assertGreater(panel.button.y(),panel.credits_top+26+2*26+8)
         self.assertEqual(len(panel.findChildren(app.QPushButton)),1)
         self.provider.request_reset.assert_not_called()
@@ -348,7 +348,7 @@ class InteractionTests(unittest.TestCase):
         panel=app.ResetPopup(self.bar);panel.refresh(self.data)
         self.assertGreaterEqual(panel.width(),300)
         self.assertEqual(panel.button.geometry().width(),panel.width()-36)
-        self.assertEqual(panel.history_bar_rect(self.data['reset_events'][0],0).bottom(),174)
+        self.assertEqual(panel.history_bar_rect(self.data['reset_events'][0],0).bottom(),185)
         panel.close();panel.deleteLater()
 
     def test_history_rows_identify_usage_and_units_and_use_blue_categories(self):
@@ -387,7 +387,7 @@ class InteractionTests(unittest.TestCase):
             self.assertEqual(len({c.args[1] for c in labels}),1)
             for index,row in enumerate(panel.rows):
                 box=panel.history_bar_rect(row,index);value=' '.join(part for part in panel.history_parts(row) if part)
-                call=next(c for c in calls if c.args[3]==value and c.args[2]==box.top()-10)
+                call=next(c for c in calls if c.args[3]==value and c.args[2]==112)
                 self.assertAlmostEqual(call.args[1]+app.QFontMetricsF(call.args[4]).horizontalAdvance(value)/2,box.center().x())
             panel.close();panel.deleteLater()
 

@@ -2,7 +2,7 @@ from datetime import datetime
 import unittest
 from unittest.mock import Mock,patch
 from PySide6.QtCore import QPoint,QPointF,Qt
-from PySide6.QtGui import QWheelEvent,QKeyEvent,QMouseEvent
+from PySide6.QtGui import QWheelEvent,QKeyEvent,QMouseEvent,QHideEvent
 from PySide6.QtCore import QEvent
 from codex_taskbar import app
 from tests import test_interactions as fixtures
@@ -14,7 +14,7 @@ class ResetChartTests(unittest.TestCase):
     def setUp(self):
         fixtures.InteractionTests.setUp(self)
         now=datetime.now().timestamp()
-        self.data['reset_events']=[{'kind':'manual','at':now+i,'tokens':value,'before':{'10080':{'remaining':remaining}}}
+        self.data['reset_events']=[{'id':str(i),'kind':'manual','at':now+i,'tokens':value,'before':{'10080':{'remaining':remaining}}}
                                    for i,(value,remaining) in enumerate(((2000000000,80),(1000000000,5),(0,100),(None,0)))]
         self.panel=app.ResetPopup(self.bar);self.panel.refresh(self.data)
     def tearDown(self):
@@ -74,7 +74,8 @@ class ResetChartTests(unittest.TestCase):
             with patch('codex_taskbar.app.text',wraps=app.text) as draw:self.panel.grab()
             labels=[call.args[3] for call in draw.call_args_list]
             dates=[datetime.fromtimestamp(row['at']).strftime('%m.%d') for row in self.data['reset_events']]
-            shown=[call.args[3] for call in draw.call_args_list if call.args[2]==190]
+            shown=[call.args[3] for call in draw.call_args_list if call.args[2]==201]
+            self.assertTrue(shown)
             self.assertEqual(shown,dates[:len(shown)])
             self.assertIn(self.bar.label('Quota used')+' 20%',self.panel.accessibleDescription())
 
@@ -82,9 +83,11 @@ class ResetChartTests(unittest.TestCase):
         for language in app.LANGUAGES:
             self.bar.settings['language']=language;panel=self.panel;panel.refresh(self.data)
             height=panel.height();self.data['reset_events']*=2;panel.refresh(self.data)
+            self.data['reset_events']=[dict(row,id=str(index)) for index,row in enumerate(self.data['reset_events'])];panel.refresh(self.data)
             self.assertEqual(panel.height(),height);self.assertGreater(panel.history_scroll.maximum(),0)
             panel.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress,Qt.Key.Key_End,Qt.KeyboardModifier.NoModifier))
             self.assertEqual(panel.history_scroll.value(),panel.history_scroll.maximum())
+            self.assertEqual(panel.selected_history_index(),len(panel.rows)-1)
             point=QPointF(panel.width()-19,190+panel.forecast_height)
             self.assertEqual(panel.history_at(point),len(panel.rows)-1)
             offset=panel.history_scroll.value();panel.refresh(self.data);self.assertEqual(panel.history_scroll.value(),offset)
@@ -106,3 +109,69 @@ class ResetChartTests(unittest.TestCase):
             old=panel.history_scroll.value();wheel(angle=QPoint(0,-120));self.assertEqual(panel.history_scroll.value(),old);self.assertGreater(panel.scroll,0)
             wheel(angle=QPoint(0,-120),shift=True);self.assertGreater(panel.history_scroll.value(),old)
         self.provider.request_reset.assert_not_called()
+
+    def chart_mouse(self,kind,point):
+        held=Qt.MouseButton.LeftButton if kind!=QEvent.Type.MouseButtonRelease else Qt.MouseButton.NoButton
+        button=Qt.MouseButton.NoButton if kind==QEvent.Type.MouseMove else Qt.MouseButton.LeftButton
+        event=QMouseEvent(kind,point,QPointF(self.panel.mapToGlobal(point.toPoint())),button,held,Qt.KeyboardModifier.NoModifier)
+        app.QApplication.sendEvent(self.panel,event)
+
+    def test_hover_previews_click_keeps_selection_and_leave_restores_it(self):
+        panel=self.panel;self.bar.motion_enabled=False
+        point=QPointF(18+1.5*panel.column_width,150)
+        self.chart_mouse(QEvent.Type.MouseMove,point)
+        self.assertEqual(panel.active_history_index(),1);self.assertEqual(panel.selected_history_index(),0)
+        self.chart_mouse(QEvent.Type.MouseButtonPress,point);self.chart_mouse(QEvent.Type.MouseButtonRelease,point)
+        self.assertEqual(panel.selected_history_index(),1)
+        self.assertIn('95%',panel.toolTip())
+        self.chart_mouse(QEvent.Type.MouseMove,QPointF(18+2.5*panel.column_width,150));self.assertEqual(panel.active_history_index(),2)
+        panel.leaveEvent(QEvent(QEvent.Type.Leave));self.assertEqual(panel.active_history_index(),1)
+        self.assertFalse(panel.history_focus.timer.isActive());self.provider.request_reset.assert_not_called()
+
+    def test_drag_and_changed_data_cancel_click_selection(self):
+        panel=self.panel;original=self.data['reset_events']
+        self.data['reset_events']=[dict(original[index%4],id=str(index)) for index in range(12)];panel.refresh(self.data)
+        point=QPointF(18+1.5*panel.column_width,150);pressed=panel.history_key(panel.rows[1])
+        self.chart_mouse(QEvent.Type.MouseButtonPress,point);self.chart_mouse(QEvent.Type.MouseMove,point-QPointF(65,0));self.chart_mouse(QEvent.Type.MouseButtonRelease,point-QPointF(65,0))
+        self.assertGreater(panel.history_scroll.value(),0);self.assertNotEqual(panel.history_selected,pressed)
+        panel.select_history(1);key=panel.history_selected
+        self.data['reset_events'].insert(0,dict(original[0],id='earlier',at=original[0]['at']-1));panel.refresh(self.data)
+        self.assertEqual(panel.history_selected,key)
+        self.chart_mouse(QEvent.Type.MouseButtonPress,QPointF(50,150))
+        self.data['reset_events']=[];panel.refresh(self.data);self.chart_mouse(QEvent.Type.MouseButtonRelease,QPointF(50,150))
+        self.assertIsNone(panel.history_selected);self.assertIsNone(panel.history_press)
+
+    def test_selection_motion_reverses_and_stops_when_hidden(self):
+        panel=self.panel;self.bar.motion_enabled=True
+        with patch.object(panel,'isVisible',return_value=True):
+            panel.select_history(1);panel.history_focus.advance(.025);value=panel.history_focus.value
+            panel.select_history(0);self.assertEqual(panel.history_focus.value,value)
+            self.assertNotEqual(panel.history_focus.value,panel.history_focus.target)
+        panel.hideEvent(QHideEvent());self.assertFalse(panel.history_focus.timer.isActive())
+
+    def test_pointer_down_previews_and_drag_out_returns_to_selection(self):
+        panel=self.panel;self.bar.motion_enabled=False;point=QPointF(18+1.5*panel.column_width,150)
+        self.chart_mouse(QEvent.Type.MouseButtonPress,point)
+        self.assertEqual(panel.active_history_index(),1);self.assertEqual(panel.selected_history_index(),0)
+        self.chart_mouse(QEvent.Type.MouseButtonRelease,QPointF(-5,150))
+        self.assertEqual(panel.active_history_index(),0);self.assertIsNone(panel.history_press)
+
+    def test_system_reduced_motion_settles_the_selection(self):
+        self.bar.motion_enabled=True;self.bar.popup=self.panel
+        try:
+            with patch.object(self.panel,'isVisible',return_value=True):self.panel.select_history(1)
+            self.assertTrue(self.panel.history_focus.timer.isActive())
+            with patch('codex_taskbar.app.windows.animations_enabled',return_value=False):self.bar.sync_motion()
+            self.assertFalse(self.panel.history_focus.timer.isActive());self.assertEqual(self.panel.history_focus.value,self.panel.history_focus.target)
+        finally:self.bar.popup=None
+
+    def test_scrolled_edges_never_show_partial_amount_labels(self):
+        self.bar.settings['language']='en';panel=self.panel
+        self.data['reset_events']=[dict(self.data['reset_events'][index%4],id=str(index)) for index in range(12)];panel.refresh(self.data)
+        panel.history_scroll.setValue(panel.column_width//2)
+        with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
+        labels=[call for call in draw.call_args_list if call.args[2]==112]
+        self.assertTrue(labels)
+        for call in labels:
+            self.assertGreaterEqual(call.args[1],18)
+            self.assertLessEqual(call.args[1]+app.QFontMetricsF(call.args[4]).horizontalAdvance(call.args[3]),panel.width()-18)

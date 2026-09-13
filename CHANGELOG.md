@@ -4,7 +4,7 @@
 
 ## Unreleased
 
-- Compare reset periods across a fixed-height, horizontally scrollable Token chart. Show exact units, dates and recorded quota percentages; browse with the touchpad, wheel, draggable scrollbar or keyboard. Keep zero and missing values distinct and reset controls visible on short screens.
+- Compare reset periods with aligned values, a shared baseline and one fixed detail line. Hover to preview, click to keep a period selected, and drag or use the scrollbar/keyboard to browse. Selection motion is interruptible and honors reduced motion; zero and missing readings stay distinct.
 ## 0.10.1
 
 - Restore synchronized Running dot breathing and a gentler travelling title highlight; keep hidden and reduced-motion views still.
