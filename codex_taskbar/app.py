@@ -1407,7 +1407,7 @@ class ResetPopup(TaskPopup):
         percent_width=max([QFontMetricsF(face(7)).horizontalAdvance(self.history_percent(row)) for row in self.rows]+[0])
         usage_width=number_width+4+unit_width
         self.bar_left=18+date_width+12
-        width=max(self.WIDTH,math.ceil(self.bar_left+44+8+usage_width+12+percent_width+24+source_width+18))
+        width=max(self.WIDTH,math.ceil(self.bar_left+6+usage_width+16+percent_width+24+source_width+18))
         self.place_panel(width,height)
         self.scroll_body=self.owner.floating or self.height()<height
         if self.scroll_body:
@@ -1417,7 +1417,7 @@ class ResetPopup(TaskPopup):
         self.button.setGeometry(18,self.height()-48,self.width()-36,32)
         self.history_divider=self.width()-18-source_width-12
         self.percent_right=self.history_divider-12
-        self.token_right=self.percent_right-percent_width-12
+        self.token_right=self.percent_right-percent_width-16
         self.token_left=self.token_right-usage_width
         self.number_right=self.token_left+number_width
         self.unit_left=self.number_right+4
@@ -1463,7 +1463,7 @@ class ResetPopup(TaskPopup):
     def history_bar_rect(self,row,y):
         value=self.history_tokens(row)
         fraction=value/self.history_max if value is not None and self.history_max else 0
-        return QRectF(self.bar_left,y-3,max(0,self.token_left-8-self.bar_left)*fraction,6)
+        return QRectF(self.bar_left,y-9,max(0,self.token_right+6-self.bar_left)*fraction,18)
 
     def paintEvent(self,event):
         p=panel_painter(self);window=countdown_window(effective_quota_data(self.data),self.owner.settings)
@@ -1490,13 +1490,14 @@ class ResetPopup(TaskPopup):
         if not self.rows:text(p,18,89,self.owner.label('No records yet'),face(8),'#94a2b3')
         for i,row in enumerate(self.rows):
             y=89+i*self.ROW_HEIGHT-(0 if self.scroll_body else self.scroll)
-            text(p,18,y,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),face(8),MUTED)
+            text(p,18,y,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),face(8),'#9aa9ba')
             box=self.history_bar_rect(row,y)
             if box.width()>0:
-                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(BLUE));p.drawRoundedRect(box,min(3,box.width()/2),3)
+                fill=QColor(BLUE);fill.setAlpha(38)
+                p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill);p.drawRoundedRect(box,min(4,box.width()/2),4)
             number,unit=self.history_parts(row)
-            text(p,self.number_right-QFontMetricsF(face(8)).horizontalAdvance(number),y,number,face(8),MUTED)
-            if unit:text(p,self.unit_left,y,unit,face(8),MUTED)
+            text(p,self.number_right-QFontMetricsF(face(8)).horizontalAdvance(number),y,number,face(8),'#d3dfeb')
+            if unit:text(p,self.unit_left,y,unit,face(8),'#d3dfeb')
             percent=self.history_percent(row)
             text(p,self.percent_right-QFontMetricsF(face(7)).horizontalAdvance(percent),y,percent,face(7),TITLE_MUTED)
             label=self.history_label(row)

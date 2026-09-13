@@ -22,7 +22,7 @@ class ResetChartTests(unittest.TestCase):
         first=panel.history_bar_rect(rows[0],89);second=panel.history_bar_rect(rows[1],133)
         self.assertEqual(first.width(),second.width()*2)
         self.assertEqual(panel.history_percent(rows[0]),'20%');self.assertEqual(panel.history_percent(rows[1]),'95%')
-        self.assertEqual(first.left(),second.left());self.assertLess(first.right(),panel.token_left)
+        self.assertEqual(first.left(),second.left());self.assertGreater(first.right(),panel.token_right)
         panel.scroll=44;self.assertEqual(panel.history_bar_rect(rows[1],89).width(),second.width())
         rows[1].pop('before');panel.refresh(self.data)
         self.assertEqual(panel.history_percent(rows[1]),'—');self.assertEqual(panel.history_bar_rect(rows[1],89).width(),second.width())
@@ -73,7 +73,8 @@ class ResetChartTests(unittest.TestCase):
                 self.assertEqual(bar.center().y(),y)
                 numbers=[call for call in draw.call_args_list if call.args[3]==panel.history_parts(row)[0] and call.args[2]==y and call.args[1]<panel.number_right]
                 self.assertEqual(len(numbers),1)
-                self.assertLessEqual(bar.right()+8,panel.token_left)
+                self.assertLessEqual(bar.right(),panel.token_right+6)
+                self.assertGreaterEqual(panel.token_left-panel.bar_left,6)
                 self.assertLess(panel.token_right,panel.percent_right)
                 self.assertLess(panel.percent_right,panel.history_divider)
             self.assertLessEqual(panel.ROW_HEIGHT,28)
