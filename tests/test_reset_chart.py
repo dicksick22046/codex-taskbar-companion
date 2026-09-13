@@ -61,5 +61,19 @@ class ResetChartTests(unittest.TestCase):
             labels=[call.args[3] for call in draw.call_args_list]
             self.assertEqual(labels.count(self.bar.label('Quota used')),1)
             dates=[datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M') for row in self.data['reset_events']]
-            self.assertEqual([call.args[3] for call in draw.call_args_list if call.args[1]==18 and call.args[2] in {89+i*44 for i in range(4)}],dates)
+            self.assertEqual([call.args[3] for call in draw.call_args_list if call.args[1]==18 and call.args[2] in {89+i*self.panel.ROW_HEIGHT for i in range(4)}],dates)
             self.assertIn(self.bar.label('Quota used')+' 20%',self.panel.accessibleDescription())
+
+    def test_each_period_is_one_aligned_row_with_separate_columns(self):
+        for language in app.LANGUAGES:
+            self.bar.settings['language']=language;panel=self.panel;panel.refresh(self.data)
+            with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
+            for index,row in enumerate(self.data['reset_events']):
+                y=89+index*panel.ROW_HEIGHT;bar=panel.history_bar_rect(row,y)
+                self.assertEqual(bar.center().y(),y)
+                numbers=[call for call in draw.call_args_list if call.args[3]==panel.history_parts(row)[0] and call.args[2]==y and call.args[1]<panel.number_right]
+                self.assertEqual(len(numbers),1)
+                self.assertLessEqual(bar.right()+8,panel.token_left)
+                self.assertLess(panel.token_right,panel.percent_right)
+                self.assertLess(panel.percent_right,panel.history_divider)
+            self.assertLessEqual(panel.ROW_HEIGHT,28)

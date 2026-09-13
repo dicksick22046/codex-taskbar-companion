@@ -387,7 +387,7 @@ class InteractionTests(unittest.TestCase):
             labels=[c for c in calls if c.args[3]==self.bar.label('Usage history')]
             self.assertEqual(len(labels),1)
             self.assertEqual(len({c.args[1] for c in labels}),1)
-            row_y={108+i*panel.ROW_HEIGHT for i in range(3)}
+            row_y={89+i*panel.ROW_HEIGHT for i in range(3)}
             numbers=[c for c in calls if c.args[3] in ('20.37','5.22','—') and c.args[2] in row_y and c.args[1]<=panel.number_right]
             self.assertEqual(len(numbers),3)
             for call in numbers:

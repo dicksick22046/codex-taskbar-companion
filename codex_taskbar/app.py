@@ -1382,7 +1382,7 @@ class SessionPopup(TaskPopup):
 class ResetPopup(TaskPopup):
     mode='resets'
     WIDTH=300
-    ROW_HEIGHT=44
+    ROW_HEIGHT=28
 
     def __init__(self,owner):
         super().__init__(owner)
@@ -1404,10 +1404,10 @@ class ResetPopup(TaskPopup):
         date_width=max([metrics.horizontalAdvance(datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M')) for row in self.rows]+[0])
         number_width=max([metrics.horizontalAdvance(self.history_parts(row)[0]) for row in self.rows]+[0])
         unit_width=max([metrics.horizontalAdvance(self.history_parts(row)[1]) for row in self.rows]+[0])
-        percent_width=max([QFontMetricsF(face(7)).horizontalAdvance(self.history_percent(row)) for row in self.rows]+[QFontMetricsF(face(7)).horizontalAdvance(self.owner.label('Quota used'))])
+        percent_width=max([QFontMetricsF(face(7)).horizontalAdvance(self.history_percent(row)) for row in self.rows]+[0])
         usage_width=number_width+4+unit_width
-        heading_width=metrics.horizontalAdvance(self.owner.label('Usage history'))
-        width=max(self.WIDTH,math.ceil(18+max(date_width,heading_width)+16+percent_width+24+source_width+18),math.ceil(18+96+12+usage_width+18))
+        self.bar_left=18+date_width+12
+        width=max(self.WIDTH,math.ceil(self.bar_left+44+8+usage_width+12+percent_width+24+source_width+18))
         self.place_panel(width,height)
         self.scroll_body=self.owner.floating or self.height()<height
         if self.scroll_body:
@@ -1417,7 +1417,7 @@ class ResetPopup(TaskPopup):
         self.button.setGeometry(18,self.height()-48,self.width()-36,32)
         self.history_divider=self.width()-18-source_width-12
         self.percent_right=self.history_divider-12
-        self.token_right=self.width()-18
+        self.token_right=self.percent_right-percent_width-12
         self.token_left=self.token_right-usage_width
         self.number_right=self.token_left+number_width
         self.unit_left=self.number_right+4
@@ -1463,7 +1463,7 @@ class ResetPopup(TaskPopup):
     def history_bar_rect(self,row,y):
         value=self.history_tokens(row)
         fraction=value/self.history_max if value is not None and self.history_max else 0
-        return QRectF(18,y+16,max(0,self.token_left-30)*fraction,6)
+        return QRectF(self.bar_left,y-3,max(0,self.token_left-8-self.bar_left)*fraction,6)
 
     def paintEvent(self,event):
         p=panel_painter(self);window=countdown_window(effective_quota_data(self.data),self.owner.settings)
@@ -1495,8 +1495,8 @@ class ResetPopup(TaskPopup):
             if box.width()>0:
                 p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(BLUE));p.drawRoundedRect(box,min(3,box.width()/2),3)
             number,unit=self.history_parts(row)
-            text(p,self.number_right-QFontMetricsF(face(8)).horizontalAdvance(number),y+19,number,face(8),MUTED)
-            if unit:text(p,self.unit_left,y+19,unit,face(8),MUTED)
+            text(p,self.number_right-QFontMetricsF(face(8)).horizontalAdvance(number),y,number,face(8),MUTED)
+            if unit:text(p,self.unit_left,y,unit,face(8),MUTED)
             percent=self.history_percent(row)
             text(p,self.percent_right-QFontMetricsF(face(7)).horizontalAdvance(percent),y,percent,face(7),TITLE_MUTED)
             label=self.history_label(row)
