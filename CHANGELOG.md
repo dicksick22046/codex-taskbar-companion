@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+## 0.10.0
+
 - Pin any task status from its list into one connected multi-row panel; each row rotates independently and supports hover feedback and direct unpinning.
 - Migrate the former Running strip preference and remove its separate display switch and drag position.
 - Place usage sums beside their periods; simplify reset history, distinguish Official in purple, and show recorded pre-reset quota percentages when available.
