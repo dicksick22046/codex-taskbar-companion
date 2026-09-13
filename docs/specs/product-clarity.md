@@ -20,6 +20,8 @@ The history group now has one localized History usage heading, with no separate 
 
 The pinned status interaction is governed by [pinned status](pinned-status.md), replacing the independent Running-strip preference and placement described in this milestone.
 
+The optional reset forecast uses the public [Codex Reset Today API](https://codex-reset.today/developers), without keys, account identifiers or task data. Fetch asynchronously only when the reset panel is in use, at most once per 15 minutes after success (two-minute retry after failure), with a four-second request timeout and bounded JSON. Display only a validated, fresh Codex forecast with a future window end and probability from 0 to 100; expired, missing or failed data hides the row. Show its remaining time window and approximate probability below Next reset, with third-party global scope, confidence and source in the tooltip. Never substitute it for the official per-account resetsAt or invent an exact ETA. The [Codex Reset API](https://codexreset.dev/api/) was also checked but currently publishes null probabilities due to insufficient samples.
+
 ## 2. Independent windows and defaults
 
 - `show_tasks` now controls the original strip's task status counts. Add independently persisted `show_task_strip` for the Running task strip. Turning either off must not change the other or the Provider state.

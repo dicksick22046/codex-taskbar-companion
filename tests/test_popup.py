@@ -1,6 +1,6 @@
 import unittest
 from codex_taskbar.app import QApplication,QWidget,TaskPopup,TaskListPopup,StatusBar,SessionPopup,ResetPopup,DISPLAY_DEFAULTS
-from unittest.mock import patch
+from unittest.mock import patch,Mock
 from codex_taskbar.i18n import translate
 from PySide6.QtCore import QEvent,QPointF,Qt
 from PySide6.QtGui import QMouseEvent
@@ -10,6 +10,8 @@ from tests import test_interactions as fixtures
 class Owner(QWidget):
     floating=False
     language='en'
+    def __init__(self):
+        super().__init__();self.forecast=Mock();self.forecast.get.return_value=None
 
     def label(self,key,**values):return translate(self.language,key,**values)
 
@@ -99,7 +101,7 @@ class PopupInitialFrameTests(unittest.TestCase):
         provider=type('Provider',(),{'get':lambda self:{},'stop':lambda self:None})()
         with patch('codex_taskbar.app.read_settings',return_value={**DISPLAY_DEFAULTS,'chart_unit':'M'}),patch('codex_taskbar.app.RELEASE_REPOSITORY',''), \
              patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.QSystemTrayIcon'), \
-             patch('codex_taskbar.task_strip.TaskStrip.ensure_visible',new=lambda self:False):
+             patch('codex_taskbar.task_strip.PinnedPanel.ensure_visible',new=lambda self:False):
             bar=StatusBar(provider)
         try:
             self.assertTrue(app.windows.user32.GetWindowLongPtrW(int(bar.winId()),-20)&0x80000)

@@ -71,7 +71,8 @@ class InteractionQualityTests(unittest.TestCase):
         point=strip.task_area.center().toPoint();self.mouse(strip,QEvent.Type.MouseButtonPress,point);value=strip.task_blend
         self.assertEqual(strip.task_tween.state(),QAbstractAnimation.State.Paused)
         self.provider.get.reset_mock()
-        with patch('codex_taskbar.app.windows.placement',return_value=None):self.bar.tick()
+        def refresh_data(*args):self.bar.data=self.provider.get()
+        with patch.object(self.bar,'tick_status',side_effect=refresh_data),patch.object(self.bar,'isVisible',return_value=True),patch('codex_taskbar.app.windows.foreground_fullscreen',return_value=False):self.bar.tick()
         self.provider.get.assert_called_once();self.assertEqual(strip.task_blend,value)
         self.assertEqual(strip.pressed[1]['id'],'running')
         strip.release_press();self.assertFalse(strip.press_inside)

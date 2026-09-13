@@ -4,10 +4,11 @@ import os
 from pathlib import Path
 import math
 from .i18n import LANGUAGES
+from .tasks import STATUS_CATEGORIES
 
 DISPLAY_DEFAULTS = {
     'show_week': True, 'show_session': True, 'show_countdown': True,
-    'show_daily': True, 'show_tasks': True, 'show_task_strip': False,
+    'show_daily': True, 'show_tasks': True,
 }
 
 
@@ -57,8 +58,9 @@ def read_settings(path):
     result = dict(data)
     for key, default in DISPLAY_DEFAULTS.items():
         result[key] = data[key] if isinstance(data.get(key), bool) else default
-    if 'show_task_strip' not in data and isinstance(data.get('show_tasks'),bool):
-        result['show_task_strip']=data['show_tasks']
+    pinned=data.get('pinned_statuses') if 'pinned_statuses' in data else (['running'] if data.get('show_task_strip',data.get('show_tasks',False)) is True else [])
+    result['pinned_statuses']=[kind for kind in STATUS_CATEGORIES if isinstance(pinned,list) and kind in pinned]
+    result.pop('show_task_strip',None);result.pop('task_strip_position',None)
     result['show_task_statistics']=data.get('show_task_statistics') is True
     result['chart_unit'] = data.get('chart_unit') if data.get('chart_unit') in ('M', '100M') else 'M'
     result['hover_panels'] = data.get('hover_panels') is True
@@ -70,7 +72,7 @@ def read_settings(path):
     result['capsule_transparency']=max(0,min(100,transparency)) if type(transparency) is int else 0
     result['placement']=data.get('placement') if data.get('placement') in ('auto','taskbar','floating') else 'auto'
     result['floating_topmost']=data.get('floating_topmost') is not False
-    for key in ('floating_position','task_strip_position'):
+    for key in ('floating_position',):
         position=data.get(key)
         valid=isinstance(position,dict) and isinstance(position.get('screen'),str) and all(
             type(position.get(k)) in (int,float) and math.isfinite(position[k]) and 0<=position[k]<=1 for k in ('x','y'))

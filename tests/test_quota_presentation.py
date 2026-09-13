@@ -101,8 +101,33 @@ class QuotaPresentationTests(unittest.TestCase):
         self.assertEqual(app.usage_update_label(self.bar,{'quota_updated_at':datetime.now().isoformat()}),'Update time unknown')
         panel=app.ResetPopup(self.bar);panel.refresh(self.data)
         try:
-            self.assertEqual(panel.history_label({'kind':'official','windows':['10080']}),'Official · 7d')
+            self.assertEqual(panel.history_label({'kind':'official','windows':['10080']}),'Official')
             self.assertIn('inferred',panel.toolTip())
+        finally:panel.close();panel.deleteLater()
+
+    def test_history_amounts_and_percentages_use_separate_real_sources(self):
+        self.data['reset_events']=[{'kind':'official','at':datetime.now().timestamp(),'tokens':500000000,
+                                    'before':{'10080':{'remaining':51},'300':{'remaining':80}}},
+                                   {'kind':'manual','at':datetime.now().timestamp(),'tokens':100000000}]
+        panel=app.ResetPopup(self.bar);panel.refresh(self.data)
+        try:
+            self.assertEqual(panel.history_percent(self.data['reset_events'][0]),'49% used')
+            self.assertEqual(panel.history_percent(dict(self.data['reset_events'][0],windows=['300'])),'20% used')
+            self.assertEqual(panel.history_percent(self.data['reset_events'][1]),'')
+            with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
+            official=next(c for c in draw.call_args_list if c.args[3]=='Official')
+            self.assertEqual(official.args[5],app.LILAC)
+            self.assertNotIn('7d',self.rendered_labels(panel));self.assertNotIn('Tokens',self.rendered_labels(panel))
+        finally:panel.close();panel.deleteLater()
+
+    def test_forecast_is_separate_and_disappears_when_expired(self):
+        now=datetime.now().timestamp();self.bar.forecast.value=dict(chance=3,confidence='low',generated=now,end=now+48*3600)
+        panel=app.ResetPopup(self.bar);panel.refresh(self.data)
+        try:
+            labels=self.rendered_labels(panel);self.assertIn('Reset forecast',labels);self.assertIn('Within 48h · ~3%',labels)
+            self.assertIn('Low confidence',panel.toolTip());self.assertIn('codex-reset.today',panel.toolTip())
+            self.bar.forecast.value['end']=now-1;panel.refresh(self.data)
+            self.assertNotIn('Reset forecast',self.rendered_labels(panel));self.assertEqual(panel.forecast_height,0)
         finally:panel.close();panel.deleteLater()
 
     def test_waiting_has_a_visible_name_and_menu_categories_dispatch_existing_panels(self):
@@ -117,7 +142,8 @@ class QuotaPresentationTests(unittest.TestCase):
                 action.trigger();self.assertEqual(opened.call_args.args,(action.data(),))
         self.data.update(tasks=[],recent_tasks=[]);self.bar.refresh_status_menu()
         self.assertEqual(len(self.bar.status_menu.actions()),1)
-        self.assertFalse(self.bar.status_menu.actions()[0].isEnabled())
+        self.assertTrue(self.bar.status_menu.actions()[0].isEnabled())
+        self.assertEqual(self.bar.status_menu.actions()[0].data(),'running')
 
     def test_running_list_animation_requires_visible_hover_overflow(self):
         panel=app.TaskListPopup(self.bar,'running');panel.refresh(self.data)

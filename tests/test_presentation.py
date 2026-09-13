@@ -100,7 +100,7 @@ class FloatingInteractionTests(unittest.TestCase):
                 panel.grab();panel.close();panel.deleteLater()
 
     def test_reset_long_body_scrolls_but_button_stays_visible(self):
-        self.data['reset_credits']=[{'id':str(i),'expiresAt':1900000000+i} for i in range(30)]
+        self.data['reset_credits']=[{'id':str(i),'expiresAt':1900000000+i} for i in range(100)]
         panel=app.ResetPopup(self.bar);panel.refresh(self.data)
         self.assertGreater(panel.scroll_limit(),0);self.assertTrue(panel.rect().contains(panel.button.geometry()))
         panel.scroll=panel.scroll_limit();panel.grab();panel.close();panel.deleteLater()

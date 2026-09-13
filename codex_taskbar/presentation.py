@@ -30,15 +30,6 @@ def floating_rect(bounds,position=None,width=540):
     return clamp_rect(QRect(x,y,width,height),bounds)
 
 
-def task_strip_rect(bounds,anchor=None,position=None):
-    rect=floating_rect(bounds,position,width=420)
-    if position or anchor is None or not anchor.isValid():return rect
-    y=anchor.top()-rect.height()-8
-    if y<bounds.top():y=anchor.bottom()+9
-    rect.moveTo(anchor.x(),y)
-    return clamp_rect(rect,bounds)
-
-
 def remember_position(rect,bounds,screen):
     rect=clamp_rect(rect,bounds)
     return {'screen':screen,'x':(rect.x()-bounds.x())/max(1,bounds.width()-rect.width()),

@@ -33,6 +33,7 @@ from .i18n import LANGUAGES, translate, project_label, task_title
 from .presentation import floating_rect,remember_position,clamp_rect,panel_rect,AutoPlacement
 from .motion import Spring
 from .attention_notices import AttentionNotices
+from .forecast import ResetForecast,SOURCE as FORECAST_SOURCE
 
 PANEL, MUTED, ACCENT, BLUE = "#262b33", "#bac5d2", "#53d5a0", "#79b6f5"
 TITLE_MUTED = "#8797aa"
@@ -197,6 +198,32 @@ def usage_update_label(owner,data,compact=True):
     return owner.label('Updated {time}',time=at.strftime(pattern))
 
 
+def connected_surface(box,edge=None):
+    path=QPainterPath();path.setFillRule(Qt.FillRule.WindingFill)
+    radius=min(14.,box.height()/2);path.addRoundedRect(box,radius,radius)
+    if edge=='top':path.addRect(QRectF(box.left(),box.top(),box.width(),radius))
+    elif edge=='bottom':path.addRect(QRectF(box.left(),box.bottom()-radius,box.width(),radius))
+    return path.simplified()
+
+
+class PinButton(QPushButton):
+    def __init__(self,owner,parent):
+        super().__init__(parent);self.owner=owner;self.setCheckable(True);self.setAutoDefault(False)
+        self.setCursor(Qt.CursorShape.PointingHandCursor);self.setFixedSize(26,26)
+    def sync(self,checked):
+        self.setChecked(checked);label=self.owner.label('Unpin status' if checked else 'Pin status')
+        self.setAccessibleName(label);self.setToolTip(label);self.update()
+    def paintEvent(self,event):
+        p=QPainter(self);p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        light=self.owner.settings.get('capsule_theme')=='light';color='#40566d' if light else '#9eacbc'
+        if self.underMouse() or self.isDown() or self.hasFocus():
+            p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('#c8d3df' if light else '#465364' if self.isDown() else '#35414f'))
+            p.drawRoundedRect(QRectF(1,1,24,24),5,5)
+        pen(p,('#2169ad' if light else BLUE) if self.isChecked() else color,1.3)
+        p.drawLine(QPointF(9,6),QPointF(17,6));p.drawLine(QPointF(10,6),QPointF(10,12));p.drawLine(QPointF(16,6),QPointF(16,12))
+        p.drawLine(QPointF(10,12),QPointF(7,16));p.drawLine(QPointF(7,16),QPointF(19,16));p.drawLine(QPointF(19,16),QPointF(16,12));p.drawLine(QPointF(13,16),QPointF(13,22));p.end()
+
+
 def chart_values(days, history, today):
     values=[history.get(day.isoformat()) if day<=today else None for day in days]
     completed=[value for day,value in zip(days,values) if day<today and value is not None]
@@ -284,8 +311,9 @@ class StatusBar(QWidget):
         self.update_timer.timeout.connect(self.updater.check)
         if RELEASE_REPOSITORY:self.update_timer.start();QTimer.singleShot(5000,self.updater.check)
         self.ring_values={};self.ring_tweens={}
-        from .task_strip import TaskStrip
-        self.task_strip=TaskStrip(self)
+        from .task_strip import PinnedPanel
+        self.task_strip=PinnedPanel(self)
+        self.forecast=ResetForecast(self)
         self.timer=QTimer(self);self.timer.timeout.connect(self.tick);self.timer.start(150)
         self.animation=QTimer(self);self.animation.timeout.connect(self.animate)
         self.native_handle=int(self.winId())  # Create the native handle only after transparency attributes are set.
@@ -563,7 +591,8 @@ class StatusBar(QWidget):
         font_metrics=QFontMetricsF(face(8));badge_x=x-6
         for kind in statuses:badge_x+=font_metrics.horizontalAdvance(self.count_label(kind,counts[kind]))+30
         if statuses:right=badge_x-6
-        return min(limit,math.ceil(right+12))
+        minimum=240 if any(counts[kind] for kind in self.settings.get('pinned_statuses',[]) if kind in counts) else 0
+        return min(limit,max(minimum,math.ceil(right+12)))
 
     def fitted_width(self,limit,resize=False):
         target=self.content_width(limit)
@@ -640,17 +669,26 @@ class StatusBar(QWidget):
         if key not in DISPLAY_DEFAULTS:return
         self.quota_tween.stop();self.quota_previous=None;self.quota_progress=1.
         self.settings[key]=bool(value);self.save_settings();self.hide_popup(immediate=True);self.tick(resize=True)
-        if key in ('show_tasks','show_task_strip') and self.settings_dialog:self.settings_dialog.refresh()
+        if key=='show_tasks' and self.settings_dialog:self.settings_dialog.refresh()
 
     def refresh_status_menu(self):
         self.status_menu.setTitle(self.label('Task status'));self.status_menu.clear()
         counts=category_counts(self.provider.get())
         for category in CATEGORY_LABELS:
-            if counts[category]:
+            if counts[category] or category in self.settings.get('pinned_statuses',[]):
                 action=self.status_menu.addAction(self.label(CATEGORY_LABELS[category])+' · '+str(counts[category]))
                 action.setData(category)
                 action.triggered.connect(lambda checked=False,mode=category:QTimer.singleShot(0,lambda:self.toggle_popup(mode)))
         if not self.status_menu.actions():self.status_menu.addAction(self.label('No tasks')).setEnabled(False)
+
+    def set_status_pinned(self,category,pinned):
+        if category not in STATUS_CATEGORIES:return
+        selected=set(self.settings.get('pinned_statuses',[]))
+        if pinned:selected.add(category);self.settings['show_tasks']=True
+        else:selected.discard(category)
+        self.settings['pinned_statuses']=[kind for kind in STATUS_CATEGORIES if kind in selected]
+        self.save_settings();self.hide_popup(immediate=True);self.tick(resize=True)
+        if self.settings_dialog:self.settings_dialog.refresh()
 
     def refresh_accessibility(self):
         values=[value for kind,value,fraction in self.displayed_metrics()]
@@ -818,7 +856,7 @@ class StatusBar(QWidget):
                 screen=QApplication.screenAt(event.globalPosition().toPoint()) or self.screen()
                 target=self.geometry();target.moveTopLeft(position+delta.toPoint())
                 target=clamp_rect(target,screen.availableGeometry());self.setGeometry(target)
-                self.position=target.getRect();event.accept();return
+                self.position=target.getRect();self.task_strip.layout_rows(self.task_strip.size_motion.value);event.accept();return
         self.track_pointer(event.position())
         self.update_hover_popup(self.mapToGlobal(event.position().toPoint()))
 
@@ -951,9 +989,9 @@ class StatusBar(QWidget):
                 background=QColor(palette['background']);background.setAlpha(round(255*(1-self.settings.get('capsule_transparency',0)/100)))
                 p.setPen(Qt.PenStyle.NoPen);p.setBrush(background)
                 box=QRectF(1,1,self.width()-2,self.height()-2)
-                p.drawRoundedRect(box,box.height()/2,box.height()/2)
+                p.drawPath(connected_surface(box,getattr(self.task_strip,'joined_edge',None)))
             if self.floating:
-                shape=QPainterPath();shape.addRoundedRect(QRectF(1,1,self.width()-2,self.height()-2),(self.height()-2)/2,(self.height()-2)/2)
+                shape=connected_surface(QRectF(1,1,self.width()-2,self.height()-2),getattr(self.task_strip,'joined_edge',None))
                 p.setClipPath(shape,Qt.ClipOperation.IntersectClip)
             for mode,rect,target in self.hit_regions:p.fillRect(rect.toAlignedRect(),QColor(0,0,0,1))
             if self.floating and self.hit_regions:
@@ -1171,8 +1209,9 @@ class TaskPopup(QWidget):
         y=21+self.TITLE_HEIGHT
         icon(p,'chart',23,y,LILAC)
         total_label='Σ '+chart_number(total,self.owner.chart_unit);metrics=QFontMetricsF(face(8))
-        total_x=self.width()-18-metrics.horizontalAdvance(total_label)
-        text(p,39,y,metrics.elidedText(period,Qt.TextElideMode.ElideRight,max(0,total_x-51)),face(8),BLUE)
+        shown=metrics.elidedText(period,Qt.TextElideMode.ElideRight,max(0,self.width()-39-18-14-metrics.horizontalAdvance(total_label)))
+        total_x=39+metrics.horizontalAdvance(shown)+14
+        text(p,39,y,shown,face(8),BLUE)
         text(p,total_x,y,total_label,face(8),LILAC)
 
     def mouseMoveEvent(self,event):
@@ -1238,26 +1277,29 @@ class ResetPopup(TaskPopup):
 
     def refresh(self,data):
         self.data=data;self.rows=data.get('reset_events',[])
+        self.owner.forecast.request();self.forecast=self.owner.forecast.get()
+        self.forecast_height=24 if self.forecast else 0
         self.credits=data.get('reset_credits',[])
         self.history_height=26*max(1,len(self.rows) if self.owner.floating else min(6,len(self.rows)))
         self.credits_top=76+self.history_height+26
-        height=self.credits_top+24+26*max(1,len(self.credits))+46
+        height=self.credits_top+24+26*max(1,len(self.credits))+46+self.forecast_height
         self.full_height=height
         source_width=max([QFontMetricsF(face(7)).horizontalAdvance(self.history_label(row)) for row in self.rows]+[0])
         metrics=QFontMetricsF(face(8))
         date_width=max([metrics.horizontalAdvance(datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M')) for row in self.rows]+[0])
-        label_width=metrics.horizontalAdvance(self.owner.label('Tokens'))
         number_width=max([metrics.horizontalAdvance(self.history_parts(row)[0]) for row in self.rows]+[0])
         unit_width=max([metrics.horizontalAdvance(self.history_parts(row)[1]) for row in self.rows]+[0])
-        usage_width=max(label_width,number_width+4+unit_width)
+        percent_width=max([QFontMetricsF(face(7)).horizontalAdvance(self.history_percent(row)) for row in self.rows]+[0])
+        usage_width=number_width+4+unit_width+(12+percent_width if percent_width else 0)
         width=max(self.WIDTH,math.ceil(18+date_width+16+usage_width+24+source_width+18))
         self.place_panel(width,height)
         self.button.setGeometry(18,self.height()-48,self.width()-36,32)
         self.history_divider=self.width()-18-source_width-12
         self.token_right=self.history_divider-12
         self.token_left=self.token_right-usage_width
-        self.number_right=self.token_right-unit_width-4
+        self.number_right=self.token_left+number_width
         self.unit_left=self.number_right+4
+        self.percent_left=self.unit_left+unit_width+12
         credit=data.get('reset_selected')
         eligible=bool(credit and data.get('reset_account'))
         if credit and not data.get('reset_retry') and credit.get('expiresAt') is not None:eligible=eligible and credit['expiresAt']>time.time()
@@ -1265,7 +1307,10 @@ class ResetPopup(TaskPopup):
         label='Resetting…' if data.get('reset_busy') else 'Retry reset' if data.get('reset_retry') or data.get('reset_state')=='unavailable' else 'Nothing to reset' if data.get('reset_state')=='nothingToReset' else 'Reset quota'
         self.button.setText(self.owner.label(label))
         self.scroll=min(self.scroll,self.scroll_limit())
-        self.setToolTip(self.owner.label('Account quota')+'\n'+quota_update_label(self.owner,data)+'\n'+self.owner.label('Official resets are inferred from recovery outside scheduled or confirmed manual resets.'))
+        self.setToolTip(self.owner.label('Local tokens; account quota percentages.')+'\n'+quota_update_label(self.owner,data)+'\n'+self.owner.label('Official resets are inferred from recovery outside scheduled or confirmed manual resets.')+'\n'+self.owner.label('Percentages are the last recorded quota usage before each reset; missing records stay blank.'))
+        if self.forecast:
+            confidence=self.owner.label({'low':'Low confidence','medium':'Medium confidence','high':'High confidence'}[self.forecast['confidence']])
+            self.setToolTip(self.toolTip()+'\n'+self.owner.label('Community forecast for global resets, not your account schedule.')+' '+confidence+'\n'+FORECAST_SOURCE)
         self.update()
 
     def history_parts(self,row):
@@ -1278,10 +1323,14 @@ class ResetPopup(TaskPopup):
 
     def history_label(self,row):
         label={'scheduled':'Scheduled','manual':'Manual','official':'Official'}.get(row['kind'],'')
-        if label:label=self.owner.label(label)
-        windows_text=' + '.join({'300':'5h','10080':'7d'}.get(k,k+'m') for k in row.get('windows',[]))
-        label=' · '.join(part for part in (label,windows_text) if part)
-        return label
+        return self.owner.label(label) if label else ''
+
+    def history_percent(self,row):
+        before=row.get('before') or {};affected=row.get('windows') or ('10080','300')
+        window=next((before[key] for key in ('10080','300') if key in affected and before.get(key)),{})
+        remaining=window.get('remaining')
+        if type(remaining) not in (int,float) or not math.isfinite(remaining) or not 0<=remaining<=100:return ''
+        return self.owner.label('{value}% used',value=f'{100-remaining:g}')
 
     def paintEvent(self,event):
         p=panel_painter(self);window=countdown_window(effective_quota_data(self.data),self.owner.settings)
@@ -1293,11 +1342,15 @@ class ResetPopup(TaskPopup):
             pen(p,'#3d4652',.6);p.drawLine(QPointF(18,y),QPointF(right,y))
         text(p,18,23,self.owner.label('Next reset'),face(8),'#94a2b3')
         value=datetime.fromtimestamp(window['resets_at']).strftime('%m.%d %H:%M') if window and window.get('resets_at') else '—'
-        right_label(value,23,BLUE);divider(44)
+        right_label(value,23,BLUE)
+        if self.forecast:
+            text(p,18,49,self.owner.label('Reset forecast'),face(8),'#94a2b3')
+            hours=max(1,math.ceil((self.forecast['end']-time.time())/3600))
+            right_label(self.owner.label('Within {hours}h · ~{value}%',hours=hours,value=f"{self.forecast['chance']:g}"),49,LILAC,face(7))
+        p.translate(0,self.forecast_height);divider(44)
         if self.owner.floating:
-            p.save();p.setClipRect(QRectF(0,48,self.width(),max(0,self.height()-104)));p.translate(0,-self.scroll)
-        text(p,18,64,self.owner.label('History'),face(8),'#94a2b3')
-        text(p,self.token_left,64,self.owner.label('Tokens'),face(8),'#94a2b3')
+            p.save();p.setClipRect(QRectF(0,48,self.width(),max(0,self.height()-104-self.forecast_height)));p.translate(0,-self.scroll)
+        text(p,18,64,self.owner.label('Usage history'),face(8),'#94a2b3')
         p.save();p.setClipRect(QRectF(18,76,self.width()-36,self.history_height),Qt.ClipOperation.IntersectClip)
         if not self.rows:text(p,18,89,self.owner.label('No records yet'),face(8),'#94a2b3')
         for i,row in enumerate(self.rows):
@@ -1306,10 +1359,12 @@ class ResetPopup(TaskPopup):
             number,unit=self.history_parts(row)
             text(p,self.number_right-QFontMetricsF(face(8)).horizontalAdvance(number),y,number,face(8),MUTED)
             if unit:text(p,self.unit_left,y,unit,face(8),MUTED)
+            percent=self.history_percent(row)
+            if percent:text(p,self.percent_left,y,percent,face(7),TITLE_MUTED)
             label=self.history_label(row)
             if label:
                 pen(p,'#53606d',.6);p.drawLine(QPointF(self.history_divider,y-5),QPointF(self.history_divider,y+5))
-                right_label(label,y,BLUE,face(7))
+                right_label(label,y,LILAC if row['kind']=='official' else BLUE,face(7))
         p.restore()
         divider(self.credits_top-20)
         count=self.data.get('reset_available');credit=self.data.get('reset_selected')
@@ -1344,6 +1399,10 @@ class TaskListPopup(TaskPopup):
         self.setWindowTitle('Codex · '+owner.label('Tasks'))
         self.hovered=None;self.rows=[];self.hover_started=time.monotonic()
         self.keyboard_task=None;self.animation=QTimer(self);self.animation.timeout.connect(self.animate)
+        self.pin_button=None
+        if mode in STATUS_CATEGORIES:
+            self.pin_button=PinButton(owner,self)
+            self.pin_button.clicked.connect(lambda checked:owner.set_status_pinned(self.mode,checked))
 
     def showEvent(self,event):super().showEvent(event);self.sync_animation()
     def hideEvent(self,event):self.animation.stop();super().hideEvent(event)
@@ -1391,6 +1450,8 @@ class TaskListPopup(TaskPopup):
             self.place_panel(width,height);height=self.height()
         else:self.setGeometry(left,max(screen.top(),self.anchor_bottom()-height),width,height)
         self.scroll=min(self.scroll,max(0,self.full_height-(height-16)))
+        if self.pin_button:
+            self.pin_button.move(self.width()-34,3);self.pin_button.sync(self.mode in self.owner.settings.get('pinned_statuses',[]))
         if self.mode=='daily' and self.hovered is None:self.setToolTip(self.usage_tooltip())
         self.sync_units();self.track_hover(self.mapFromGlobal(QCursor.pos()));self.sync_animation()
         if self.keyboard_task not in {t['id'] for t in self.rows}:self.keyboard_task=self.rows[0]['id'] if self.rows else None

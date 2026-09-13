@@ -1,5 +1,4 @@
 from contextlib import ExitStack
-from types import SimpleNamespace
 from unittest.mock import Mock,patch
 import unittest
 
@@ -23,14 +22,16 @@ class TaskStripTests(unittest.TestCase):
     def setUp(self):
         self.stack=ExitStack();self.addCleanup(self.stack.close)
         self.visible=Mock(return_value=False);self.show=Mock()
-        self.stack.enter_context(patch.object(TaskStrip,'ensure_visible',new=lambda strip:self.visible()))
         self.stack.enter_context(patch.object(TaskStrip,'show',new=lambda strip:self.show()))
-        self.owner=QWidget();self.owner.settings={'show_tasks':True,'show_task_strip':True,'language':'en','floating_position':{'screen':'unchanged','x':.2,'y':.8,'width':300}}
+        self.owner=QWidget();self.owner.settings={'show_tasks':True,'pinned_statuses':['running'],'language':'en','floating_position':{'screen':'unchanged','x':.2,'y':.8,'width':300}}
         self.owner.language='en';self.owner.font=app.face();self.owner.motion_enabled=False
+        self.owner.label=lambda key,**values:app.translate(self.owner.language,key,**values)
         self.owner.menu=Mock();self.owner.menu.isVisible.return_value=False
         self.owner.settings_dialog=None;self.owner.confirming_reset=False
         self.owner.open_task=Mock();self.owner.save_settings=Mock();self.owner.hide_popup=Mock()
-        self.strip=TaskStrip(self.owner)
+        self.parent=QWidget();self.addCleanup(self.parent.deleteLater)
+        self.owner.set_status_pinned=Mock()
+        self.strip=TaskStrip(self.owner,parent=self.parent)
         self.addCleanup(self.strip.deleteLater);self.addCleanup(self.owner.deleteLater);self.addCleanup(self.strip.shutdown)
 
     def refresh(self,tasks,now=0,**kwargs):
@@ -118,23 +119,22 @@ class TaskStripTests(unittest.TestCase):
             self.strip.grab();marquee.assert_not_called()
             self.strip.task_tween.setCurrentTime(450);self.strip.grab();marquee.assert_called_once()
 
-    def test_drag_threshold_persists_only_independent_position(self):
+    def test_drag_cancels_click_without_moving_attached_row(self):
         self.refresh([task('a')]);original=dict(self.owner.settings['floating_position'])
         point=self.press();start=self.strip.mapToGlobal(point.toPoint());threshold=QApplication.startDragDistance()
         self.strip.mouseMoveEvent(self.event(QEvent.Type.MouseMove,point+QPointF(threshold-1,0),start+QPoint(threshold-1,0)))
         self.assertFalse(self.strip.dragging)
         self.strip.mouseMoveEvent(self.event(QEvent.Type.MouseMove,point+QPointF(threshold,0),start+QPoint(threshold,0)))
         self.assertTrue(self.strip.dragging);self.assertIsNone(self.strip.pressed)
-        self.release(point);self.owner.open_task.assert_not_called();self.owner.save_settings.assert_called_once()
+        self.release(point);self.owner.open_task.assert_not_called();self.owner.save_settings.assert_not_called()
         self.assertEqual(self.owner.settings['floating_position'],original)
-        self.assertIn('screen',self.owner.settings['task_strip_position']);self.assertEqual(self.owner.settings['task_strip_position']['width'],420)
+        self.assertNotIn('task_strip_position',self.owner.settings)
 
     def test_hidden_or_disabled_strip_cancels_press_and_stops_paint_clock(self):
         self.refresh([task('a')]);self.press()
         self.refresh([task('a')],now=3,hidden=True)
         self.assertIsNone(self.strip.pressed);self.assertIsNone(self.strip.drag_origin);self.assertFalse(self.strip.needs_animation)
-        self.visible.reset_mock();self.owner.settings['show_task_strip']=False
-        self.refresh([task('a')],now=4);self.visible.assert_not_called()
+        self.refresh([task('a')],now=4,hidden=True);self.assertTrue(self.strip.hidden)
 
     def test_fullscreen_restore_preserves_pause_progress(self):
         items=[task('a'),task('b')];self.refresh(items)
@@ -142,25 +142,13 @@ class TaskStripTests(unittest.TestCase):
         self.assertEqual(self.strip.current_id,'a')
         self.refresh(items,now=62);self.assertEqual(self.strip.current_id,'b')
 
-    def test_main_strip_hidden_still_uses_primary_screen_and_shows(self):
-        bounds=QRect(-1280,0,1280,900);screen=SimpleNamespace(availableGeometry=lambda:bounds,name=lambda:'Primary')
-        with patch('codex_taskbar.task_strip.QApplication.primaryScreen',return_value=screen):self.refresh([task('a')])
-        self.visible.assert_called_once();self.assertTrue(bounds.contains(self.strip.geometry()));self.assertEqual(self.strip.height(),30)
-
-    def test_saved_display_missing_uses_primary_and_clamps(self):
-        bounds=QRect(-1280,-200,1280,900);screen=SimpleNamespace(availableGeometry=lambda:bounds,name=lambda:'Primary')
-        self.owner.settings['task_strip_position']={'screen':'removed','x':1.,'y':1.,'width':420}
-        with patch('codex_taskbar.task_strip.QApplication.screens',return_value=[screen]),patch('codex_taskbar.task_strip.QApplication.primaryScreen',return_value=screen):
-            self.refresh([task('a')]);self.assertTrue(bounds.contains(self.strip.geometry()))
-            self.assertEqual(self.strip.geometry().bottomRight(),bounds.bottomRight())
-
     def test_languages_keep_content_and_finite_title_space_without_resizing(self):
         item=task('side','A long unchanged task title '*15,project='',side_chat=True,parent_id='parent')
         self.refresh([item]);initial=self.strip.geometry()
         for language in ('en','zh-CN','ja','es'):
             self.owner.language=language
             with patch('codex_taskbar.app.side_tag',wraps=app.side_tag) as label:self.strip.grab()
-            self.assertEqual(label.call_args.args[3],language);self.assertGreater(self.strip.task_rect.width(),200)
+            label.assert_not_called();self.assertGreater(self.strip.task_rect.width(),200)
             self.assertEqual(self.strip.geometry(),initial);self.assertEqual(self.strip.task['title'],item['title'])
 
     def test_reduced_motion_finishes_transition_and_shared_clock_only_paints_visible(self):
@@ -182,12 +170,6 @@ class TaskStripTests(unittest.TestCase):
             self.strip.track_pointer(self.strip.task_area.center());self.assertTrue(self.strip.needs_animation)
             with patch.object(self.strip,'update') as update:self.strip.animate();update.assert_called_once()
             self.strip.track_pointer(QPointF(-1,-1));self.assertFalse(self.strip.needs_animation)
-
-    def test_status_counts_switch_does_not_hide_running_strip(self):
-        self.owner.settings['show_tasks']=False;self.refresh([task('a')])
-        self.assertFalse(self.strip.hidden);self.visible.assert_called_once()
-        self.assertEqual(self.strip.accessibleName(),'Running task strip')
-        self.assertIn('Fixture',self.strip.accessibleDescription())
 
     def test_shutdown_cleans_interaction_and_future_refresh_is_noop(self):
         self.refresh([task('a')]);self.press();self.strip.shutdown();self.visible.reset_mock()

@@ -16,9 +16,10 @@ class InteractionTests(unittest.TestCase):
     def setUpClass(cls):cls.application=app.QApplication.instance() or app.QApplication([])
 
     def setUp(self):
+        forecast=patch('codex_taskbar.app.ResetForecast.request',new=lambda self:None);forecast.start();self.addCleanup(forecast.stop)
         runtime=tempfile.TemporaryDirectory();self.addCleanup(runtime.cleanup)
         isolated=patch('codex_taskbar.app.RUNTIME',Path(runtime.name));isolated.start();self.addCleanup(isolated.stop)
-        hidden=patch('codex_taskbar.task_strip.TaskStrip.ensure_visible',new=lambda self:False)
+        hidden=patch('codex_taskbar.task_strip.PinnedPanel.ensure_visible',new=lambda self:False)
         hidden.start();self.addCleanup(hidden.stop)
         now=datetime.now().astimezone().timestamp()
         self.data={'tasks':[{'id':'running','project':'Demo','title':'Running task','running':True,'tokens':500,'daily_seconds':7200,'round_seconds':42}],
@@ -28,13 +29,13 @@ class InteractionTests(unittest.TestCase):
                      {'minutes':300,'remaining':60,'starts_at':now-3600,'resets_at':now+4*3600}],
             'daily_quota':'12%','reset_account':'fixture-account','reset_selected':credit(),'reset_available':3}
         self.provider=Mock();self.provider.get.side_effect=lambda:self.data
-        with patch('codex_taskbar.app.read_settings',return_value={**app.DISPLAY_DEFAULTS,'show_task_strip':True,'chart_unit':'M'}),patch('codex_taskbar.app.windows.animations_enabled',return_value=True), \
+        with patch('codex_taskbar.app.read_settings',return_value={**app.DISPLAY_DEFAULTS,'pinned_statuses':['running'],'chart_unit':'M'}),patch('codex_taskbar.app.windows.animations_enabled',return_value=True), \
              patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.RELEASE_REPOSITORY',''),patch('codex_taskbar.app.QSystemTrayIcon'):
             self.bar=app.StatusBar(self.provider)
         self.bar.timer.stop();self.bar.animation.stop();self.bar.update_timer.stop();self.bar.tray.hide()
         self.bar.resize(1200,30);self.bar.data=self.data
-        self.bar.settings=dict(app.DISPLAY_DEFAULTS,show_task_strip=True);self.bar.chart_unit='M';self.bar.grab()
-        self.strip=self.bar.task_strip;self.strip.refresh(self.data);self.strip.grab()
+        self.bar.settings=dict(app.DISPLAY_DEFAULTS,pinned_statuses=['running']);self.bar.chart_unit='M';self.bar.grab()
+        self.strip=self.bar.task_strip.rows['running'];self.strip.refresh(self.data);self.strip.grab()
         pointer=patch('codex_taskbar.app.windows.pointer_over',return_value=True);pointer.start();self.addCleanup(pointer.stop)
 
     def tearDown(self):self.bar.close();self.bar.deleteLater()
@@ -93,7 +94,8 @@ class InteractionTests(unittest.TestCase):
                     running.grab();self.assertEqual([c.kwargs['role'] for c in tag.call_args_list],['Main','Side'])
                     for task,role in ((main,'Main'),(child,'Side')):
                         tag.reset_mock();self.strip.task=task;self.strip.grab()
-                        self.assertEqual(tag.call_args.kwargs['role'],role)
+                        tag.assert_not_called()
+                        self.strip.track_pointer(self.strip.task_area.center());self.assertIn(self.bar.label(role),self.strip.toolTip())
             with patch('codex_taskbar.app.os.startfile') as opened:
                 self.assertTrue(self.bar.open_task(running.rows[1]));opened.assert_called_once_with('codex://threads/'+parent)
         finally:
@@ -337,7 +339,7 @@ class InteractionTests(unittest.TestCase):
             with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
             labels=[call.args[3] for call in draw.call_args_list]
             self.assertEqual(panel.history_usage(self.data['reset_events'][0]),expected)
-            self.assertIn(self.bar.label('Tokens'),labels);self.assertIn(self.bar.label('History'),labels)
+            self.assertNotIn(self.bar.label('Tokens'),labels);self.assertIn(self.bar.label('Usage history'),labels)
             self.assertNotIn('History · 100M',labels)
             category=next(call for call in draw.call_args_list if call.args[3]==panel.history_label(self.data['reset_events'][0]))
             self.assertEqual(category.args[5],app.BLUE)
@@ -360,7 +362,7 @@ class InteractionTests(unittest.TestCase):
             panel=app.ResetPopup(self.bar);panel.refresh(self.data)
             with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
             calls=draw.call_args_list
-            labels=[c for c in calls if c.args[3]==self.bar.label('Tokens')]
+            labels=[c for c in calls if c.args[3]==self.bar.label('Usage history')]
             self.assertEqual(len(labels),1)
             self.assertEqual(len({c.args[1] for c in labels}),1)
             row_y={89+i*26 for i in range(3)}
@@ -377,8 +379,8 @@ class InteractionTests(unittest.TestCase):
         panel=app.ResetPopup(self.bar)
         for quotas in ([],self.data['quota'][:1],self.data['quota']):
             panel.refresh({**self.data,'quota':quotas})
-            self.assertEqual(panel.history_label({'kind':'official','windows':['10080']}),'Official · 7d')
-            self.assertEqual(panel.history_label({'kind':'scheduled','windows':['300','10080']}),'Scheduled · 5h + 7d')
+            self.assertEqual(panel.history_label({'kind':'official','windows':['10080']}),'Official')
+            self.assertEqual(panel.history_label({'kind':'scheduled','windows':['300','10080']}),'Scheduled')
             self.assertEqual(panel.history_label({'kind':'manual','windows':[]}),'Manual')
         panel.close();panel.deleteLater()
 
@@ -473,7 +475,7 @@ class InteractionTests(unittest.TestCase):
         self.data['reset_credits']=[credit()]
         for language in app.LANGUAGES:
             self.bar.settings['language']=language
-            for kind,key in ((app.TaskPopup,'Cycle · Tokens'),(app.SessionPopup,'Reset {time}'),(app.ResetPopup,'History')):
+            for kind,key in ((app.TaskPopup,'Cycle · Tokens'),(app.SessionPopup,'Reset {time}'),(app.ResetPopup,'Usage history')):
                 panel=kind(self.bar);panel.refresh(self.data)
                 with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
                 labels=[c.args[3] for c in draw.call_args_list]

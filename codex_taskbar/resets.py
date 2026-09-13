@@ -98,7 +98,7 @@ class ResetLedger:
         followup = record.pop('followup', None)
         if followup:
             event = next((e for e in record['events'] if e['id'] == followup['id']), None)
-            if event:event['windows'] = changed_windows(followup['before'], current)
+            if event:event.update(windows=changed_windows(followup['before'], current),after=copy.deepcopy(current))
         elif not record.get('pending'):
             self._observed_events(record['windows'], current, at)
         record['windows'] = current
@@ -135,7 +135,8 @@ class ResetLedger:
         if outcome in ('reset', 'alreadyRedeemed'):
             if not any(e['id'] == pending['key'] for e in self.record['events']):
                 self.record['events'].append({'id': pending['key'], 'at': time.time(), 'kind': 'manual',
-                                             'windows': changed_windows(pending['before'], self.record['windows'])})
+                                             'windows': changed_windows(pending['before'], self.record['windows']),
+                                             'before':copy.deepcopy(pending['before'])})
             self.record['followup'] = {'id': pending['key'], 'before': pending['before']}
         else:self._observed_events(pending['before'], self.record['windows'], time.time())
         self.record['pending'] = None

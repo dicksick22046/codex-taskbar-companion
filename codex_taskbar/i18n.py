@@ -3,6 +3,13 @@
 LANGUAGE_NAMES = (('en','English'),('zh-CN','简体中文'),('ja','日本語'),('es','Español'))
 LANGUAGES = tuple(code for code,name in LANGUAGE_NAMES)
 COPY = {
+    'Usage history':'历史用量','{value}% used':'已用 {value}%',
+    'Local tokens; account quota percentages.':'数值为本机Token用量，百分比为账户额度消耗。',
+    'Percentages are the last recorded quota usage before each reset; missing records stay blank.':'百分比为重置前最后记录的额度消耗；缺少记录时不显示。',
+    'Pin status':'固定此状态','Unpin status':'取消固定','Pinned tasks':'固定任务',
+    'Reset forecast':'重置预测','Within {hours}h · ~{value}%':'{hours}小时内 · 约{value}%',
+    'Low confidence':'低置信度','Medium confidence':'中等置信度','High confidence':'高置信度',
+    'Community forecast for global resets, not your account schedule.':'第三方对全局重置的预测，不代表你的账号重置时间。',
     'Not enough room for enabled indicators. Hide some indicators or rotate them.':'空间不足以完整显示已启用的指标。请隐藏部分指标或开启轮换。',
     'Task status counts':'任务状态与数量','Running task strip':'进行中任务悬浮条',
     'Status bar placement':'状态条位置','Keep floating windows on top':'悬浮窗口保持置顶',
@@ -77,6 +84,13 @@ COPY = {
 }
 
 TRANSLATIONS = {'zh-CN': COPY, 'ja': {
+    'Usage history':'使用量の履歴','{value}% used':'{value}% 使用',
+    'Local tokens; account quota percentages.':'数値は本機のToken使用量、割合はアカウント利用枠の使用率です。',
+    'Percentages are the last recorded quota usage before each reset; missing records stay blank.':'割合は各リセット前に最後に記録された利用枠の使用率です。記録がない場合は表示しません。',
+    'Pin status':'この状態を固定','Unpin status':'固定を解除','Pinned tasks':'固定タスク',
+    'Reset forecast':'リセット予測','Within {hours}h · ~{value}%':'{hours}時間以内 · 約{value}%',
+    'Low confidence':'信頼度：低','Medium confidence':'信頼度：中','High confidence':'信頼度：高',
+    'Community forecast for global resets, not your account schedule.':'全体リセットに関する第三者の予測であり、個人のリセット予定ではありません。',
     'Not enough room for enabled indicators. Hide some indicators or rotate them.':'有効な項目をすべて表示する空きがありません。一部を非表示にするか、順番に表示してください。',
     'Task status counts':'タスクの状態と件数','Running task strip':'実行中タスクのフローティングバー',
     'Status bar placement':'ステータスバーの配置','Keep floating windows on top':'フローティングウィンドウを常に手前に表示',
@@ -149,6 +163,13 @@ TRANSLATIONS = {'zh-CN': COPY, 'ja': {
     'Update to {version}': '{version}に更新',
     'Version {version} is available. Update from Settings.': 'バージョン{version}が公開されました。設定から更新できます。',
 }, 'es': {
+    'Usage history':'Historial de consumo','{value}% used':'{value}% usado',
+    'Local tokens; account quota percentages.':'Tokens locales; porcentajes de cuota de la cuenta.',
+    'Percentages are the last recorded quota usage before each reset; missing records stay blank.':'Los porcentajes son el último uso de cuota registrado antes de cada reinicio; se omiten si faltan registros.',
+    'Pin status':'Fijar estado','Unpin status':'Desfijar','Pinned tasks':'Tareas fijadas',
+    'Reset forecast':'Previsión de reinicio','Within {hours}h · ~{value}%':'En {hours}h · ~{value}%',
+    'Low confidence':'Confianza baja','Medium confidence':'Confianza media','High confidence':'Confianza alta',
+    'Community forecast for global resets, not your account schedule.':'Previsión externa de reinicios globales, no del calendario de tu cuenta.',
     'Not enough room for enabled indicators. Hide some indicators or rotate them.':'No hay espacio para todos los indicadores. Oculta algunos o activa la rotación.',
     'Task status counts':'Estado y recuento de tareas','Running task strip':'Barra de tareas en curso',
     'Status bar placement':'Ubicación de la barra de estado','Keep floating windows on top':'Mantener las ventanas flotantes encima',

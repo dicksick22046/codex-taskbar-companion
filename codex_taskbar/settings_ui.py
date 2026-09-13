@@ -13,7 +13,7 @@ from .diagnostics import diagnostic_text
 DISPLAY_LABELS = {
     'show_week': 'Weekly quota', 'show_session': '5-hour quota',
     'show_countdown': 'Reset countdown', 'show_daily': 'Daily quota usage',
-    'show_tasks': 'Task status counts', 'show_task_strip':'Running task strip',
+    'show_tasks': 'Task status counts',
 }
 
 
@@ -198,7 +198,7 @@ class SettingsDialog(QDialog):
         for caption,control in ((self.placement_label,self.placement),(self.display_label,self.display),(self.capsule_label,self.capsule),(self.transparency_label,self.transparency),(self.language_label,self.language)):
             caption.setBuddy(control);control.setAccessibleName(caption.text())
         floating_options=self.bar.settings.get('placement') in ('auto','floating')
-        topmost_options=floating_options or self.bar.settings.get('show_task_strip',False)
+        topmost_options=floating_options
         self.topmost.setText(label('Keep floating windows on top'));self.topmost.setVisible(topmost_options);self.topmost_line.setVisible(topmost_options)
         self.topmost.row.setVisible(topmost_options);self.display_row.setVisible(floating_options);self.display_line.setVisible(floating_options)
         self.display_label.setText(label('Floating display'));self.display.setAccessibleName(label('Floating display'));self.refresh_displays()

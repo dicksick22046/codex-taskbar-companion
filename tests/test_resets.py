@@ -100,6 +100,7 @@ class ResetTests(unittest.TestCase):
     def test_success_is_one_manual_event_not_an_extra_official(self):
         params=self.ledger.begin('fixture-account','new')
         self.ledger.finish('reset')
+        self.assertEqual(self.ledger.view()['reset_events'][0]['before']['10080']['remaining'],30)
         after=copy.deepcopy(self.raw);after['rateLimits']['primary']['usedPercent']=0
         self.ledger.observe(after)
         events=self.ledger.view()['reset_events']

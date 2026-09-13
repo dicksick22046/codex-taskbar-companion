@@ -55,14 +55,11 @@ class UIFlowTests(unittest.TestCase):
             self.bar.set_language('zh-CN');self.assertEqual(self.bar.width(),self.bar.content_width(self.bar.content_limit))
         self.assertTrue(self.dialog.isVisible());self.provider.stop.assert_not_called()
 
-    def test_task_strip_topmost_setting_is_available_in_taskbar_mode(self):
+    def test_pinned_rows_have_no_separate_visibility_or_topmost_switch(self):
         self.bar.set_placement('taskbar');self.dialog.refresh()
-        self.assertFalse(self.dialog.topmost.row.isHidden())
-        self.assertTrue(self.dialog.display_row.isHidden())
-        self.dialog.checks['show_task_strip'].setChecked(False)
         self.assertTrue(self.dialog.topmost.row.isHidden())
-        self.dialog.checks['show_task_strip'].setChecked(True)
-        self.assertFalse(self.dialog.topmost.row.isHidden())
+        self.assertTrue(self.dialog.display_row.isHidden())
+        self.assertNotIn('show_task_strip',self.dialog.checks)
 
     def test_startup_failure_restores_actual_state_and_explains_failure(self):
         with patch('codex_taskbar.app.startup.set_enabled',side_effect=OSError('fixture')),patch('builtins.print'):
