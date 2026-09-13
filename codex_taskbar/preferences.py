@@ -65,6 +65,7 @@ def read_settings(path):
     result['chart_unit'] = data.get('chart_unit') if data.get('chart_unit') in ('M', '100M') else 'M'
     result['hover_panels'] = data.get('hover_panels') is True
     result['rotate_quotas'] = data.get('rotate_quotas') is True
+    result['show_metric_labels'] = data.get('show_metric_labels') is not False
     result['notify_input'] = data.get('notify_input') is True
     result['language'] = data.get('language') if data.get('language') in LANGUAGES else 'en'
     result['capsule_theme'] = data.get('capsule_theme') if data.get('capsule_theme') in ('dark','light') else 'dark'

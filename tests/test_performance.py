@@ -26,12 +26,16 @@ class RenderingBudgetTests(unittest.TestCase):
             self.assertEqual(visible.call_count,100);draw.assert_not_called()
             self.data['daily_quota']='13%';self.bar.tick();draw.assert_called()
 
-    def test_static_running_counts_do_not_start_or_repaint_animation(self):
+    def test_running_clock_paints_only_its_region_and_stops_without_activity(self):
         with patch.object(self.bar,'isVisible',return_value=True),patch.object(self.bar,'update') as draw:
             self.bar.animation.start(33)
             self.bar.animate()
-            draw.assert_not_called();self.assertFalse(self.bar.animation.isActive())
+            self.assertTrue(self.bar.animation.isActive());self.assertEqual(draw.call_count,1)
+            rect=next(rect for mode,rect,task in self.bar.hit_regions if mode=='running')
+            self.assertEqual(draw.call_args.args,(rect.toAlignedRect(),));draw.reset_mock()
             self.bar.settings['show_tasks']=False;self.bar.animate();draw.assert_not_called()
+            self.assertFalse(self.bar.animation.isActive())
+            self.bar.settings['show_tasks']=True;self.bar.motion_enabled=False;self.bar.animate();draw.assert_not_called()
 
     def test_settings_status_does_not_reread_startup_or_rebuild_controls(self):
         with patch('codex_taskbar.settings_ui.startup.enabled',return_value=False):dialog=app.SettingsDialog(self.bar)

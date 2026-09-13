@@ -153,6 +153,15 @@ def side_tag(p,x,y,language='en',light=False,role='Side'):
     return width
 
 
+def running_dot(p,x,y,color,animated):
+    wave=(1-math.cos(time.monotonic()*math.tau/2.8))/2 if animated else 0.
+    p.setPen(Qt.PenStyle.NoPen)
+    if animated:
+        halo=QColor(color);halo.setAlpha(round(25+35*wave));p.setBrush(halo)
+        p.drawEllipse(QPointF(x,y),4.+.7*wave,4.+.7*wave)
+    p.setBrush(QColor(color));radius=2.5+.3*wave;p.drawEllipse(QPointF(x,y),radius,radius)
+
+
 def activity_count(p,x,y,count,color=ACCENT,pulse=True,text_color=None,glyph=None,emphasis=0):
     font=face(8);label=str(count)
     width=QFontMetricsF(font).horizontalAdvance(label)+24
@@ -160,7 +169,7 @@ def activity_count(p,x,y,count,color=ACCENT,pulse=True,text_color=None,glyph=Non
     p.setPen(Qt.PenStyle.NoPen);p.setBrush(background)
     p.drawRoundedRect(QRectF(x,y-9,width,18),9,9)
     if glyph:text(p,x+5,y,glyph,face(8),color)
-    elif pulse:icon(p,'task',x+8,y,color)
+    elif pulse:running_dot(p,x+8,y,color,True)
     else:
         p.setBrush(QColor(color));p.drawEllipse(QPointF(x+8,y),2.5,2.5)
     text(p,x+17,y,label,font,text_color or ('#b0ddca' if pulse else QColor(color).lighter(115)))
@@ -589,12 +598,17 @@ class StatusBar(QWidget):
                 result.append((kind,label,fraction))
         return result
 
+    def set_metric_labels(self,value):
+        self.settings['show_metric_labels']=bool(value)
+        self.quota_tween.stop();self.quota_previous=None;self.quota_progress=1.
+        self.save_settings();self.tick(resize=True);self.update()
+
     def metric_label(self,kind):
         return self.label('Reset {time}',time='').strip() if kind=='clock' else self.label({'quota':'Week left','spent':'Today used','session':'5h left'}[kind])
 
     def metric_parts(self,kind,value):
         label=self.metric_label(kind)
-        return label,value.removeprefix(label+' ')
+        return label if self.settings.get('show_metric_labels',True) else '',value.removeprefix(label+' ')
 
     def count_label(self,kind,count):
         return self.label('Needs input')+' '+str(count) if kind=='waiting' else str(count)
@@ -607,7 +621,8 @@ class StatusBar(QWidget):
         choices=self.quota_choices()
         labels={kind:value for kind,value,fraction in choices}
         metrics=[(kind,labels[kind],fraction) for kind,value,fraction in metrics]
-        if not self.settings.get('rotate_quotas'):return metrics
+        if not self.settings.get('rotate_quotas'):
+            return metrics if self.settings.get('show_metric_labels',True) else [(kind,self.metric_parts(kind,value)[1],fraction) for kind,value,fraction in metrics]
         current=next((m for m in choices if m[0]==self.quota_kind),choices[0] if choices else None)
         return [current] if current else []
 
@@ -621,7 +636,7 @@ class StatusBar(QWidget):
                 template='6d 23h' if 'd' in number or number=='—' else '23h 59m' if 'h' in number else '59m'
                 number_width=metrics.horizontalAdvance(template)
             else:number_width=max(metrics.horizontalAdvance('100%'),metrics.horizontalAdvance(number))
-            widths.append(metrics.horizontalAdvance(label)+3+number_width)
+            widths.append(metrics.horizontalAdvance(label)+(3 if label else 0)+number_width)
         return max(widths,default=0)
 
     def content_width(self,limit):
@@ -695,7 +710,14 @@ class StatusBar(QWidget):
 
     def animate(self):
         self.task_strip.animate()
-        if not self.task_strip.needs_animation:self.animation.stop()
+        if self.running_feedback:
+            for mode,rect,task in self.hit_regions:
+                if mode=='running':self.update(rect.toAlignedRect())
+        if not self.running_feedback and not self.task_strip.needs_animation:self.animation.stop()
+
+    @property
+    def running_feedback(self):
+        return bool(self.isVisible() and self.motion_enabled and self.settings['show_tasks'] and category_counts(self.data)['running'])
 
     def set_chart_unit(self,unit):
         if unit not in ('M','100M') or unit==self.chart_unit:return
@@ -739,7 +761,8 @@ class StatusBar(QWidget):
         if self.settings_dialog:self.settings_dialog.refresh()
 
     def refresh_accessibility(self):
-        values=[value for kind,value,fraction in self.displayed_metrics()]
+        full={kind:value for kind,value,fraction in self.quota_choices()}
+        values=[full[kind] for kind,value,fraction in self.displayed_metrics()]
         if values and quota_is_cached(self.data):values.append(self.label('Cached'))
         if self.settings['show_tasks']:
             counts=category_counts(self.data)
@@ -942,7 +965,7 @@ class StatusBar(QWidget):
         if self.popup:
             panel_key=(self.popup,id(self.data),int(time.time()),self.position,self.task_strip.occupied_geometry().getRect())
             if panel_key!=self.panel_key:self.panel_key=panel_key;self.popup.refresh(self.data)
-        if self.motion_enabled and self.task_strip.needs_animation:
+        if self.running_feedback or self.task_strip.needs_animation:
             if not self.animation.isActive():self.animation.start(33)
         else:self.animation.stop()
 
@@ -1057,7 +1080,7 @@ class StatusBar(QWidget):
                 if self.settings.get('rotate_quotas'):
                     label,number=self.metric_parts(draw_kind,value)
                     text(p,x+12,line_y,label,face(8),palette['muted'])
-                    number_x=x+12+QFontMetricsF(face(8)).horizontalAdvance(label)+3
+                    number_x=x+12+QFontMetricsF(face(8)).horizontalAdvance(label)+(3 if label else 0)
                     text(p,number_x,line_y,number,face(8),palette['text'])
                 else:text(p,x+12,line_y,value,face(8),palette['muted'])
             current_fraction=None if fraction is None else self.ring_values.get(kind,fraction)
@@ -1080,9 +1103,9 @@ class StatusBar(QWidget):
             shown_width=width
             if self.settings.get('rotate_quotas'):
                 font=QFontMetricsF(face(8));label,number=self.metric_parts(kind,value)
-                shown_width=font.horizontalAdvance(label)+3+font.horizontalAdvance(number)
+                shown_width=font.horizontalAdvance(label)+(3 if label else 0)+font.horizontalAdvance(number)
                 if previous and self.quota_progress<.5:
-                    label,number=self.metric_parts(previous[0],previous[1]);shown_width=font.horizontalAdvance(label)+3+font.horizontalAdvance(number)
+                    label,number=self.metric_parts(previous[0],previous[1]);shown_width=font.horizontalAdvance(label)+(3 if label else 0)+font.horizontalAdvance(number)
             feedback=QRectF(x-11,4,shown_width+28,self.height()-8)
             x+=12+width+(13 if self.settings.get('rotate_quotas') else 17)
             mode={'quota':'usage','session':'session','spent':'daily','clock':'resets'}[hit_kind]
@@ -1109,7 +1132,7 @@ class StatusBar(QWidget):
             badge_x=self.width()-12-total
         for mode,color in [('waiting',palette['amber']),('running',palette['green']),('unread',palette['amber']),('failed',palette['failed']),('stopped',palette['stopped'])]:
             if counts[mode]:
-                width=activity_count(p,badge_x,y,self.count_label(mode,counts[mode]),color,pulse=False,text_color=color if theme=='light' else None,emphasis=emphasis(mode))
+                width=activity_count(p,badge_x,y,self.count_label(mode,counts[mode]),color,pulse=mode=='running' and self.motion_enabled,text_color=color if theme=='light' else None,emphasis=emphasis(mode))
                 self.hit_regions.append((mode,QRectF(badge_x-2,0,width+4,self.height()),None));badge_x+=width+6
         finish()
 

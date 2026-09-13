@@ -3,7 +3,7 @@ import time
 from html import escape
 
 from PySide6.QtCore import Qt,QPointF,QRectF,QVariantAnimation,QEasingCurve,QAbstractAnimation
-from PySide6.QtGui import QColor,QFontMetricsF,QPainter,QPainterPath,QCursor
+from PySide6.QtGui import QColor,QFontMetricsF,QPainter,QPainterPath,QCursor,QLinearGradient
 from PySide6.QtWidgets import QApplication,QWidget
 
 from . import app as visuals
@@ -46,9 +46,12 @@ class TaskStrip(QWidget):
 
     @property
     def needs_animation(self):
-        return bool(self.isVisible() and self.motion_enabled and self.task and self.task_hover and self.task_blend>=1.
+        return self.running_feedback or bool(self.isVisible() and self.motion_enabled and self.task and self.task_hover and self.task_blend>=1.
                     and not self.pressed and not self.dragging and self.task_rect.width()>0
                     and QFontMetricsF(self.owner.font).horizontalAdvance(task_title(self.task,self.language))>self.task_rect.width()+.5)
+
+    @property
+    def running_feedback(self):return bool(self.isVisible() and self.motion_enabled and self.task and self.category=='running')
 
     def sync_motion(self):
         if not self.motion_enabled:
@@ -56,7 +59,8 @@ class TaskStrip(QWidget):
         self.update()
 
     def animate(self):
-        if self.needs_animation:self.update(self.task_area.toAlignedRect())
+        if self.running_feedback:self.update(QRectF(4,3,self.width()-40,self.height()-6).toAlignedRect())
+        elif self.needs_animation:self.update(self.task_area.toAlignedRect())
 
     def set_task_blend(self,value):
         self.task_blend=float(value)
@@ -173,7 +177,13 @@ class TaskStrip(QWidget):
             color=QColor('#ffffff' if theme=='dark' else '#22354b');color.setAlpha(30 if self.pressed and self.press_inside else 18)
             p.setPen(Qt.PenStyle.NoPen);p.setBrush(color);p.drawRoundedRect(QRectF(4,3,self.width()-8,self.height()-6),5,5)
         color=palette[{'running':'green','waiting':'amber','unread':'amber','failed':'failed','stopped':'stopped'}[self.category]]
-        p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(color));p.drawEllipse(QPointF(17,y),2.6,2.6)
+        if self.category=='running' and self.motion_enabled:
+            region=QRectF(5,3,max(0,self.width()-41),self.height()-6);span=80.
+            center=region.left()-span+(time.monotonic()%6)/6*(region.width()+2*span)
+            glow=QLinearGradient(center-span,0,center+span,0);clear=QColor(color);clear.setAlpha(0);peak=QColor(color);peak.setAlpha(24 if theme=='dark' else 18)
+            glow.setColorAt(0,clear);glow.setColorAt(.5,peak);glow.setColorAt(1,clear)
+            p.setPen(Qt.PenStyle.NoPen);p.setBrush(glow);p.drawRoundedRect(region,5,5)
+        visuals.running_dot(p,17,y,color,self.category=='running' and self.motion_enabled)
         def label(task,opacity,offset,current=False):
             metrics=QFontMetricsF(self.owner.font);title=task_title(task,self.language);available=max(0,self.width()-70)
             shown=min(available,metrics.horizontalAdvance(title))

@@ -27,6 +27,18 @@ class SettingsLayoutTests(unittest.TestCase):
             self.assertEqual([dialog.navigation.item(i).text() for i in range(3)],['外观','显示项','常规'])
             self.assertEqual(dialog.navigation.horizontalScrollBarPolicy(),Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
+    def test_metric_names_switch_resizes_without_resetting_selection(self):
+        self.bar.quota_kind='clock'
+        with patch('codex_taskbar.settings_ui.startup.enabled',return_value=False),patch.object(self.bar,'save_settings') as save,patch.object(self.bar,'tick') as tick:
+            dialog=app.SettingsDialog(self.bar);self.bar.settings_dialog=dialog;dialog.navigation.setCurrentRow(1);dialog.grab()
+            self.assertTrue(dialog.metric_labels.isChecked())
+            dialog.metric_labels.click()
+            self.assertFalse(self.bar.settings['show_metric_labels']);self.assertEqual(self.bar.quota_kind,'clock')
+            save.assert_called_once();tick.assert_called_once_with(resize=True)
+            for language in ('en','zh-CN','ja','es'):
+                self.bar.settings['language']=language;dialog.refresh()
+                self.assertEqual(dialog.metric_labels.text(),self.bar.label('Show indicator names'))
+
     def mouse(self,widget,kind,point):
         button=Qt.MouseButton.LeftButton
         held=Qt.MouseButton.NoButton if kind==QEvent.Type.MouseButtonRelease else button

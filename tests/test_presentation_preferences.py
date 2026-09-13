@@ -18,6 +18,16 @@ class PresentationPreferenceTests(unittest.TestCase):
             self.assertTrue(data['show_tasks']);self.assertEqual(data['pinned_statuses'],[])
             self.assertFalse(data['show_task_statistics'])
             self.assertEqual(data['placement'],'auto')
+            self.assertTrue(data['show_metric_labels'])
+
+    def test_metric_names_default_on_and_persist_independently(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'settings.json';data=read_settings(path)
+            data['show_metric_labels']=False;write_settings(path,data)
+            self.assertEqual(read_settings(path),data)
+            for value in (None,0,'false'):
+                write_settings(path,{'show_metric_labels':value})
+                self.assertTrue(read_settings(path)['show_metric_labels'])
 
     def test_legacy_display_is_preserved_without_resetting_position(self):
         with tempfile.TemporaryDirectory() as folder:

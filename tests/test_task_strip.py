@@ -159,14 +159,14 @@ class TaskStripTests(unittest.TestCase):
         with patch.object(self.strip,'update') as update:self.strip.animate();update.assert_not_called()
         self.owner.motion_enabled=True
         with patch.object(self.strip,'isVisible',return_value=True),patch.object(self.strip,'update') as update:
-            self.strip.animate();update.assert_not_called()
+            self.strip.animate();update.assert_called_once()
 
     def test_only_deliberate_long_title_hover_needs_a_paint_clock(self):
-        self.owner.motion_enabled=True;self.refresh([task('a')])
+        self.owner.motion_enabled=True;self.strip.category='unread';self.refresh([task('a',running=False,unread=True)])
         with patch.object(self.strip,'isVisible',return_value=True):
             self.assertFalse(self.strip.needs_animation)
             self.strip.track_pointer(self.strip.task_area.center());self.assertFalse(self.strip.needs_animation)
-            self.refresh([task('a','Long task title '*40)])
+            self.refresh([task('a','Long task title '*40,running=False,unread=True)])
             self.strip.track_pointer(self.strip.task_area.center());self.assertTrue(self.strip.needs_animation)
             with patch.object(self.strip,'update') as update:self.strip.animate();update.assert_called_once()
             self.strip.track_pointer(QPointF(-1,-1));self.assertFalse(self.strip.needs_animation)
@@ -176,6 +176,18 @@ class TaskStripTests(unittest.TestCase):
         self.assertIsNone(self.strip.pressed);self.assertIsNone(self.strip.drag_origin)
         self.assertEqual(self.strip.task_tween.state(),QAbstractAnimation.State.Stopped)
         self.refresh([task('b')],now=8);self.visible.assert_not_called()
+
+    def test_running_dot_and_highlight_move_without_moving_targets(self):
+        self.owner.motion_enabled=True;self.refresh([task('a','Working')])
+        with patch('codex_taskbar.task_strip.time.monotonic',return_value=0):first=self.strip.grab().toImage()
+        area=QRectF(self.strip.task_area)
+        with patch('codex_taskbar.task_strip.time.monotonic',return_value=1.4):second=self.strip.grab().toImage()
+        self.assertNotEqual(first,second);self.assertEqual(self.strip.task_area,area)
+        self.owner.motion_enabled=False
+        with patch('codex_taskbar.task_strip.time.monotonic',return_value=0):first=self.strip.grab().toImage()
+        with patch('codex_taskbar.task_strip.time.monotonic',return_value=1.4):second=self.strip.grab().toImage()
+        self.assertEqual(first,second)
+        with patch.object(self.strip,'isVisible',return_value=False):self.assertFalse(self.strip.needs_animation)
 
 
 if __name__=='__main__':unittest.main()

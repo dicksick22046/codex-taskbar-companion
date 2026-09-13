@@ -138,6 +138,7 @@ class SettingsDialog(QDialog):
             if number:line(visible)
             check=toggle(visible);check.setChecked(bar.settings[key]);check.toggled.connect(lambda checked,key=key:bar.set_display(key,checked));self.checks[key]=check
         indicators.addWidget(self.behavior_title);behavior=card(indicators);self.rotation=toggle(behavior);self.rotation.setChecked(bar.settings.get('rotate_quotas',False));self.rotation.toggled.connect(bar.set_quota_rotation);line(behavior)
+        self.metric_labels=toggle(behavior);self.metric_labels.setChecked(bar.settings.get('show_metric_labels',True));self.metric_labels.toggled.connect(bar.set_metric_labels);line(behavior)
         self.hover=toggle(behavior);self.hover.setChecked(bar.settings.get('hover_panels',False));self.hover.toggled.connect(bar.set_hover_panels);indicators.addStretch()
         localization=card(general);self.language_label=QLabel();self.language=combo([(name,code) for code,name in LANGUAGE_NAMES],bar.settings.get('language','en'),bar.set_language);row(localization,self.language_label,self.language)
         startup_card=card(general);self.login=toggle(startup_card);self.login.setChecked(startup.enabled());self.login.toggled.connect(bar.set_startup)
@@ -206,6 +207,7 @@ class SettingsDialog(QDialog):
         self.transparency.blockSignals(True);self.transparency.setValue(self.bar.settings.get('capsule_transparency',0));self.transparency.blockSignals(False);self.transparency_value.setText(f'{self.transparency.value()}%')
         for key,source in DISPLAY_LABELS.items():self.checks[key].setText(label(source))
         self.rotation.setText(label('Rotate left-side indicators'));self.hover.setText(label('Open panels on hover'));self.login.setText(label('Start at Windows sign-in'))
+        self.metric_labels.setText(label('Show indicator names'))
         self.notify_input.setText(label('Notify when input is needed'))
         self.login.blockSignals(True);self.login.setChecked(startup.enabled());self.login.blockSignals(False)
         self.status_key=None;self.refresh_status()

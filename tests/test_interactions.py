@@ -103,6 +103,28 @@ class InteractionTests(unittest.TestCase):
 
     def test_metric_and_status_regions_are_distinct(self):
         self.assertEqual([m for m,r,t in self.bar.hit_regions],['usage','session','daily','resets','running','unread','failed','stopped'])
+
+    def test_hidden_metric_names_keep_numbers_accessibility_and_compact_spacing(self):
+        self.bar.motion_enabled=False;self.bar.settings.update(pinned_statuses=[],show_tasks=False)
+        for language in ('en','zh-CN','ja','es'):
+            self.bar.settings['language']=language
+            for rotate in (False,True):
+                self.bar.settings.update(rotate_quotas=rotate,show_metric_labels=True)
+                before=self.bar.content_width(1500);full=dict((kind,value) for kind,value,_ in self.bar.quota_choices())
+                self.bar.settings['show_metric_labels']=False
+                self.assertLess(self.bar.content_width(1500),before)
+                self.bar.refresh_accessibility()
+                for kind,value,_ in self.bar.displayed_metrics():self.assertIn(full[kind],self.bar.accessibleName())
+                for kind,full_value,_ in self.bar.quota_choices():
+                    self.bar.quota_kind=kind
+                    with patch('codex_taskbar.app.text',wraps=app.text) as draw:self.bar.grab()
+                    texts=[call.args[3] for call in draw.call_args_list]
+                    self.assertNotIn(self.bar.metric_label(kind),texts)
+                    label,number=self.bar.metric_parts(kind,full_value);self.assertEqual(label,'')
+                    self.assertIn(number,texts)
+                    if rotate:
+                        number_call=next(call for call in draw.call_args_list if call.args[3]==number)
+                        self.assertEqual(number_call.args[1],app.CONTENT_X+12)
         for i,(_,a,_) in enumerate(self.bar.hit_regions):
             for _,b,_ in self.bar.hit_regions[i+1:]:self.assertFalse(a.intersects(b))
 
