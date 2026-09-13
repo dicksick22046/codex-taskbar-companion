@@ -298,6 +298,41 @@ def chart_total(values):
     return sum(known) if known else None
 
 
+USAGE_COLUMN_HEIGHT=64
+
+
+def usage_chart_baseline(top):return top+25+USAGE_COLUMN_HEIGHT
+
+
+def usage_column_rect(x,bottom,value,maximum):
+    height=(value or 0)/(maximum or 1)*USAGE_COLUMN_HEIGHT
+    return QRectF(x-4.5,bottom-height,9,height)
+
+
+def usage_date_rect(x,bottom,step):return QRectF(x-step/2,bottom+9,step,16)
+
+
+def paint_usage_column(p,x,bottom,step,value,maximum,amount,date,color,future=False,label_bounds=None):
+    box=usage_column_rect(x,bottom,value,maximum);height=box.height()
+    if value:
+        h=max(2,height);radius=min(2,h/2);left=x-4.5;top=bottom-h
+        path=QPainterPath(QPointF(left,bottom));path.lineTo(left,top+radius)
+        path.quadTo(left,top,left+radius,top);path.lineTo(left+9-radius,top)
+        path.quadTo(left+9,top,left+9,top+radius);path.lineTo(left+9,bottom);path.closeSubpath()
+        p.fillPath(path,QColor(color))
+    p.setFont(face(7));p.setPen(QColor(color))
+    def label(rect,value):
+        width=QFontMetricsF(face(7)).horizontalAdvance(value)
+        if label_bounds is None or x-width/2>=label_bounds.left() and x+width/2<=label_bounds.right():
+            p.drawText(rect,Qt.AlignmentFlag.AlignCenter,value)
+    if future:
+        pen(p,color,.7);p.drawLine(QPointF(x-2,bottom),QPointF(x+2,bottom))
+    else:
+        label_top=bottom-height-20 if value else bottom-8
+        label(QRectF(x-step/2,label_top,step,16),amount)
+    p.setPen(QColor(color));label(usage_date_rect(x,bottom,step),date)
+
+
 def marquee_offset(elapsed,distance):
     if distance<=0:return 0.
     hold=.8;travel=max(.8,distance/32)
@@ -1285,22 +1320,9 @@ class TaskPopup(QWidget):
         p.translate(0,-self.scroll)
         maximum=max([v for v in values if v is not None]+[1]);step=(self.width()-36)/len(self.days)
         for i,(day,value) in enumerate(zip(self.days,values)):
-            x=18+(i+.5)*step;bottom=121.+self.TITLE_HEIGHT;height=(value or 0)/maximum*64
+            x=18+(i+.5)*step;bottom=usage_chart_baseline(32+self.TITLE_HEIGHT)
             color=ACCENT if day==today else ("#687583" if value is None else (LILAC if day in extremes else BLUE))
-            if value:
-                h=max(2,height);radius=min(2,h/2);left=x-4.5;top=bottom-h
-                path=QPainterPath(QPointF(left,bottom));path.lineTo(left,top+radius)
-                path.quadTo(left,top,left+radius,top);path.lineTo(left+9-radius,top)
-                path.quadTo(left+9,top,left+9,top+radius);path.lineTo(left+9,bottom);path.closeSubpath()
-                p.fillPath(path,QColor(color))
-            p.setFont(face(7));p.setPen(QColor(color))
-            if day>today:
-                pen(p,color,.7);p.drawLine(QPointF(x-2,bottom),QPointF(x+2,bottom))
-            else:
-                label_top=bottom-height-20 if value else bottom-8
-                p.drawText(QRectF(x-step/2,label_top,step,16),Qt.AlignmentFlag.AlignCenter,chart_number(value,self.owner.chart_unit))
-            p.setPen(QColor(color))
-            p.drawText(QRectF(x-step/2,bottom+9,step,16),Qt.AlignmentFlag.AlignCenter,f"{day.month}/{day.day}")
+            paint_usage_column(p,x,bottom,step,value,maximum,chart_number(value,self.owner.chart_unit),f'{day.month}/{day.day}',color,day>today)
         p.end()
 
     def unit_rects(self):
@@ -1383,10 +1405,10 @@ class SessionPopup(TaskPopup):
 class ResetPopup(TaskPopup):
     mode='resets'
     WIDTH=300
-    HISTORY_HEIGHT=128
-    VALUE_Y=104
-    BASELINE=168
-    DATE_Y=181
+    HISTORY_START=76
+    CHART_TOP=92
+    BASELINE=usage_chart_baseline(CHART_TOP)
+    DATE_Y=usage_date_rect(0,BASELINE,1).center().y()
 
     def __init__(self,owner):
         super().__init__(owner)
@@ -1407,13 +1429,17 @@ class ResetPopup(TaskPopup):
         self.owner.forecast.request();self.forecast=self.owner.forecast.get()
         self.forecast_height=24 if self.forecast else 0
         self.credits=data.get('reset_credits',[])
-        self.history_height=self.HISTORY_HEIGHT if self.rows else 28
-        self.credits_top=76+self.history_height+26
+        metrics=QFontMetricsF(face(7))
+        self.column_width=math.ceil(max([64]+[metrics.horizontalAdvance(' '.join(part for part in self.history_parts(row) if part))+16 for row in self.rows]))
+        screen=self.owner.floating_screen() if self.owner.floating else self.owner.screen()
+        width=min(self.WIDTH,screen.availableGeometry().width())
+        overflow=len(self.rows)*self.column_width>width-36
+        axis_bottom=usage_date_rect(0,self.BASELINE,self.column_width).bottom()
+        self.history_height=axis_bottom+(16 if overflow else 2)-self.HISTORY_START if self.rows else 28
+        self.credits_top=self.HISTORY_START+self.history_height+20
         height=self.credits_top+16+26*max(1,len(self.credits))+46+self.forecast_height
         self.full_height=height
-        metrics=QFontMetricsF(face(8))
-        self.column_width=math.ceil(max([64]+[metrics.horizontalAdvance(' '.join(part for part in self.history_parts(row) if part))+16 for row in self.rows]))
-        self.place_panel(self.WIDTH,height)
+        self.place_panel(width,math.ceil(height))
         self.scroll_body=self.height()<height
         self.button.setGeometry(18,self.height()-48,self.width()-36,32)
         self.history_max=max([self.history_tokens(row) or 0 for row in self.rows]+[0])
@@ -1493,23 +1519,18 @@ class ResetPopup(TaskPopup):
 
     def history_bar_rect(self,row,index):
         value=self.history_tokens(row)
-        fraction=value/self.history_max if value is not None and self.history_max else 0
         center=18+(index+.5)*self.column_width-self.history_scroll.value()
-        return QRectF(center-4.5,self.BASELINE-48*fraction,9,48*fraction)
+        return usage_column_rect(center,self.BASELINE,value,self.history_max)
 
     def history_column_rect(self,center):
-        top=self.VALUE_Y-14
-        return QRectF(center-self.column_width/2+3,top,self.column_width-6,self.DATE_Y+10-top)
+        return usage_date_rect(center,self.BASELINE,self.column_width).adjusted(3,-1,-3,1)
 
     def layout_history_scroll(self):
-        y=76+self.HISTORY_HEIGHT-12+self.forecast_height-self.scroll
+        y=usage_date_rect(0,self.BASELINE,self.column_width).bottom()+4+self.forecast_height-self.scroll
         self.history_scroll.setGeometry(18,round(y),self.width()-36,12)
         self.history_scroll.setVisible(bool(self.history_scroll.maximum() and y>=48+self.forecast_height and y+12<=self.height()-56))
 
     def draw_history(self,p):
-        def centered(value,x,y,font,color):
-            width=QFontMetricsF(font).horizontalAdvance(value);left=x-width/2
-            if left>=18 and left+width<=self.width()-18:text(p,left,y,value,font,color)
         active=self.active_history_index()
         if active is not None:
             row=self.rows[active];font=face(7);source=self.history_label(row);prefix=self.history_percent(row)+(' · ' if source else '')
@@ -1525,14 +1546,14 @@ class ResetPopup(TaskPopup):
             if index is not None:
                 center=18+(index+.5)*self.column_width-self.history_scroll.value()
                 fill=QColor(BLUE);fill.setAlpha(10);p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill);p.drawRoundedRect(self.history_column_rect(center),5,5)
-        pen(p,'#3c4551',.5);p.drawLine(QPointF(18,self.BASELINE),QPointF(self.width()-18,self.BASELINE))
         for index,row in enumerate(self.rows):
             box=self.history_bar_rect(row,index);center=box.center().x()
             if center+self.column_width/2<18 or center-self.column_width/2>self.width()-18:continue
-            if box.height()>0:
-                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(BLUE if index==active else '#648aae'));p.drawRoundedRect(box,2,min(2,box.height()/2))
-            centered(' '.join(part for part in self.history_parts(row) if part),center,self.VALUE_Y,face(8),'#e4edf7' if index==active else MUTED)
-            centered(datetime.fromtimestamp(row['at']).strftime('%m.%d'),center,self.DATE_Y,face(7),BLUE if index==active else TITLE_MUTED)
+            if box.left()<18 or box.right()>self.width()-18:continue
+            value=self.history_tokens(row);day=datetime.fromtimestamp(row['at'])
+            paint_usage_column(p,center,self.BASELINE,self.column_width,value,self.history_max,
+                               ' '.join(part for part in self.history_parts(row) if part),f'{day.month}/{day.day}',
+                               BLUE if value is not None else '#687583',label_bounds=QRectF(18,0,self.width()-36,self.height()))
 
     def paintEvent(self,event):
         p=panel_painter(self);window=countdown_window(effective_quota_data(self.data),self.owner.settings)
@@ -1553,11 +1574,11 @@ class ResetPopup(TaskPopup):
         if self.scroll_body:
             p.save();p.setClipRect(QRectF(0,48,self.width(),max(0,self.height()-104-self.forecast_height)));p.translate(0,-self.scroll)
         text(p,18,64,self.owner.label('Usage history'),face(8),'#94a2b3')
-        p.save();p.setClipRect(QRectF(18,76,self.width()-36,self.history_height),Qt.ClipOperation.IntersectClip)
+        p.save();p.setClipRect(QRectF(18,self.HISTORY_START,self.width()-36,self.history_height),Qt.ClipOperation.IntersectClip)
         if not self.rows:text(p,18,89,self.owner.label('No records yet'),face(8),'#94a2b3')
         self.draw_history(p)
         p.restore()
-        divider(self.credits_top-20)
+        divider(self.credits_top-14)
         count=self.data.get('reset_available');credit=self.data.get('reset_selected')
         text(p,18,self.credits_top,self.owner.label('Reset credit expiry'),face(8),'#94a2b3')
         right_label(self.owner.label('{count} available',count=count) if count is not None else '—',self.credits_top,ACCENT)
@@ -1576,7 +1597,7 @@ class ResetPopup(TaskPopup):
 
     def history_at(self,point):
         local_y=point.y()-self.forecast_height+self.scroll
-        if not (18<=point.x()<self.width()-18 and self.VALUE_Y-14<=local_y<76+self.HISTORY_HEIGHT-12 and point.y()>=48+self.forecast_height and point.y()<self.height()-56):return None
+        if not (18<=point.x()<self.width()-18 and self.CHART_TOP<=local_y<usage_date_rect(0,self.BASELINE,1).bottom()+2 and point.y()>=48+self.forecast_height and point.y()<self.height()-56):return None
         index=int((point.x()-18+self.history_scroll.value())//self.column_width)
         return index if 0<=index<len(self.rows) else None
 

@@ -69,14 +69,15 @@ class ResetChartTests(unittest.TestCase):
         self.assertGreater(slider.value(),0);self.assertFalse(slider.isSliderDown())
 
     def test_history_remains_chronological_and_quota_is_described_separately(self):
+        start=self.data['reset_events'][0]['at']-4*86400
+        for index,row in enumerate(self.data['reset_events']):row['at']=start+index*86400
         for language in app.LANGUAGES:
             self.bar.settings['language']=language;self.panel.refresh(self.data)
-            with patch('codex_taskbar.app.text',wraps=app.text) as draw:self.panel.grab()
-            labels=[call.args[3] for call in draw.call_args_list]
-            dates=[datetime.fromtimestamp(row['at']).strftime('%m.%d') for row in self.data['reset_events']]
-            shown=[call.args[3] for call in draw.call_args_list if call.args[2]==self.panel.DATE_Y]
+            with patch('codex_taskbar.app.paint_usage_column',wraps=app.paint_usage_column) as draw:self.panel.grab()
+            dates=[f'{datetime.fromtimestamp(row["at"]).month}/{datetime.fromtimestamp(row["at"]).day}' for row in self.data['reset_events']]
+            shown=[call.args[7] for call in draw.call_args_list]
             self.assertTrue(shown)
-            self.assertTrue(all(value in dates for value in shown))
+            order=[dates.index(value) for value in shown];self.assertEqual(order,sorted(order))
             self.assertIn(self.bar.label('Quota used')+' 20%',self.panel.accessibleDescription())
 
     def test_horizontal_scroll_reaches_latest_preserves_offset_and_keeps_height(self):
@@ -84,7 +85,7 @@ class ResetChartTests(unittest.TestCase):
             self.bar.settings['language']=language;panel=self.panel;panel.refresh(self.data)
             height=panel.height();self.data['reset_events']*=2;panel.refresh(self.data)
             self.data['reset_events']=[dict(row,id=str(index)) for index,row in enumerate(self.data['reset_events'])];panel.refresh(self.data)
-            self.assertEqual(panel.height(),height);self.assertGreater(panel.history_scroll.maximum(),0)
+            self.assertLessEqual(panel.height()-height,14);self.assertGreater(panel.history_scroll.maximum(),0)
             panel.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress,Qt.Key.Key_End,Qt.KeyboardModifier.NoModifier))
             self.assertEqual(panel.history_scroll.value(),panel.history_scroll.maximum())
             self.assertEqual(panel.selected_history_index(),len(panel.rows)-1)
@@ -171,12 +172,30 @@ class ResetChartTests(unittest.TestCase):
         self.bar.settings['language']='en';panel=self.panel
         self.data['reset_events']=[dict(self.data['reset_events'][index%4],id=str(index)) for index in range(12)];panel.refresh(self.data)
         panel.history_scroll.setValue(panel.column_width//2)
-        with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
-        labels=[call for call in draw.call_args_list if call.args[2]==panel.VALUE_Y]
-        self.assertTrue(labels)
-        for call in labels:
-            self.assertGreaterEqual(call.args[1],18)
-            self.assertLessEqual(call.args[1]+app.QFontMetricsF(call.args[4]).horizontalAdvance(call.args[3]),panel.width()-18)
+        with patch('codex_taskbar.app.paint_usage_column',wraps=app.paint_usage_column) as draw:panel.grab()
+        self.assertTrue(draw.call_args_list)
+        for call in draw.call_args_list:self.assertEqual(call.kwargs['label_bounds'].getRect(),(18.,0.,panel.width()-36.,float(panel.height())))
+        painter=Mock();bounds=app.QRectF(18,0,264,200)
+        app.paint_usage_column(painter,18,100,80,1,1,'20.37 ×100M','9/14',app.BLUE,label_bounds=bounds)
+        painter.drawText.assert_not_called()
+        app.paint_usage_column(painter,100,100,80,1,1,'20.37 ×100M','9/14',app.BLUE,label_bounds=bounds)
+        self.assertEqual(painter.drawText.call_count,2)
+
+    def test_weekly_and_history_share_columns_and_do_not_reserve_hidden_scroll_space(self):
+        self.bar.settings['language']='zh-CN';self.panel.refresh(self.data)
+        weekly=app.TaskPopup(self.bar);weekly.refresh(self.data)
+        try:
+            with patch('codex_taskbar.app.paint_usage_column',wraps=app.paint_usage_column) as columns:
+                weekly.grab();self.assertTrue(columns.called);columns.reset_mock()
+                self.panel.grab();self.assertTrue(columns.called)
+            highest=self.panel.history_bar_rect(self.data['reset_events'][0],0)
+            self.assertEqual(highest.height(),64)
+            axis=app.usage_date_rect(highest.center().x(),highest.bottom(),self.panel.column_width)
+            self.assertEqual(axis.top()-highest.bottom(),9)
+            self.assertTrue(self.panel.history_scroll.isHidden())
+            self.assertEqual(self.panel.credits_top-14-axis.bottom(),8)
+            self.assertLessEqual(self.panel.history_column_rect(highest.center().x()).height(),18)
+        finally:weekly.close();weekly.deleteLater()
 
     def test_latest_is_the_default_but_refresh_keeps_an_explicit_choice(self):
         panel=self.panel;self.assertEqual(panel.selected_history_index(),3)

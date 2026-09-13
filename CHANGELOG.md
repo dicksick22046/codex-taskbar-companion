@@ -4,7 +4,7 @@
 
 ## Unreleased
 
-- Compare reset periods with aligned values, a shared baseline and one fixed detail line. Open on the latest period and use clicks or arrow keys to select; hovering and scrolling keep the selection unchanged. Tighten chart and footer spacing while preserving readable labels. Selection motion is interruptible and honors reduced motion; zero and missing readings stay distinct.
+- Reuse the weekly usage chart renderer for reset history, including column shapes, value labels and date-axis spacing. Highlight the selected date and reserve scrollbar space only when needed. Open on the latest period; clicks or arrow keys change selection, while hovering and scrolling preserve it. Zero and missing readings stay distinct.
 ## 0.10.1
 
 - Restore synchronized Running dot breathing and a gentler travelling title highlight; keep hidden and reduced-motion views still.
