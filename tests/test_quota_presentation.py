@@ -111,9 +111,9 @@ class QuotaPresentationTests(unittest.TestCase):
                                    {'kind':'manual','at':datetime.now().timestamp(),'tokens':100000000}]
         panel=app.ResetPopup(self.bar);panel.refresh(self.data)
         try:
-            self.assertEqual(panel.history_percent(self.data['reset_events'][0]),'49% used')
-            self.assertEqual(panel.history_percent(dict(self.data['reset_events'][0],windows=['300'])),'20% used')
-            self.assertEqual(panel.history_percent(self.data['reset_events'][1]),'')
+            self.assertEqual(panel.history_percent(self.data['reset_events'][0]),'49%')
+            self.assertEqual(panel.history_percent(dict(self.data['reset_events'][0],windows=['300'])),'20%')
+            self.assertEqual(panel.history_percent(self.data['reset_events'][1]),'—')
             with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
             official=next(c for c in draw.call_args_list if c.args[3]=='Official')
             self.assertEqual(official.args[5],app.LILAC)

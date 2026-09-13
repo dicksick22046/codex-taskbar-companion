@@ -3,9 +3,9 @@
 LANGUAGE_NAMES = (('en','English'),('zh-CN','简体中文'),('ja','日本語'),('es','Español'))
 LANGUAGES = tuple(code for code,name in LANGUAGE_NAMES)
 COPY = {
-    'Usage history':'历史用量','{value}% used':'已用 {value}%',
+    'Usage history':'历史用量',
     'Local tokens; account quota percentages.':'数值为本机Token用量，百分比为账户额度消耗。',
-    'Percentages are the last recorded quota usage before each reset; missing records stay blank.':'百分比为重置前最后记录的额度消耗；缺少记录时不显示。',
+    'Percentages are the last recorded quota usage before each reset; missing records show a dash.':'百分比为重置前最后记录的额度消耗；缺少记录时显示横杠。',
     'Pin status':'固定此状态','Unpin status':'取消固定','Pinned tasks':'固定任务',
     'Reset forecast':'重置预测','Within {hours}h · ~{value}%':'{hours}小时内 · 约{value}%',
     'Low confidence':'低置信度','Medium confidence':'中等置信度','High confidence':'高置信度',
@@ -70,7 +70,7 @@ COPY = {
     'Reset quota': '重置额度', 'Resetting…': '正在重置…', 'Retry reset': '重试重置',
     'Nothing to reset': '无需重置', 'Scheduled': '自然', 'Manual': '手动', 'Official': '官方',
     'Next reset': '下次重置', 'History': '历史', 'Tokens': 'Token', 'No records yet': '暂无记录',
-    'Expires': '到期时间', '{count} available': '{count} 次可用', 'Default': '默认', 'No credits': '暂无机会',
+    'Reset credit expiry': '重置机会到期', '{count} available': '{count} 次可用', 'Default': '默认', 'No credits': '暂无机会',
     'Continue the reset request with an unconfirmed result?': '继续上次未确认结果的重置请求？',
     'Use one quota reset credit?': '使用一次额度重置机会？',
     'Not provided': '未提供', 'Credit expires: {time}': '机会到期时间：{time}',
@@ -84,9 +84,9 @@ COPY = {
 }
 
 TRANSLATIONS = {'zh-CN': COPY, 'ja': {
-    'Usage history':'使用量の履歴','{value}% used':'{value}% 使用',
+    'Usage history':'使用量の履歴',
     'Local tokens; account quota percentages.':'数値は本機のToken使用量、割合はアカウント利用枠の使用率です。',
-    'Percentages are the last recorded quota usage before each reset; missing records stay blank.':'割合は各リセット前に最後に記録された利用枠の使用率です。記録がない場合は表示しません。',
+    'Percentages are the last recorded quota usage before each reset; missing records show a dash.':'割合は各リセット前に最後に記録された利用枠の使用率です。記録がない場合はダッシュで表示します。',
     'Pin status':'この状態を固定','Unpin status':'固定を解除','Pinned tasks':'固定タスク',
     'Reset forecast':'リセット予測','Within {hours}h · ~{value}%':'{hours}時間以内 · 約{value}%',
     'Low confidence':'信頼度：低','Medium confidence':'信頼度：中','High confidence':'信頼度：高',
@@ -151,7 +151,7 @@ TRANSLATIONS = {'zh-CN': COPY, 'ja': {
     'Reset quota': '利用枠をリセット', 'Resetting…': 'リセット中…', 'Retry reset': 'リセットを再試行',
     'Nothing to reset': 'リセットは不要です', 'Scheduled': '定期', 'Manual': '手動', 'Official': '公式',
     'Next reset': '次のリセット', 'History': '履歴', 'Tokens': 'Token', 'No records yet': '記録はありません',
-    'Expires': '有効期限', '{count} available': '残り{count}回', 'Default': '既定', 'No credits': '利用可能な権利なし',
+    'Reset credit expiry': 'リセット権の有効期限', '{count} available': '残り{count}回', 'Default': '既定', 'No credits': '利用可能な権利なし',
     'Continue the reset request with an unconfirmed result?': '結果が未確認のリセットを再試行しますか？',
     'Use one quota reset credit?': 'リセット権を1回使用しますか？',
     'Not provided': '情報なし', 'Credit expires: {time}': '有効期限：{time}',
@@ -163,9 +163,9 @@ TRANSLATIONS = {'zh-CN': COPY, 'ja': {
     'Update to {version}': '{version}に更新',
     'Version {version} is available. Update from Settings.': 'バージョン{version}が公開されました。設定から更新できます。',
 }, 'es': {
-    'Usage history':'Historial de consumo','{value}% used':'{value}% usado',
+    'Usage history':'Historial de consumo',
     'Local tokens; account quota percentages.':'Tokens locales; porcentajes de cuota de la cuenta.',
-    'Percentages are the last recorded quota usage before each reset; missing records stay blank.':'Los porcentajes son el último uso de cuota registrado antes de cada reinicio; se omiten si faltan registros.',
+    'Percentages are the last recorded quota usage before each reset; missing records show a dash.':'Los porcentajes son el último uso de cuota registrado antes de cada reinicio; se muestra un guion si faltan registros.',
     'Pin status':'Fijar estado','Unpin status':'Desfijar','Pinned tasks':'Tareas fijadas',
     'Reset forecast':'Previsión de reinicio','Within {hours}h · ~{value}%':'En {hours}h · ~{value}%',
     'Low confidence':'Confianza baja','Medium confidence':'Confianza media','High confidence':'Confianza alta',
@@ -230,7 +230,7 @@ TRANSLATIONS = {'zh-CN': COPY, 'ja': {
     'Reset quota': 'Restablecer cuota', 'Resetting…': 'Restableciendo…', 'Retry reset': 'Reintentar reinicio',
     'Nothing to reset': 'No hace falta restablecer', 'Scheduled': 'Programado', 'Manual': 'Manual', 'Official': 'Oficial',
     'Next reset': 'Próximo reinicio', 'History': 'Historial', 'Tokens': 'Tokens', 'No records yet': 'Sin registros',
-    'Expires': 'Caducidad', '{count} available': '{count} disponibles', 'Default': 'Por defecto', 'No credits': 'Sin créditos',
+    'Reset credit expiry': 'Caducidad de créditos', '{count} available': '{count} disponibles', 'Default': 'Por defecto', 'No credits': 'Sin créditos',
     'Continue the reset request with an unconfirmed result?': '¿Reintentar el reinicio cuyo resultado no se ha confirmado?',
     'Use one quota reset credit?': '¿Usar un crédito para restablecer la cuota?',
     'Not provided': 'Sin información', 'Credit expires: {time}': 'El crédito caduca: {time}',

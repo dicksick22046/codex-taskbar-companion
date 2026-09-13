@@ -366,7 +366,7 @@ class InteractionTests(unittest.TestCase):
             self.assertEqual(len(labels),1)
             self.assertEqual(len({c.args[1] for c in labels}),1)
             row_y={89+i*26 for i in range(3)}
-            numbers=[c for c in calls if c.args[3] in ('20.37','5.22','—') and c.args[2] in row_y]
+            numbers=[c for c in calls if c.args[3] in ('20.37','5.22','—') and c.args[2] in row_y and c.args[1]<=panel.number_right]
             self.assertEqual(len(numbers),3)
             for call in numbers:
                 self.assertAlmostEqual(call.args[1]+app.QFontMetricsF(call.args[4]).horizontalAdvance(call.args[3]),panel.number_right)

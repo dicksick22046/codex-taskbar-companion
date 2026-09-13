@@ -168,6 +168,21 @@ def follow_taskbar(hwnd):
         previous=user32.GetWindow(previous,3)
 
 
+def follow_owner(hwnd,owner,keep_on_top=True):
+    """Keep related tool windows above their owner without activating or raising unrelated windows."""
+    if not owner or hwnd==owner:return
+    if user32.GetWindowLongPtrW(hwnd,-8)!=owner:user32.SetWindowLongPtrW(hwnd,-8,owner)
+    if bool(user32.GetWindowLongPtrW(hwnd,-20)&0x8)!=bool(keep_on_top):
+        user32.SetWindowPos(hwnd,w.HWND(-1 if keep_on_top else -2),0,0,0,0,0x0213)
+    previous=user32.GetWindow(hwnd,3);seen={hwnd}
+    while previous and previous not in seen:
+        if previous==owner:
+            above=user32.GetWindow(owner,3)
+            if above!=hwnd:user32.SetWindowPos(hwnd,above or 0,0,0,0,0,0x0213)
+            return
+        seen.add(previous);previous=user32.GetWindow(previous,3)
+
+
 def hide_border(hwnd):
     dwm = ctypes.windll.dwmapi.DwmSetWindowAttribute
     dwm.argtypes = [w.HWND, w.DWORD, ctypes.c_void_p, w.DWORD]

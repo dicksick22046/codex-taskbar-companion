@@ -82,3 +82,48 @@ class PinnedPanelTests(unittest.TestCase):
         self.group.refresh(self.data);row=self.group.rows['running'];row.track_pointer(app.QPointF(-1,-1))
         before=row.grab().toImage();row.track_pointer(app.QPointF(55,15));after=row.grab().toImage()
         self.assertNotEqual(before,after);self.assertTrue(row.task_hover)
+
+    def test_all_popovers_avoid_the_bar_and_pinned_rows_above_and_below(self):
+        with patch.object(self.group,'isVisible',return_value=True):
+            for placement in ('taskbar','floating'):
+                self.bar.settings['placement']=placement
+                for y in (0,500):
+                    self.bar.move(100,y);self.bar.position=self.bar.geometry().getRect();self.group.refresh(self.data)
+                    for kind in (app.TaskPopup,app.SessionPopup,app.ResetPopup,app.TaskListPopup):
+                        panel=kind(self.bar);panel.refresh(self.data)
+                        try:
+                            self.assertFalse(panel.geometry().intersects(self.bar.geometry()),(placement,kind.__name__))
+                            self.assertFalse(panel.geometry().intersects(self.group.geometry()),(placement,kind.__name__))
+                            anchor=panel.anchor_rect()
+                            gap=anchor.top()-panel.geometry().bottom()-1 if panel.y()<anchor.top() else panel.y()-anchor.bottom()-1
+                            self.assertGreaterEqual(gap,panel.GAP)
+                        finally:panel.close();panel.deleteLater()
+
+    def test_popover_reserves_growing_rows_and_updates_during_motion(self):
+        self.bar.position=self.bar.geometry().getRect()
+        with patch.object(self.group,'isVisible',return_value=True):
+            self.group.refresh(self.data);panel=app.TaskListPopup(self.bar,'unread');self.bar.popup=panel;panel.refresh(self.data)
+            try:
+                self.bar.motion_enabled=True;self.bar.settings['pinned_statuses'].append('failed');self.group.refresh(self.data)
+                self.group.size_motion.advance(.02)
+                self.assertLessEqual(panel.geometry().bottom()+panel.GAP,self.group.occupied_geometry().top())
+                self.assertFalse(panel.geometry().intersects(self.group.geometry()))
+            finally:self.bar.popup=None;panel.close();panel.deleteLater()
+
+    def test_popover_owner_is_pinned_group_and_falls_back_to_bar(self):
+        panel=app.TaskListPopup(self.bar,'running')
+        try:
+            with patch('codex_taskbar.app.windows.follow_owner') as follow:
+                with patch.object(self.group,'isVisible',return_value=True):panel.sync_owner()
+                self.assertIs(panel.windowHandle().transientParent(),self.group.windowHandle())
+                self.assertEqual(follow.call_args.args[1],int(self.group.winId()))
+                with patch.object(self.group,'isVisible',return_value=False):panel.sync_owner()
+                self.assertIs(panel.windowHandle().transientParent(),self.bar.windowHandle())
+        finally:panel.close();panel.deleteLater()
+
+    def test_context_menu_also_opens_outside_pinned_rows(self):
+        self.bar.position=self.bar.geometry().getRect()
+        with patch.object(self.group,'isVisible',return_value=True),patch.object(self.bar.menu,'popup') as opened:
+            self.group.refresh(self.data);self.bar.open_menu()
+            point=opened.call_args.args[0]
+            self.assertLessEqual(point.y()+self.bar.menu.sizeHint().height()+app.TaskPopup.GAP,self.group.occupied_geometry().top())

@@ -748,11 +748,13 @@ class StatusBar(QWidget):
     def open_menu(self):
         self.hide_popup(immediate=True);self.menu.ensurePolished()
         bounds=(self.floating_screen() if self.floating else self.screen()).availableGeometry();size=self.menu.sizeHint()
+        anchor=self.geometry();occupied=self.task_strip.occupied_geometry()
+        if occupied.isValid():anchor=anchor.united(occupied)
         x=max(bounds.left(),min(QCursor.pos().x(),bounds.right()-size.width()+1))
-        bottom=min(self.y(),bounds.bottom()+1)-TaskPopup.GAP
+        bottom=min(anchor.top(),bounds.bottom()+1)-TaskPopup.GAP
         y=max(bounds.top(),bottom-size.height())
         if self.floating:
-            box=panel_rect(self.geometry(),bounds,size.width(),size.height(),TaskPopup.GAP);x,y=box.x(),box.y()
+            box=panel_rect(anchor,bounds,size.width(),size.height(),TaskPopup.GAP);x,y=box.x(),box.y()
         self.menu.popup(QPointF(x,y).toPoint())
 
     def set_startup(self,value):
@@ -918,10 +920,10 @@ class StatusBar(QWidget):
     def tick(self,resize=False):
         fullscreen=windows.foreground_fullscreen()
         self.tick_status(resize,fullscreen)
-        if self.popup:
-            panel_key=(self.popup,id(self.data),int(time.time()),self.position)
-            if panel_key!=self.panel_key:self.panel_key=panel_key;self.popup.refresh(self.data)
         self.task_strip.refresh(self.data,resize=resize,hidden=fullscreen)
+        if self.popup:
+            panel_key=(self.popup,id(self.data),int(time.time()),self.position,self.task_strip.occupied_geometry().getRect())
+            if panel_key!=self.panel_key:self.panel_key=panel_key;self.popup.refresh(self.data)
         if self.motion_enabled and self.task_strip.needs_animation:
             if not self.animation.isActive():self.animation.start(33)
         else:self.animation.stop()
@@ -1138,6 +1140,7 @@ class TaskPopup(QWidget):
 
     def showEvent(self,event):
         super().showEvent(event)
+        self.sync_owner()
         self.reveal_to(1.)
 
     def hideEvent(self,event):self.fade.stop();super().hideEvent(event)
@@ -1157,22 +1160,44 @@ class TaskPopup(QWidget):
             self.owner.popup=None;self.owner.update();self.close();self.deleteLater()
 
     def anchor_bottom(self):
+        return self.anchor_rect().top()-self.GAP
+
+    def anchor_rect(self):
+        anchor=self.owner.geometry()
+        group=getattr(self.owner,'task_strip',None)
+        if group:
+            occupied=group.occupied_geometry()
+            if occupied.isValid():anchor=anchor.united(occupied)
+        if getattr(self.owner,'floating',False):return anchor
         tray=windows.user32.FindWindowW('Shell_TrayWnd',None)
         bounds=windows.rect(tray) if tray else None
-        top=min(self.owner.y(),round(bounds[1]/self.owner.devicePixelRatioF())) if bounds else self.owner.y()
-        return top-self.GAP
+        if bounds:anchor.setTop(min(anchor.top(),round(bounds[1]/self.owner.devicePixelRatioF())))
+        return anchor
+
+    def sync_owner(self):
+        group=getattr(self.owner,'task_strip',None)
+        parent=group if group and group.isVisible() else self.owner
+        parent_handle=int(parent.winId());hwnd=int(self.winId());window=self.windowHandle()
+        if window and window.transientParent()!=parent.windowHandle():window.setTransientParent(parent.windowHandle())
+        windows.follow_owner(hwnd,parent_handle,True)
 
     def owner_unplaced(self):
         return isinstance(self.owner,StatusBar) and self.owner.position is None
 
     def place_panel(self,width,height):
+        self.requested_size=(width,height);self.reposition()
+
+    def reposition(self):
+        if not hasattr(self,'requested_size'):return
+        width,height=self.requested_size
         if self.owner_unplaced():
             bounds=(self.owner.floating_screen() if self.owner.floating else self.owner.screen()).availableGeometry()
             anchor=QRect(bounds.left()+16,bounds.bottom()-29,min(420,bounds.width()-32),30)
             self.setGeometry(panel_rect(anchor,bounds,width,height,self.GAP))
-        elif getattr(self.owner,'floating',False):
-            self.setGeometry(panel_rect(self.owner.geometry(),self.owner.floating_screen().availableGeometry(),width,height,self.GAP))
-        else:self.setGeometry(self.owner.x(),max(0,self.anchor_bottom()-height),width,height)
+        else:
+            bounds=(self.owner.floating_screen() if getattr(self.owner,'floating',False) else self.owner.screen()).availableGeometry()
+            self.setGeometry(panel_rect(self.anchor_rect(),bounds,width,height,self.GAP))
+        if self.isVisible():self.sync_owner()
 
     def refresh(self,data):
         self.data=data;now=datetime.now().astimezone()
@@ -1337,7 +1362,7 @@ class ResetPopup(TaskPopup):
         label='Resetting…' if data.get('reset_busy') else 'Retry reset' if data.get('reset_retry') or data.get('reset_state')=='unavailable' else 'Nothing to reset' if data.get('reset_state')=='nothingToReset' else 'Reset quota'
         self.button.setText(self.owner.label(label))
         self.scroll=min(self.scroll,self.scroll_limit())
-        self.setToolTip(self.owner.label('Local tokens; account quota percentages.')+'\n'+quota_update_label(self.owner,data)+'\n'+self.owner.label('Official resets are inferred from recovery outside scheduled or confirmed manual resets.')+'\n'+self.owner.label('Percentages are the last recorded quota usage before each reset; missing records stay blank.'))
+        self.setToolTip(self.owner.label('Local tokens; account quota percentages.')+'\n'+quota_update_label(self.owner,data)+'\n'+self.owner.label('Official resets are inferred from recovery outside scheduled or confirmed manual resets.')+'\n'+self.owner.label('Percentages are the last recorded quota usage before each reset; missing records show a dash.'))
         if self.forecast:
             confidence=self.owner.label({'low':'Low confidence','medium':'Medium confidence','high':'High confidence'}[self.forecast['confidence']])
             self.setToolTip(self.toolTip()+'\n'+self.owner.label('Community forecast for global resets, not your account schedule.')+' '+confidence+'\n'+FORECAST_SOURCE)
@@ -1359,8 +1384,8 @@ class ResetPopup(TaskPopup):
         before=row.get('before') or {};affected=row.get('windows') or ('10080','300')
         window=next((before[key] for key in ('10080','300') if key in affected and before.get(key)),{})
         remaining=window.get('remaining')
-        if type(remaining) not in (int,float) or not math.isfinite(remaining) or not 0<=remaining<=100:return ''
-        return self.owner.label('{value}% used',value=f'{100-remaining:g}')
+        if type(remaining) not in (int,float) or not math.isfinite(remaining) or not 0<=remaining<=100:return '—'
+        return f'{100-remaining:g}%'
 
     def paintEvent(self,event):
         p=panel_painter(self);window=countdown_window(effective_quota_data(self.data),self.owner.settings)
@@ -1398,7 +1423,7 @@ class ResetPopup(TaskPopup):
         p.restore()
         divider(self.credits_top-20)
         count=self.data.get('reset_available');credit=self.data.get('reset_selected')
-        text(p,18,self.credits_top,self.owner.label('Expires'),face(8),'#94a2b3')
+        text(p,18,self.credits_top,self.owner.label('Reset credit expiry'),face(8),'#94a2b3')
         right_label(self.owner.label('{count} available',count=count) if count is not None else '—',self.credits_top,ACCENT)
         for i,item in enumerate(self.credits):
             selected=bool(credit and item['id']==credit['id'])
@@ -1474,11 +1499,9 @@ class TaskListPopup(TaskPopup):
             self.row_positions.append(y);y+=self.ROW_HEIGHT
         self.full_height=max(24+self.header_extra+self.ROW_HEIGHT,y)
         height=min(round(self.full_height+16),500) if self.owner.floating or self.owner_unplaced() else min(round(self.full_height+16),500,max(100,self.owner.y()-16))
-        screen=(self.owner.floating_screen() if self.owner.floating else self.owner.screen()).availableGeometry()
-        left=max(screen.left(),min(self.owner.x(),screen.right()-width+1))
-        if self.owner.floating or self.owner_unplaced():
-            self.place_panel(width,height);height=self.height()
-        else:self.setGeometry(left,max(screen.top(),self.anchor_bottom()-height),width,height)
+        self.place_panel(width,height);height=self.height()
+        self.value_right=self.width()-18;self.info_divider=self.value_right-info_width-12
+        self.TITLE_WIDTH=max(0,self.info_divider-12-self.TITLE_X)
         self.scroll=min(self.scroll,max(0,self.full_height-(height-16)))
         if self.pin_button:
             self.pin_button.move(self.width()-34,5);self.pin_button.sync(self.mode in self.owner.settings.get('pinned_statuses',[]))

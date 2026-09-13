@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+- Keep full popovers and context menus outside the combined status bar and pinned rows, including while rows expand or collapse.
+- Link pinned windows and popovers to their owners and repair relative order without stealing focus or repeatedly raising unrelated windows.
+- Shorten history percentages, mark missing readings with a dash, and identify reset-credit expiry explicitly.
+
 - Replace the oversized hand-drawn pin with a standard compact Lucide icon; align it with panel headings, retain the hit area, and fix light-capsule/dark-panel contrast and focus feedback.
 
 ## 0.10.0

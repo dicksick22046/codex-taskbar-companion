@@ -45,3 +45,27 @@ class TaskbarOrderTests(unittest.TestCase):
     def test_missing_taskbar_or_changing_order_does_not_loop_or_force_topmost(self):
         self.assertEqual(self.follow({},tray=0)[1],[])
         self.assertEqual(self.follow({10:30,30:40,40:30})[1],[])
+
+
+class OwnedWindowOrderTests(unittest.TestCase):
+    def follow(self,order,owner=20,topmost=True,keep=True):
+        with patch.object(windows.user32,'GetWindowLongPtrW',side_effect=lambda h,index:owner if index==-8 else 8 if topmost else 0), \
+             patch.object(windows.user32,'SetWindowLongPtrW') as set_owner, \
+             patch.object(windows.user32,'GetWindow',side_effect=lambda h,relation:order.get(h,0)), \
+             patch.object(windows.user32,'SetWindowPos') as move:
+            windows.follow_owner(10,20,keep)
+            return set_owner.call_args_list,move.call_args_list
+
+    def test_already_ordered_group_does_not_keep_raising(self):
+        self.assertEqual(self.follow({20:10,10:30,30:0}),( [],[]))
+
+    def test_owner_and_occlusion_are_repaired_without_activation(self):
+        owners,moves=self.follow({10:15,15:20,20:30,30:0},owner=0)
+        self.assertEqual(owners[0].args,(10,-8,20))
+        self.assertEqual(moves[0].args,(10,30,0,0,0,0,0x0213))
+
+    def test_non_topmost_floating_preference_is_retained(self):
+        owners,moves=self.follow({20:10,10:0},keep=False)
+        self.assertEqual(owners,[]);self.assertEqual(len(moves),1)
+        self.assertEqual(moves[0].args[1].value,windows.w.HWND(-2).value)
+        self.assertEqual(moves[0].args[-1],0x0213)

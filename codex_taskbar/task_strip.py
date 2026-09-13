@@ -210,6 +210,18 @@ class PinnedPanel(QWidget):
     def sync_motion(self):
         for row in self.rows.values():row.sync_motion()
         if not self.owner.motion_enabled:self.size_motion.snap(self.size_motion.target)
+    def occupied_geometry(self):
+        if not self.isVisible() or self.joined_edge is None:return QRectF().toRect()
+        box=self.geometry();target=round(self.size_motion.target)
+        if target>=2:
+            screen=self.owner.screen();bounds=screen.availableGeometry() if self.owner.floating else screen.geometry()
+            box=box.united(panel_rect(self.owner.geometry(),bounds,self.owner.width(),target,-1))
+        return box
+    def reposition_popup(self):
+        popup=self.owner.popup
+        if isinstance(popup,visuals.TaskPopup):
+            size=popup.size();popup.reposition()
+            if popup.size()!=size:popup.refresh(popup.data)
     def refresh(self,data,resize=False,hidden=False):
         if self.stopped:return
         visible=not hidden and self.owner.isVisible() and self.owner.settings.get('show_tasks',True)
@@ -233,7 +245,7 @@ class PinnedPanel(QWidget):
         height=round(value)
         if height<2 or not self.owner.isVisible():
             self.hide()
-            if self.joined_edge is not None:self.joined_edge=None;self.owner.update()
+            if self.joined_edge is not None:self.joined_edge=None;self.owner.update();self.reposition_popup()
             return
         screen=self.owner.screen();bounds=screen.availableGeometry() if self.owner.floating else screen.geometry()
         box=panel_rect(self.owner.geometry(),bounds,self.owner.width(),height,-1)
@@ -244,7 +256,7 @@ class PinnedPanel(QWidget):
         offset=height-(len(self.active)*30+1) if edge=='top' else 0
         for index,kind in enumerate(self.active):self.rows[kind].move(0,offset+index*30)
         self.ensure_visible()
-        if moved:self.update()
+        if moved:self.update();self.reposition_popup()
 
     def ensure_visible(self):
         hwnd=int(self.winId());window=self.windowHandle();recovered=False
@@ -262,7 +274,10 @@ class PinnedPanel(QWidget):
                     if minimized:self.setWindowState(self.windowState() & ~Qt.WindowState.WindowMinimized)
                     self.show();recovered=True
         key=(int(self.winId()),True if not self.owner.floating else self.owner.settings.get('floating_topmost',True))
-        if recovered or key!=self.host_key:windows.hide_border(key[0]);windows.floating_window(*key);self.host_key=key
+        if recovered or key!=self.host_key:windows.hide_border(key[0]);self.host_key=key
+        window=self.windowHandle();parent=self.owner.windowHandle()
+        if window and parent and window.transientParent()!=parent:window.setTransientParent(parent)
+        windows.follow_owner(key[0],int(self.owner.winId()),key[1])
         return recovered
 
     def paintEvent(self,event):
