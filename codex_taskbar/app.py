@@ -46,9 +46,9 @@ LILAC = "#b59bea"
 AMBER = "#ebb45f"
 FAILED = "#df8589"
 CAPSULE_COLORS = {
-    'dark': {'background':'#252b34','text':MUTED,'muted':TITLE_MUTED,'link':BLUE,'green':ACCENT,'amber':AMBER,'failed':FAILED,'stopped':'#8795a5','divider':'#53606d',
+    'dark': {'surface':('#343c48','#2c333e','#778597','#454f5d'),'text':MUTED,'muted':TITLE_MUTED,'link':BLUE,'green':ACCENT,'amber':AMBER,'failed':FAILED,'stopped':'#8795a5','divider':'#53606d',
              'rings':{'quota':'#45ba91','session':'#51adb4','clock':'#5d9dd7','spent':'#a088d1'}},
-    'light': {'background':'#eef1f5','text':'#27374b','muted':'#43556b','link':'#2169ad','green':'#19775d','amber':'#936005','failed':'#ab3443','stopped':'#596a7d','divider':'#abb7c5',
+    'light': {'surface':('#f8fafc','#e9edf2','#aab5c3','#929faf'),'text':'#27374b','muted':'#43556b','link':'#2169ad','green':'#19775d','amber':'#936005','failed':'#ab3443','stopped':'#596a7d','divider':'#abb7c5',
               'rings':{'quota':'#19775d','session':'#14767e','clock':'#286dab','spent':'#7150a1'}},
 }
 FLAGS = Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.WindowDoesNotAcceptFocus | Qt.WindowType.NoDropShadowWindowHint
@@ -248,6 +248,19 @@ def connected_surface(box,edge=None):
     if edge=='top':path.addRect(QRectF(box.left(),box.top(),box.width(),radius))
     elif edge=='bottom':path.addRect(QRectF(box.left(),box.bottom()-radius,box.width(),radius))
     return path.simplified()
+
+
+def capsule_surface(p,box,theme,transparency,edge=None,joined_height=0):
+    box=QRectF(box)
+    if edge=='top':box.adjust(0,-max(0,joined_height-1),0,0)
+    elif edge=='bottom':box.adjust(0,0,0,max(0,joined_height-1))
+    opacity=max(1/255,1-transparency/100)
+    colors=CAPSULE_COLORS[theme]['surface']
+    fill=QLinearGradient(box.topLeft(),box.bottomLeft());rim=QLinearGradient(box.topLeft(),box.bottomLeft())
+    for stop,base,border in ((0,colors[0],colors[2]),(1,colors[1],colors[3])):
+        color=QColor(base);color.setAlphaF(opacity);fill.setColorAt(stop,color)
+        color=QColor(border);color.setAlphaF(.65*opacity);rim.setColorAt(stop,color)
+    p.setPen(QPen(rim,.7));p.setBrush(fill);p.drawPath(connected_surface(box))
 
 
 class PinButton(QPushButton):
@@ -1129,10 +1142,8 @@ class StatusBar(QWidget):
                     color=QColor('#ffffff' if theme=='dark' else '#22354b');color.setAlpha(25 if state==2 else 14)
                     p.setPen(Qt.PenStyle.NoPen);p.setBrush(color);p.drawRoundedRect(region,7,7)
             if self.hit_regions:
-                background=QColor(palette['background']);background.setAlpha(round(255*(1-self.settings.get('capsule_transparency',0)/100)))
-                p.setPen(Qt.PenStyle.NoPen);p.setBrush(background)
                 box=QRectF(1,1,self.width()-2,self.height()-2)
-                p.drawPath(connected_surface(box,getattr(self.task_strip,'joined_edge',None)))
+                capsule_surface(p,box,theme,self.settings.get('capsule_transparency',0),getattr(self.task_strip,'joined_edge',None),self.task_strip.height())
             if self.floating:
                 shape=connected_surface(QRectF(1,1,self.width()-2,self.height()-2),getattr(self.task_strip,'joined_edge',None))
                 p.setClipPath(shape,Qt.ClipOperation.IntersectClip)

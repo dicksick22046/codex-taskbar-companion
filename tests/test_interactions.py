@@ -426,7 +426,11 @@ class InteractionTests(unittest.TestCase):
                 image=pixmap.toImage();ratio=image.devicePixelRatio()
                 pixel=image.pixelColor(round(self.bar.width()/2*ratio),round(self.bar.height()/2*ratio))
                 self.assertLessEqual(abs(pixel.alpha()-round(255*(1-transparency/100))),1)
-                if transparency==0:self.assertEqual(pixel.name(),app.CAPSULE_COLORS[theme]['background'])
+                if transparency==0:
+                    top,bottom=map(app.QColor,app.CAPSULE_COLORS[theme]['surface'][:2])
+                    for channel in ('red','green','blue'):
+                        self.assertGreaterEqual(getattr(pixel,channel)(),getattr(bottom,channel)())
+                        self.assertLessEqual(getattr(pixel,channel)(),getattr(top,channel)())
                 colors=[app.QColor(c.args[5]).name() for c in draw.call_args_list if c.args[3]=='12%']
                 self.assertEqual(colors,[app.CAPSULE_COLORS[theme]['text']]);foreground.append(colors)
                 self.assertEqual(self.bar.windowOpacity(),1.)

@@ -299,10 +299,10 @@ class PinnedPanel(QWidget):
         return recovered
 
     def paintEvent(self,event):
-        p=visuals.painter(self);color=QColor(visuals.CAPSULE_COLORS[self.owner.settings.get('capsule_theme','dark')]['background'])
-        color.setAlpha(max(1,round(255*(1-self.owner.settings.get('capsule_transparency',0)/100))))
-        p.setPen(Qt.PenStyle.NoPen);p.setBrush(color)
-        p.drawPath(visuals.connected_surface(QRectF(1,1,self.width()-2,self.height()-1),'bottom' if self.joined_edge=='top' else 'top'));p.end()
+        p=visuals.painter(self)
+        visuals.capsule_surface(p,QRectF(1,1,self.width()-2,self.height()-2),self.owner.settings.get('capsule_theme','dark'),
+                                self.owner.settings.get('capsule_transparency',0),'bottom' if self.joined_edge=='top' else 'top',self.owner.height())
+        p.end()
     def shutdown(self):
         self.stopped=True;self.size_motion.stop()
         for row in self.rows.values():row.shutdown()
