@@ -1,5 +1,13 @@
 # v0.2 分区面板与额度重置
 
+## Unified popup presentation
+
+Quota, daily usage, 5h, reset and task-status popovers share the selected capsule's dark/light palette, surface shading, fine rim, typography and control states. Popovers remain opaque for readability; capsule transparency continues to affect only the compact bar and pinned rows. Theme changes update an already open popover. Preserve chart semantics, units, history selection and all data calculations.
+
+Use the same compact header in each popover: 18-DIP side padding, common title baseline and control alignment, with subdued timestamps and secondary labels. Keep the existing compact single-line data arrangements and chart geometry; do not add redundant captions or decorative pointers.
+
+Align each popover horizontally to its invoking metric or status button where screen space permits, while preserving the exclusion area of the complete bar/pinned group and the system taskbar. Keep the 8-DIP gap. Reveal with the existing interruptible spring: opacity and a small translation from the anchor, without scaling text or moving the resting layout. Reduced motion places it immediately; the opening button keeps its existing selected feedback.
+
 新增悬浮显示的几何、拖动与设置约定见[Windows companion](windows-companion.md)。下面涉及任务栏锚点的约束用于Taskbar模式；Floating模式复用相同数据与内容，由屏幕可用区域决定面板方向。
 
 额度有效性、缓存提示、清楚的来源标签、独立开关和渐进历史统计按[产品清晰度](product-clarity.md)执行。当前额度统一排除过期窗口，保留原始历史边界；Today在提示中注明当天观测起点，重置显示自然、手动、官方三类。
