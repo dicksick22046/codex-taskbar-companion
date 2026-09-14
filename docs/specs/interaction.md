@@ -6,7 +6,15 @@ Quota, daily usage, 5h, reset and task-status popovers share the selected capsul
 
 Use the same compact header in each popover: 18-DIP side padding, common title baseline and control alignment, with subdued timestamps and secondary labels. Keep the existing compact single-line data arrangements and chart geometry; do not add redundant captions or decorative pointers.
 
-Align each popover horizontally to its invoking metric or status button where screen space permits, while preserving the exclusion area of the complete bar/pinned group and the system taskbar. Keep the 8-DIP gap. Reveal with the existing interruptible spring: opacity and a small translation from the anchor, without scaling text or moving the resting layout. Reduced motion places it immediately; the opening button keeps its existing selected feedback.
+## Expanded component
+
+Detail replaces the pinned summary presentation while open; never show the same pinned task beside its full status list. This is temporary presentation state, not a pin preference change. Closing, Escape or dismissal restores the saved pinned rows with current data. Switching detail types must not flash the compact summary between them.
+
+All detail types align to the component's stable left edge, with screen clamping only. Detail width is at least the current bar width and its existing readable minimum. A narrow footer remains compact; the wider detail forms a shoulder above it, rather than stretching footer labels or adding empty control space. Remove trigger-centered placement.
+
+The detail body keeps its safe position outside the system taskbar. Reuse the pinned window as a noninteractive connecting surface between body and footer while detail is open. The connector occupies only the footer's horizontal footprint, so it cannot cover adjacent taskbar controls. Body, connector and footer paint one continuous outline/material from shared geometry; no internal rounded edges, border line or detached second card. Above/below placement and screen edges remain supported. Keep the existing native owner/stack repair relationships and keyboard-capable detail window.
+
+Retain the interruptible reveal spring and reduced-motion behavior. The connector follows every actual reveal position and size change, rather than waiting for a later pointer event. Do not scale text. Preserve compact-bar transparency settings, opaque readable detail content, existing charts and controls, task state, statistics, pins, and timers. Acceptance covers open/close/switch/reversal, restored summaries, one copy of task information, matching and unequal widths, both themes, screen edges, no changes to system taskbar controls, and keyboard dismissal.
 
 新增悬浮显示的几何、拖动与设置约定见[Windows companion](windows-companion.md)。下面涉及任务栏锚点的约束用于Taskbar模式；Floating模式复用相同数据与内容，由屏幕可用区域决定面板方向。
 
