@@ -2,7 +2,7 @@ import unittest
 from codex_taskbar.app import QApplication,QWidget,TaskPopup,TaskListPopup,StatusBar,SessionPopup,ResetPopup,DISPLAY_DEFAULTS
 from unittest.mock import patch,Mock
 from codex_taskbar.i18n import translate
-from PySide6.QtCore import QEvent,QPointF,Qt
+from PySide6.QtCore import QEvent,QPointF,Qt,QRect,QRectF
 from PySide6.QtGui import QMouseEvent
 from tests import test_interactions as fixtures
 
@@ -32,6 +32,35 @@ class PopupInitialFrameTests(unittest.TestCase):
                 self.assertFalse(panel.isVisible())
                 panel.close();panel.deleteLater()
         owner.close();owner.deleteLater()
+
+    def test_popup_centers_on_invoking_button_and_stays_on_screen(self):
+        owner=Owner();owner.setGeometry(200,700,500,30);owner.chart_unit='M';owner.popup=None
+        screen=Mock();screen.availableGeometry.return_value=QRect(0,0,1000,900)
+        panel=TaskPopup(owner)
+        try:
+            with patch.object(owner,'screen',return_value=screen),patch('codex_taskbar.app.windows.user32.FindWindowW',return_value=0):
+                for x,expected in ((50,125),(350,425),(-180,0),(780,700)):
+                    owner.hit_regions=[('usage',QRectF(x,0,50,30),None)]
+                    panel.place_panel(300,180)
+                    self.assertEqual(panel.x(),expected);self.assertEqual(panel.geometry().bottom(),owner.y()-9)
+        finally:panel.close();panel.deleteLater();owner.close();owner.deleteLater()
+
+    def test_reveal_moves_from_anchor_without_resizing_and_can_reverse(self):
+        owner=Owner();owner.chart_unit='M';owner.popup=None;owner.motion_enabled=True
+        screen=Mock();screen.availableGeometry.return_value=QRect(0,0,1000,900)
+        panel=TaskPopup(owner)
+        try:
+            with patch.object(owner,'screen',return_value=screen),patch('codex_taskbar.app.windows.user32.FindWindowW',return_value=0):
+                for y,direction in ((700,1),(0,-1)):
+                    owner.setGeometry(200,y,500,30);panel.place_panel(300,180);rest=QRect(panel.resting_geometry)
+                    panel.reveal_target=1.;panel.set_reveal(0.)
+                    self.assertEqual(panel.y(),rest.y()+direction*4);self.assertEqual(panel.size(),rest.size())
+                    panel.set_reveal(.5);half=panel.geometry()
+                    panel.reveal_target=0.;panel.set_reveal(.5);self.assertEqual(panel.geometry(),half)
+                    panel.set_reveal(1.);self.assertEqual(panel.geometry(),rest)
+                    owner.motion_enabled=False;panel.set_reveal(.2);self.assertEqual(panel.geometry(),rest)
+                    owner.motion_enabled=True
+        finally:panel.close();panel.deleteLater();owner.close();owner.deleteLater()
 
     def test_task_panel_adapts_to_names_and_caps_at_bar_width(self):
         owner=Owner();owner.setGeometry(20,600,540,30);owner.popup=None;owner.chart_unit="M"
