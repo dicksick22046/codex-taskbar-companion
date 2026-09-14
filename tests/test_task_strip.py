@@ -198,7 +198,7 @@ class TaskStripTests(unittest.TestCase):
                 return image.copy(QRect(round(area.x()*scale),0,round(area.width()*scale),image.height()))
         app.running_text_raster.cache_clear()
         first=frame(.2);swept=frame(.9)
-        self.assertNotEqual(first,swept);self.assertEqual(first,frame(1.6));self.assertEqual(first,frame(4.6));self.assertEqual(swept,frame(4.9))
+        self.assertNotEqual(first,swept);self.assertEqual(first,frame(1.7));self.assertEqual(first,frame(1.8));self.assertEqual(swept,frame(2.1))
         self.assertEqual(app.running_text_raster.cache_info().misses,1)
         self.assertEqual(self.strip.task_area,hits);self.assertEqual(self.strip.task_rect,area)
         self.owner.motion_enabled=False

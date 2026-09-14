@@ -165,7 +165,7 @@ def running_dot(p,x,y,color,animated):
 
 def running_sweep_phase(elapsed):
     if elapsed<.6:return None
-    phase=(elapsed-.6)%4
+    phase=(elapsed-.6)%1.2
     return math.floor(phase*48)/48 if phase<1 else None
 
 
