@@ -24,22 +24,16 @@ class PinControlTests(unittest.TestCase):
         heading=next(c for c in draw.call_args_list if c.args[3]==self.bar.label('Running'))
         self.assertEqual(QRectF(self.button.geometry()).center().y(),heading.args[2])
 
-    def test_popup_and_pinned_row_follow_capsule_theme_with_subdued_unpin(self):
-        row=self.bar.task_strip.rows['running']
-        for theme,popup_color,row_color,accent in (('dark','#99a6b5','#8795a5',app.BLUE),('light','#526174','#667588','#2169ad')):
-            with self.subTest(theme=theme):
-                self.bar.settings['capsule_theme']=theme;self.button.sync(False)
-                with patch('codex_taskbar.app.pin_renderer',wraps=app.pin_renderer) as render:self.button.grab()
-                self.assertEqual(render.call_args.args[0],popup_color)
-                self.button.sync(True)
-                with patch('codex_taskbar.app.pin_renderer',wraps=app.pin_renderer) as render:self.button.grab()
-                self.assertEqual(render.call_args.args[0],accent)
-                row.pin_button.set_hover_value(0.);row.pin_button.sync(True)
-                with patch('codex_taskbar.app.pin_renderer',wraps=app.pin_renderer) as render:row.pin_button.grab()
-                self.assertEqual(render.call_args.args[0],row_color)
-                row.pin_button.set_hover_value(1.)
-                with patch('codex_taskbar.app.pin_renderer',wraps=app.pin_renderer) as render:row.pin_button.grab()
-                self.assertEqual(render.call_args.args[0],accent)
+    def test_dark_popup_does_not_inherit_light_capsule_icon_color(self):
+        self.bar.settings['capsule_theme']='light';self.button.sync(False)
+        with patch('codex_taskbar.app.pin_renderer',wraps=app.pin_renderer) as render:self.button.grab()
+        self.assertEqual(render.call_args.args[0],'#99a6b5')
+        row=self.bar.task_strip.rows['running'];row.pin_button.sync(True)
+        with patch('codex_taskbar.app.pin_renderer',wraps=app.pin_renderer) as render:row.pin_button.grab()
+        self.assertEqual(render.call_args.args[0],'#667588')
+        row.pin_button.set_hover_value(1.)
+        with patch('codex_taskbar.app.pin_renderer',wraps=app.pin_renderer) as render:row.pin_button.grab()
+        self.assertEqual(render.call_args.args[0],'#2169ad')
 
     def test_drag_out_cancels_and_pointer_focus_is_not_keyboard_focus(self):
         def mouse(kind,point):

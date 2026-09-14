@@ -4,8 +4,6 @@
 
 ## Unreleased
 
-- Unify popovers with the status bar’s dark/light materials, text and controls. Panels stay opaque, align to their trigger, and open with a subtle interruptible movement. Compact the 5h header to match other quota panels.
-
 - Repaint the shared capsule surface throughout pin and unpin animations, preventing a stale rim or shading seam until the next click.
 
 - Give dark and light capsules a gently shaded surface and fine rim, with one continuous outline across pinned rows and the status bar. Transparency still affects only the surface.
