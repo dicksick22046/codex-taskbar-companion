@@ -4,7 +4,7 @@
 
 ## Unreleased
 
-- Match the running title to Codex-style grayscale motion: fixed glyphs and a moving opacity mask, with a one-second sweep and a 0.2-second pause. Keep the effect on fitting-title hover and preserve steady long-title reading, reduced motion and task handoffs.
+- Match the running title to Codex-style grayscale motion: fixed glyphs and a moving opacity mask, with a gentler 1.8-second sweep and a 0.2-second pause. Keep the effect on fitting-title hover and preserve steady long-title reading, reduced motion and task handoffs.
 - Reuse the weekly usage chart renderer for reset history, including column shapes, value labels and date-axis spacing. Highlight the selected date and reserve scrollbar space only when needed. Open on the latest period; clicks or arrow keys change selection, while hovering and scrolling preserve it. Zero and missing readings stay distinct.
 ## 0.10.1
 
