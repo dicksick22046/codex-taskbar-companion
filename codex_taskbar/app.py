@@ -10,13 +10,14 @@ import os
 import subprocess
 from html import escape
 from functools import lru_cache
+from fractions import Fraction
 
 BASE = Path(__file__).resolve().parents[1]
 from .preferences import runtime_dir, migrate_legacy, read_settings, write_settings, DISPLAY_DEFAULTS, legacy_runtime_dirs
 RUNTIME = runtime_dir()
 try:
     from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QPointF, QVariantAnimation, QEasingCurve,QAbstractAnimation
-    from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPen, QCursor, QLinearGradient, QBrush
+    from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPen, QCursor, QLinearGradient, QImage
     from PySide6.QtWidgets import QApplication, QWidget, QMenu, QSystemTrayIcon, QPushButton, QMessageBox,QButtonGroup,QToolTip,QScrollBar
     from PySide6.QtSvg import QSvgRenderer
 except ImportError:
@@ -162,12 +163,37 @@ def running_dot(p,x,y,color,animated):
     p.setBrush(QColor(color));radius=2.5+.3*wave;p.drawEllipse(QPointF(x,y),radius,radius)
 
 
-def running_title(p,x,y,value,font,left,width,color,light=False):
-    span=32.;phase=time.monotonic()%4.8/4.8;center=left-span+(width+2*span)*phase
-    gradient=QLinearGradient(center-span,0,center+span,0)
-    gradient.setColorAt(0,QColor(color));gradient.setColorAt(.5,QColor('#155b77' if light else '#e3f3ff'));gradient.setColorAt(1,QColor(color))
-    p.setFont(font);p.setPen(QPen(QBrush(gradient),1));metrics=QFontMetricsF(font)
-    p.drawText(QPointF(x,y+(metrics.ascent()-metrics.descent())/2),value)
+def running_sweep_phase(elapsed):
+    if elapsed<.6:return None
+    phase=(elapsed-.6)%4
+    return math.floor(phase*48)/48 if phase<1 else None
+
+
+@lru_cache(maxsize=64)
+def running_text_raster(value,font_description,strategy,hint,scale,dpi,color,offset_x,offset_y):
+    font=QFont();font.fromString(font_description);font.setStyleStrategy(QFont.StyleStrategy(strategy));font.setHintingPreference(QFont.HintingPreference(hint))
+    metrics=QFontMetricsF(font)
+    raster=QImage(max(1,math.ceil((metrics.horizontalAdvance(value)+offset_x+2)*scale)),max(1,math.ceil((metrics.height()+offset_y+2)*scale)),QImage.Format.Format_ARGB32_Premultiplied)
+    raster.setDevicePixelRatio(scale);raster.setDotsPerMeterX(round(dpi/.0254));raster.setDotsPerMeterY(round(dpi/.0254));raster.fill(Qt.GlobalColor.transparent)
+    painter=QPainter(raster);painter.setRenderHint(QPainter.RenderHint.TextAntialiasing);painter.setFont(font);painter.setPen(QColor.fromRgba(color))
+    painter.drawText(QPointF(offset_x,offset_y+metrics.ascent()),value);painter.end()
+    return raster
+
+
+def running_title(p,x,y,value,font,left,width,color,elapsed=None):
+    metrics=QFontMetricsF(font);scale=p.device().devicePixelRatioF();top=y-(metrics.ascent()+metrics.descent())/2
+    # Keep the cached glyph origin aligned in both logical and device pixels.
+    grid=Fraction(scale).limit_denominator(96).denominator
+    origin=QPointF(math.floor((x-2)/grid)*grid,math.floor((top-2)/grid)*grid)
+    raster=running_text_raster(value,font.toString(),font.styleStrategy().value,font.hintingPreference().value,scale,p.device().logicalDpiY(),QColor(color).rgba(),x-origin.x(),top-origin.y())
+    phase=running_sweep_phase(time.monotonic() if elapsed is None else elapsed)
+    if phase is not None:
+        raster=raster.copy();start=left-origin.x()+(-.5+1.75*phase)*width
+        mask=QLinearGradient(start,0,start+max(1,width),0)
+        for position,alpha in ((0,255),(.2,64),(.3,64),(.5,255),(1,255)):mask.setColorAt(position,QColor(0,0,0,alpha))
+        painter=QPainter(raster);painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
+        painter.fillRect(QRectF(0,0,raster.width()/scale,raster.height()/scale),mask);painter.end()
+    p.drawImage(origin,raster)
 
 
 def activity_count(p,x,y,count,color=ACCENT,pulse=True,text_color=None,glyph=None,emphasis=0):

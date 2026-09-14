@@ -25,6 +25,7 @@ class TaskStrip(QWidget):
         self.owner=owner;self.data={};self.candidates=[]
         self.current_id=None;self.task=None;self.previous_task=None
         self.rotated_at=time.monotonic();self.paused_at=None
+        self.shimmer_started=None
         self.task_hover=False;self.title_hover_started=self.rotated_at
         self.task_area=QRectF();self.task_rect=QRectF();self.hit_regions=[]
         self.pressed=None;self.pressed_local=None;self.press_inside=False
@@ -101,9 +102,11 @@ class TaskStrip(QWidget):
         self.setAccessibleName(translate(self.language,CATEGORY_LABELS[self.category]))
         self._sync_pause(time.monotonic())
         if not self.candidates or self.hidden:
+            self.shimmer_started=None
             self.hide();self.track_pointer(QPointF(-1,-1));self.cancel_press()
             if not self.candidates:self.current_id=None;self.task=None;self.previous_task=None;self.task_tween.stop();self.task_blend=1.
             return
+        if self.shimmer_started is None:self.shimmer_started=time.monotonic()
         if self.isVisible():
             point=QCursor.pos();widget=QApplication.widgetAt(point)
             self.track_pointer(self.mapFromGlobal(point) if widget is self or widget and self.isAncestorOf(widget) else QPointF(-1,-1))
@@ -180,7 +183,8 @@ class TaskStrip(QWidget):
         visuals.running_dot(p,17,y,color,self.category=='running' and self.motion_enabled)
         def label(task,opacity,offset,current=False):
             metrics=QFontMetricsF(self.owner.font);title=task_title(task,self.language);available=max(0,self.width()-70)
-            shown=min(available,metrics.horizontalAdvance(title))
+            full_width=metrics.horizontalAdvance(title);shown=min(available,full_width)
+            reading_overflow=self.task_hover and full_width>available+.5
             area=QRectF(30,0,shown,self.height())
             if current:self.task_rect=area
             if opacity>0:self.task_area=self.task_area.united(area.adjusted(-5,0,6,0))
@@ -189,8 +193,9 @@ class TaskStrip(QWidget):
             if self.task_hover and self.motion_enabled and self.task_blend>=1 and not self.pressed and not self.dragging:
                 shift=visuals.marquee_offset(time.monotonic()-self.title_hover_started,metrics.horizontalAdvance(title)-available)
             else:title=metrics.elidedText(title,Qt.TextElideMode.ElideRight,available)
-            if self.category=='running' and self.motion_enabled and self.task_blend>=1 and not self.task_hover and not self.pressed:
-                visuals.running_title(p,30,y+offset,title,self.owner.font,30,shown,palette['text'],theme=='light')
+            if self.category=='running' and self.motion_enabled and not reading_overflow and not self.pressed and not self.dragging:
+                elapsed=max(0,time.monotonic()-self.shimmer_started) if self.shimmer_started is not None else 0
+                visuals.running_title(p,30,y+offset,title,self.owner.font,30,shown,palette['text'],elapsed=elapsed)
             else:visuals.text(p,30-shift,y+offset,title,self.owner.font,palette['text'])
             p.restore()
         if self.previous_task and self.task_blend<1:label(self.previous_task,1-self.task_blend,-14*self.task_blend)
@@ -198,6 +203,7 @@ class TaskStrip(QWidget):
         self.hit_regions=[('task',QRectF(self.task_area),dict(self.displayed_task()))];p.end()
 
     def shutdown(self):self.stopped=True;self.task_tween.stop();self.cancel_press();self.hide()
+    def hideEvent(self,event):self.shimmer_started=None;super().hideEvent(event)
     def closeEvent(self,event):self.shutdown();event.accept()
 
 

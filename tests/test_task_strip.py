@@ -189,5 +189,59 @@ class TaskStripTests(unittest.TestCase):
         self.assertEqual(first,second)
         with patch.object(self.strip,'isVisible',return_value=False):self.assertFalse(self.strip.needs_animation)
 
+    def test_codex_cadence_waits_then_sweeps_without_loop_seams(self):
+        self.owner.motion_enabled=True;self.refresh([task('a','Tracing the import')]);self.strip.shimmer_started=0
+        area=QRectF(self.strip.task_rect);hits=QRectF(self.strip.task_area)
+        def frame(at):
+            with patch('codex_taskbar.app.time.monotonic',return_value=at):
+                image=self.strip.grab().toImage();scale=image.devicePixelRatio()
+                return image.copy(QRect(round(area.x()*scale),0,round(area.width()*scale),image.height()))
+        app.running_text_raster.cache_clear()
+        first=frame(.2);swept=frame(.9)
+        self.assertNotEqual(first,swept);self.assertEqual(first,frame(1.6));self.assertEqual(first,frame(4.6));self.assertEqual(swept,frame(4.9))
+        self.assertEqual(app.running_text_raster.cache_info().misses,1)
+        self.assertEqual(self.strip.task_area,hits);self.assertEqual(self.strip.task_rect,area)
+        self.owner.motion_enabled=False
+        self.assertEqual(first,frame(.9))
+
+    def test_fitting_title_hover_keeps_sweep_and_reading_overflow_uses_plain_text(self):
+        self.owner.motion_enabled=True;self.refresh([task('a','Working')]);self.strip.track_pointer(self.strip.task_area.center())
+        with patch('codex_taskbar.app.running_title',wraps=app.running_title) as light:self.strip.grab();light.assert_called_once()
+        self.refresh([task('a','Long running task title '*40)]);self.strip.track_pointer(self.strip.task_area.center())
+        with patch('codex_taskbar.app.running_title',wraps=app.running_title) as light:self.strip.grab();light.assert_not_called()
+
+    def test_handoff_uses_cached_ink_with_parent_opacity_and_hidden_rows_reset_cadence(self):
+        self.owner.motion_enabled=True;tasks=[task('a','First task'),task('b','Second task')]
+        self.refresh(tasks,now=0);self.assertEqual(self.strip.shimmer_started,0)
+        self.refresh(tasks,now=8);self.assertEqual(self.strip.shimmer_started,0);self.strip.set_task_blend(.5)
+        with patch('codex_taskbar.app.running_title',wraps=app.running_title) as light:self.strip.grab();self.assertEqual(light.call_count,2)
+        self.refresh(tasks,now=9,hidden=True);self.assertIsNone(self.strip.shimmer_started)
+        self.refresh(tasks,now=12);self.assertEqual(self.strip.shimmer_started,12)
+
+    def test_mask_is_composed_before_parent_fade_opacity(self):
+        def render(opacity):
+            image=app.QImage(220,40,app.QImage.Format.Format_ARGB32_Premultiplied);image.fill(Qt.GlobalColor.transparent)
+            painter=app.QPainter(image);painter.setOpacity(opacity)
+            app.running_title(painter,12,20,'Thinking',self.owner.font,12,app.QFontMetricsF(self.owner.font).horizontalAdvance('Thinking'),app.MUTED,elapsed=.9)
+            painter.end();return image
+        full=render(1);half=render(.5);visible=0
+        for y in range(full.height()):
+            for x in range(full.width()):
+                alpha=full.pixelColor(x,y).alpha()
+                if alpha:
+                    visible+=1;self.assertLessEqual(abs(half.pixelColor(x,y).alpha()-alpha*.5),1)
+        self.assertGreater(visible,50)
+
+    def test_cached_ink_matches_normal_text_at_fractional_pixel_scales(self):
+        for scale in (1.,1.25,1.5,2.):
+            images=[]
+            for masked in (False,True):
+                image=app.QImage(round(240*scale),round(44*scale),app.QImage.Format.Format_ARGB32_Premultiplied);image.setDevicePixelRatio(scale);image.fill(Qt.GlobalColor.transparent)
+                painter=app.QPainter(image);painter.setRenderHint(app.QPainter.RenderHint.TextAntialiasing)
+                if masked:app.running_title(painter,12.3,18.7,'任务状态 · Thinking',self.owner.font,12.3,210,app.MUTED,elapsed=.2)
+                else:app.text(painter,12.3,18.7,'任务状态 · Thinking',self.owner.font,app.MUTED)
+                painter.end();images.append(image)
+            self.assertEqual(images[0],images[1],scale)
+
 
 if __name__=='__main__':unittest.main()
