@@ -84,6 +84,16 @@ class PinnedPanelTests(unittest.TestCase):
         before=row.grab().toImage();row.track_pointer(app.QPointF(55,15));after=row.grab().toImage()
         self.assertNotEqual(before,after);self.assertTrue(row.task_hover)
 
+    def test_height_changes_repaint_the_shared_bar_surface_without_pointer_input(self):
+        for y in (0,500):
+            self.bar.move(100,y);self.group.layout_rows(0);self.group.layout_rows(2)
+            for height in (8,20,31,20,8,2,0):
+                with patch.object(self.bar,'update') as redraw:
+                    self.group.layout_rows(height);redraw.assert_called_once()
+            self.group.layout_rows(31)
+            with patch.object(self.bar,'update') as redraw:
+                self.group.layout_rows(31);redraw.assert_not_called()
+
     def test_all_popovers_avoid_the_bar_and_pinned_rows_above_and_below(self):
         with patch.object(self.group,'isVisible',return_value=True):
             for placement in ('taskbar','floating'):

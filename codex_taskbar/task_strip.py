@@ -267,10 +267,11 @@ class PinnedPanel(QWidget):
             return
         screen=self.owner.screen();bounds=screen.availableGeometry() if self.owner.floating else screen.geometry()
         box=panel_rect(self.owner.geometry(),bounds,self.owner.width(),height,-1)
+        height_changed=height!=self.height()
         moved=box!=self.geometry()
         if moved:self.setGeometry(box)
         edge='top' if box.top()<self.owner.y() else 'bottom'
-        if edge!=self.joined_edge:self.joined_edge=edge;self.owner.update()
+        if edge!=self.joined_edge or height_changed:self.joined_edge=edge;self.owner.update()
         offset=height-(len(self.active)*30+1) if edge=='top' else 0
         for index,kind in enumerate(self.active):self.rows[kind].move(0,offset+index*30)
         self.ensure_visible()
