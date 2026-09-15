@@ -253,7 +253,9 @@ class ResetChartTests(unittest.TestCase):
             panel.refresh(self.data)
             with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
             header=[call.args for call in draw.call_args_list if call.args[2]==64]
-            self.assertEqual([args[3] for args in header],[self.bar.label('Reset periods'),panel.history_unit(),*[label for _,label in panel.history_legend()]])
+            expected={'en':'Period usage (100M)','zh-CN':'周期用量（亿）','ja':'期間別使用量（億）','es':'Uso por período (100M)'}
+            self.assertEqual(panel.history_heading(),expected[language])
+            self.assertEqual([args[3] for args in header],[expected[language],*[label for _,label in panel.history_legend()]])
             right=18
             for _,x,y,value,font,*_ in header:
                 self.assertGreaterEqual(x,right);right=x+app.QFontMetricsF(font).horizontalAdvance(value)

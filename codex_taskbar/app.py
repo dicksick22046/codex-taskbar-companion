@@ -1572,7 +1572,7 @@ class ResetPopup(TaskPopup):
         self.history_scroll.setRange(0,max(0,self.history_width-(self.width()-36)))
         self.history_scroll.blockSignals(False)
         self.history_scroll.setPageStep(self.width()-36);self.history_scroll.setSingleStep(self.column_width)
-        self.history_scroll.setAccessibleName(self.owner.label('Reset periods'))
+        self.history_scroll.setAccessibleName(self.history_heading())
         if self.rows and not self.history_initialized:
             self.history_scroll.setValue(self.history_scroll.maximum());self.history_initialized=True
         credit=data.get('reset_selected')
@@ -1583,7 +1583,7 @@ class ResetPopup(TaskPopup):
         self.button.setText(self.owner.label(label))
         self.scroll=min(self.scroll,self.scroll_limit())
         self.layout_history_scroll()
-        self.setAccessibleDescription(self.owner.label('Reset periods')+' · '+self.history_unit()+'\n'+'\n'.join(
+        self.setAccessibleDescription(self.history_heading()+'\n'+'\n'.join(
             self.history_interval(row)+' · '+self.history_usage(row)+' · '+self.history_label(row) for row in self.rows))
         self.update()
 
@@ -1624,6 +1624,8 @@ class ResetPopup(TaskPopup):
 
     def history_unit(self):return {'zh-CN':'亿','ja':'億'}.get(self.owner.language,'100M')
 
+    def history_heading(self):return self.owner.label('Period usage ({unit})',unit=self.history_unit())
+
     def history_amount(self,row):return chart_number(self.history_tokens(row),'100M')
 
     def history_usage(self,row):
@@ -1638,13 +1640,13 @@ class ResetPopup(TaskPopup):
 
     def history_header_width(self):
         metrics=QFontMetricsF(face(7))
-        title=QFontMetricsF(face(8)).horizontalAdvance(self.owner.label('Reset periods'))
-        return math.ceil(36+title+6+metrics.horizontalAdvance(self.history_unit())+18+sum(10+metrics.horizontalAdvance(label) for _,label in self.history_legend())+24)
+        title=QFontMetricsF(face(8)).horizontalAdvance(self.history_heading())
+        return math.ceil(36+title+18+sum(10+metrics.horizontalAdvance(label) for _,label in self.history_legend())+24)
 
     def draw_history_heading(self,p):
         colors=popup_palette(self.owner);font=face(7);metrics=QFontMetricsF(font)
-        width=text(p,18,64,self.owner.label('Reset periods'),face(8),colors['muted'])
-        left=24+width;left+=text(p,left,64,self.history_unit(),font,colors['muted'])+18
+        width=text(p,18,64,self.history_heading(),face(8),colors['muted'])
+        left=18+width+18
         legend=self.history_legend();widths=[metrics.horizontalAdvance(label) for _,label in legend]
         available=max(0,self.width()-18-left-54);scale=min(1,available/max(1,sum(widths)))
         x=self.width()-18-(sum(widths)*scale+54)
