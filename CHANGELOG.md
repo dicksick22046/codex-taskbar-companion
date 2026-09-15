@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Avoid task-row highlights on panel opening: hit-test only the visible viewport and show keyboard selection only after keyboard navigation or keyboard focus.
+
 ## 0.11.0
 
 - Open quota, usage, reset and task details directly above navigation. Closing restores pinned summaries without changing pin settings.

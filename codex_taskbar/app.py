@@ -1790,7 +1790,7 @@ class TaskListPopup(TaskPopup):
         self.mode=mode
         self.setWindowTitle('Codex · '+owner.label('Tasks'))
         self.hovered=None;self.rows=[];self.hover_started=time.monotonic()
-        self.keyboard_task=None;self.animation=QTimer(self);self.animation.timeout.connect(self.animate)
+        self.keyboard_task=None;self.keyboard_navigation=False;self.animation=QTimer(self);self.animation.timeout.connect(self.animate)
         self.pin_button=None
         if mode in STATUS_CATEGORIES:
             self.pin_button=PinButton(owner,self)
@@ -1858,6 +1858,7 @@ class TaskListPopup(TaskPopup):
         self.update()
 
     def task_at(self,point):
+        if self.host and not self.global_geometry().contains(self.mapToGlobal(QPointF(point).toPoint())):return None
         if self.mode=='daily' and any(rect.contains(point) for rect in self.unit_rects().values()):return None
         if point.y()<self.content_top():return None
         if not QRectF(10,8,self.width()-20,max(0,self.height()-16)).contains(point):return None
@@ -1887,9 +1888,10 @@ class TaskListPopup(TaskPopup):
         for task,position in zip(self.rows,self.row_positions):
             yy=8+position-self.scroll;y=yy+self.ROW_HEIGHT/2
             if yy+self.ROW_HEIGHT<8 or yy>self.height()-8:continue
-            if task['id']==self.hovered or self.hasFocus() and task['id']==self.keyboard_task:
-                selected=self.hasFocus() and task['id']==self.keyboard_task
-                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(colors['pressed'] if task['id']==getattr(self,'pressed_task',None) else colors['selected'] if selected else colors['hover']))
+            selected=self.keyboard_navigation and self.hasFocus() and task['id']==self.keyboard_task
+            pressed=task['id']==getattr(self,'pressed_task',None)
+            if pressed or task['id']==self.hovered or selected:
+                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(colors['pressed'] if pressed else colors['selected'] if selected else colors['hover']))
                 p.drawRoundedRect(QRectF(10,yy,self.width()-20,self.ROW_HEIGHT),5,5)
             if task.get('status')=='failed':
                 pen(p,colors['failed'],1.2);p.drawEllipse(QPointF(22,y),3.6,3.6)
@@ -1923,6 +1925,7 @@ class TaskListPopup(TaskPopup):
 
     def mousePressEvent(self,event):
         if event.button()!=Qt.MouseButton.LeftButton:return
+        self.keyboard_navigation=False
         self.pressed_task=None
         task=self.task_at(event.position())
         self.pressed_task=task['id'] if task else None;self.keyboard_task=self.pressed_task;self.update()
@@ -1934,7 +1937,15 @@ class TaskListPopup(TaskPopup):
         self.pressed_task=None;self.update()
 
     def mouseMoveEvent(self,event):
+        self.keyboard_navigation=False
         self.track_hover(event.position());self.sync_animation();self.update()
+
+    def focusInEvent(self,event):
+        self.keyboard_navigation=event.reason() in (Qt.FocusReason.TabFocusReason,Qt.FocusReason.BacktabFocusReason,Qt.FocusReason.ShortcutFocusReason)
+        super().focusInEvent(event);self.update()
+
+    def focusOutEvent(self,event):
+        self.keyboard_navigation=False;super().focusOutEvent(event);self.update()
 
     def leaveEvent(self,event):
         self.hovered=None;self.setToolTip('');self.sync_animation();self.update()
@@ -1948,6 +1959,7 @@ class TaskListPopup(TaskPopup):
         if self.focusWidget() in self.unit_buttons.values():super().keyPressEvent(event);return
         ids=[t['id'] for t in self.rows]
         if ids and event.key() in (Qt.Key.Key_Up,Qt.Key.Key_Down,Qt.Key.Key_Home,Qt.Key.Key_End):
+            self.keyboard_navigation=True
             index=ids.index(self.keyboard_task) if self.keyboard_task in ids else 0
             if event.key()==Qt.Key.Key_Home:index=0
             elif event.key()==Qt.Key.Key_End:index=len(ids)-1
