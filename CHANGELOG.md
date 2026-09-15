@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Compare reset-period totals with wider adjacent bars and dates at reset boundaries. Keep per-bar units, show the selected interval, and preserve unknown starts instead of implying daily usage.
+
 - Avoid task-row highlights on panel opening: hit-test only the visible viewport and show keyboard selection only after keyboard navigation or keyboard focus.
 
 ## 0.11.0

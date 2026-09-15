@@ -14,7 +14,7 @@ class ResetChartTests(unittest.TestCase):
     def setUp(self):
         fixtures.InteractionTests.setUp(self)
         now=datetime.now().timestamp()
-        self.data['reset_events']=[{'id':str(i),'kind':'manual','at':now+i,'tokens':value,'before':{'10080':{'remaining':remaining}}}
+        self.data['reset_events']=[{'id':str(i),'kind':'manual','at':now+i*86400,'tokens':value,'before':{'10080':{'remaining':remaining}}}
                                    for i,(value,remaining) in enumerate(((2000000000,80),(1000000000,5),(0,100),(None,0)))]
         self.panel=app.ResetPopup(self.bar);self.panel.refresh(self.data)
     def tearDown(self):
@@ -70,15 +70,15 @@ class ResetChartTests(unittest.TestCase):
 
     def test_history_remains_chronological_and_quota_is_described_separately(self):
         start=self.data['reset_events'][0]['at']-4*86400
+        self.data['reset_events'][0]['period_start']=start-86400
         for index,row in enumerate(self.data['reset_events']):row['at']=start+index*86400
         for language in app.LANGUAGES:
             self.bar.settings['language']=language;self.panel.refresh(self.data)
-            with patch('codex_taskbar.app.paint_usage_column',wraps=app.paint_usage_column) as draw:self.panel.grab()
-            dates=[f'{datetime.fromtimestamp(row["at"]).month}/{datetime.fromtimestamp(row["at"]).day}' for row in self.data['reset_events']]
-            shown=[call.args[7] for call in draw.call_args_list]
-            self.assertTrue(shown)
-            order=[dates.index(value) for value in shown];self.assertEqual(order,sorted(order))
+            labels=self.panel.boundary_labels
+            dates=[datetime.fromtimestamp(start-86400).strftime('%m/%d')]+[datetime.fromtimestamp(row['at']).strftime('%m/%d') for row in self.data['reset_events']]
+            self.assertEqual(labels,dates)
             self.assertIn(self.bar.label('Quota used')+' 20%',self.panel.accessibleDescription())
+            self.assertIn(self.panel.history_interval(self.panel.rows[0],full=True),self.panel.accessibleDescription())
 
     def test_horizontal_scroll_reaches_latest_preserves_offset_and_keeps_height(self):
         for language in app.LANGUAGES:
@@ -168,34 +168,99 @@ class ResetChartTests(unittest.TestCase):
             self.assertFalse(self.panel.history_focus.timer.isActive());self.assertEqual(self.panel.history_focus.value,self.panel.history_focus.target)
         finally:self.bar.popup=None
 
-    def test_scrolled_edges_never_show_partial_amount_labels(self):
+    def test_scrolled_edges_never_show_partial_amount_or_boundary_labels(self):
         self.bar.settings['language']='en';panel=self.panel
         self.data['reset_events']=[dict(self.data['reset_events'][index%4],id=str(index)) for index in range(12)];panel.refresh(self.data)
-        panel.history_scroll.setValue(panel.column_width//2)
-        with patch('codex_taskbar.app.paint_usage_column',wraps=app.paint_usage_column) as draw:panel.grab()
-        self.assertTrue(draw.call_args_list)
-        for call in draw.call_args_list:self.assertEqual(call.kwargs['label_bounds'].getRect(),(18.,0.,panel.width()-36.,float(panel.height())))
-        painter=Mock();bounds=app.QRectF(18,0,264,200)
-        app.paint_usage_column(painter,18,100,80,1,1,'20.37 ×100M','9/14',app.BLUE,label_bounds=bounds)
-        painter.drawText.assert_not_called()
-        app.paint_usage_column(painter,100,100,80,1,1,'20.37 ×100M','9/14',app.BLUE,label_bounds=bounds)
-        self.assertEqual(painter.drawText.call_count,2)
+        for offset in (0,panel.column_width//2,panel.history_scroll.maximum()):
+            panel.history_scroll.setValue(offset)
+            with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
+            labels=[call.args for call in draw.call_args_list if call.args[3] in panel.boundary_labels and call.args[2]==panel.DATE_Y]
+            self.assertTrue(labels)
+            previous=18
+            for _,x,y,value,font,*_ in labels:
+                width=app.QFontMetricsF(font).horizontalAdvance(value)
+                self.assertGreaterEqual(x,previous);self.assertLessEqual(x+width,panel.width()-18)
+                previous=x+width
+            amounts=[' '.join(panel.history_parts(row)) for row in panel.rows]
+            for call in draw.call_args_list:
+                _,x,y,value,font,*_=call.args
+                if value not in amounts or not panel.CHART_TOP<=y<=panel.BASELINE:continue
+                self.assertGreaterEqual(x,18)
+                self.assertLessEqual(x+app.QFontMetricsF(font).horizontalAdvance(value),panel.width()-18)
 
-    def test_weekly_and_history_share_columns_and_do_not_reserve_hidden_scroll_space(self):
+    def test_period_bars_are_equal_width_with_thin_gaps_and_weekly_is_unchanged(self):
         self.bar.settings['language']='zh-CN';self.panel.refresh(self.data)
         weekly=app.TaskPopup(self.bar);weekly.refresh(self.data)
         try:
             with patch('codex_taskbar.app.paint_usage_column',wraps=app.paint_usage_column) as columns:
                 weekly.grab();self.assertTrue(columns.called);columns.reset_mock()
-                self.panel.grab();self.assertTrue(columns.called)
-            highest=self.panel.history_bar_rect(self.data['reset_events'][0],0)
-            self.assertEqual(highest.height(),64)
-            axis=app.usage_date_rect(highest.center().x(),highest.bottom(),self.panel.column_width)
-            self.assertEqual(axis.top()-highest.bottom(),9)
+                self.panel.grab();self.assertFalse(columns.called)
+            first=self.panel.history_bar_rect(self.panel.rows[0],0);second=self.panel.history_bar_rect(self.panel.rows[1],1)
+            self.assertEqual(first.height(),64);self.assertEqual(first.width(),second.width())
+            self.assertEqual(second.left()-first.right(),6)
+            self.assertGreater(first.width(),self.panel.column_width*.8)
+            self.data['reset_events']=self.data['reset_events'][:1];self.panel.refresh(self.data)
+            axis=app.usage_date_rect(0,self.panel.BASELINE,1)
             self.assertTrue(self.panel.history_scroll.isHidden())
             self.assertEqual(self.panel.credits_top-14-axis.bottom(),8)
-            self.assertLessEqual(self.panel.history_column_rect(highest.center().x()).height(),18)
         finally:weekly.close();weekly.deleteLater()
+
+    def test_start_metadata_and_boundary_labels_distinguish_same_day_resets(self):
+        now=datetime(2026,9,15,10,0).timestamp()
+        self.data['reset_events']=[dict(self.panel.rows[0],id=str(i),at=now+i*20,period_start=now-3600 if i==0 else now+(i-1)*20) for i in range(3)]
+        self.panel.refresh(self.data)
+        self.assertEqual(self.panel.history_start(self.panel.rows[0]),now-3600)
+        self.assertEqual(len(set(self.panel.boundary_labels)),4)
+        self.assertIn('10:00:20',self.panel.boundary_labels[2])
+        self.assertIn('09:00',self.panel.history_interval(self.panel.rows[0]))
+        for i in range(3):
+            self.panel.rows[i].pop('period_start')
+        self.panel.refresh(self.data)
+        self.assertEqual(self.panel.boundary_labels[0],'—')
+        self.assertTrue(self.panel.history_interval(self.panel.rows[0]).startswith('—'))
+        self.assertEqual(self.panel.history_start(self.panel.rows[1]),now)
+
+    def test_latest_same_day_period_draws_both_boundaries_without_overlap(self):
+        now=datetime(2026,9,15,10,0).timestamp();panel=self.panel
+        self.data['reset_events']=[dict(panel.rows[0],id=str(i),at=now+i*20,period_start=now+(i-1)*20) for i in range(8)]
+        panel.refresh(self.data);panel.select_history(7)
+        self.assertEqual(panel.history_scroll.value(),panel.history_scroll.maximum())
+        with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
+        shown={call.args[3]:call.args[1] for call in draw.call_args_list if call.args[2]==panel.DATE_Y}
+        left,right=panel.boundary_labels[-2:]
+        self.assertIn(left,shown);self.assertIn(right,shown)
+        self.assertLessEqual(shown[left]+app.QFontMetricsF(app.face(7)).horizontalAdvance(left)+6,shown[right])
+        self.assertGreaterEqual(shown[left],18)
+        self.assertLessEqual(shown[right]+app.QFontMetricsF(app.face(7)).horizontalAdvance(right),panel.width()-18)
+        self.assertLess(panel.column_width,max(app.QFontMetricsF(app.face(7)).horizontalAdvance(label) for label in panel.boundary_labels)+10)
+
+    def test_explicit_unknown_start_never_falls_back_and_equal_boundaries_are_unknown(self):
+        panel=self.panel;row=panel.rows[1]
+        row['period_start']=None;self.assertIsNone(panel.history_start(row))
+        row['period_start']=row['at'];self.assertIsNone(panel.history_start(row))
+        row.pop('period_start');row['at']=panel.rows[0]['at'];self.assertIsNone(panel.history_start(row))
+
+    def test_known_zero_amount_sits_above_baseline_while_missing_stays_distinct(self):
+        panel=self.panel;self.bar.settings['language']='en'
+        self.data['reset_events']=self.data['reset_events'][2:];panel.refresh(self.data)
+        with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
+        zero=next(call.args for call in draw.call_args_list if call.args[3]=='0 ×100M')
+        self.assertLess(zero[2]+app.QFontMetricsF(zero[4]).height()/2,panel.BASELINE)
+        missing=[call.args for call in draw.call_args_list if call.args[3]=='—' and call.args[2]==panel.BASELINE-1]
+        self.assertTrue(missing)
+
+    def test_attached_width_does_not_reserve_space_for_a_hidden_scrollbar(self):
+        self.bar.setGeometry(30,700,560,30);self.bar.settings['placement']='floating';self.bar.motion_enabled=False
+        host=self.bar.task_strip;panel=app.ResetPopup(self.bar,host);host.attach_detail(panel)
+        try:
+            panel.refresh(self.data)
+            self.assertEqual(panel.width(),self.bar.width())
+            self.assertEqual(panel.history_scroll.maximum(),0)
+            self.assertTrue(panel.history_scroll.isHidden())
+            axis_bottom=app.usage_date_rect(0,panel.BASELINE,panel.column_width).bottom()
+            self.assertEqual(panel.history_height,axis_bottom+2-panel.HISTORY_START)
+            self.assertEqual(panel.credits_top-14-axis_bottom,8)
+        finally:host.detach_detail(restore=False);panel.close();panel.deleteLater()
 
     def test_latest_is_the_default_but_refresh_keeps_an_explicit_choice(self):
         panel=self.panel;self.assertEqual(panel.selected_history_index(),3)

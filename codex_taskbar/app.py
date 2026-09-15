@@ -1563,10 +1563,15 @@ class ResetPopup(TaskPopup):
         self.forecast_height=24 if self.forecast else 0
         self.credits=data.get('reset_credits',[])
         metrics=QFontMetricsF(face(7))
-        self.column_width=math.ceil(max([64]+[metrics.horizontalAdvance(' '.join(part for part in self.history_parts(row) if part))+16 for row in self.rows]))
+        self.boundary_labels=self.history_boundary_labels()
+        boundary_widths=[metrics.horizontalAdvance(label) for label in self.boundary_labels]
+        edge_width=max(boundary_widths+[0])
+        self.column_width=math.ceil(max([64,edge_width+8]+[metrics.horizontalAdvance(' '.join(part for part in self.history_parts(row) if part))+12 for row in self.rows]))
+        self.history_padding=(math.ceil(boundary_widths[0]/2),math.ceil(boundary_widths[-1]/2)) if boundary_widths else (0,0)
+        self.history_width=len(self.rows)*self.column_width+sum(self.history_padding)
         screen=self.owner.floating_screen() if self.owner.floating else self.owner.screen()
-        width=min(self.WIDTH,screen.availableGeometry().width())
-        overflow=len(self.rows)*self.column_width>width-36
+        width=min(max(self.WIDTH,self.owner.width()) if self.host else self.WIDTH,screen.availableGeometry().width())
+        overflow=self.history_width>width-36
         axis_bottom=usage_date_rect(0,self.BASELINE,self.column_width).bottom()
         self.history_height=axis_bottom+(16 if overflow else 2)-self.HISTORY_START if self.rows else 28
         self.credits_top=self.HISTORY_START+self.history_height+20
@@ -1577,11 +1582,11 @@ class ResetPopup(TaskPopup):
         self.button.setGeometry(18,self.height()-48,self.width()-36,32)
         self.history_max=max([self.history_tokens(row) or 0 for row in self.rows]+[0])
         self.history_scroll.blockSignals(True)
-        self.history_scroll.setRange(0,max(0,len(self.rows)*self.column_width-(self.width()-36)))
+        self.history_scroll.setRange(0,max(0,self.history_width-(self.width()-36)))
         self.history_scroll.blockSignals(False)
         self.history_scroll.setPageStep(self.width()-36);self.history_scroll.setSingleStep(self.column_width)
-        self.history_scroll.setAccessibleName(self.owner.label('Usage history'))
-        structure=(tuple(keys),self.column_width)
+        self.history_scroll.setAccessibleName(self.owner.label('Reset periods'))
+        structure=(tuple(keys),self.column_width,self.history_padding)
         if structure!=self.history_structure:
             self.history_structure=structure;selected=self.selected_history_index()
             if selected is not None:self.ensure_history_visible(selected)
@@ -1598,9 +1603,43 @@ class ResetPopup(TaskPopup):
             confidence=self.owner.label({'low':'Low confidence','medium':'Medium confidence','high':'High confidence'}[self.forecast['confidence']])
             self.setToolTip(self.toolTip()+'\n'+self.owner.label('Community forecast for global resets, not your account schedule.')+' '+confidence+'\n'+FORECAST_SOURCE)
         self.sync_history_focus()
-        self.setAccessibleDescription(self.owner.label('Usage history')+'. '+self.owner.label('Local tokens; account quota percentages.')+'\n'+'\n'.join(
-            datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M')+' · '+self.history_usage(row)+' · '+self.owner.label('Quota used')+' '+self.history_percent(row)+' · '+self.history_label(row) for row in self.rows))
+        self.setAccessibleDescription(self.owner.label('Reset periods')+'. '+self.owner.label('Local tokens; account quota percentages.')+'\n'+'\n'.join(
+            self.history_interval(row,full=True)+' · '+self.history_usage(row)+' · '+self.owner.label('Quota used')+' '+self.history_percent(row)+' · '+self.history_label(row) for row in self.rows))
         self.update()
+
+    def history_start(self,row):
+        start=row.get('period_start')
+        if 'period_start' in row:
+            return start if type(start) in (int,float) and math.isfinite(start) and start<row['at'] else None
+        index=next((i for i,item in enumerate(self.rows) if self.history_key(item)==self.history_key(row)),None)
+        return self.rows[index-1]['at'] if index is not None and index>0 and self.rows[index-1]['at']<row['at'] else None
+
+    def history_interval(self,row,full=False):
+        start=self.history_start(row);end=datetime.fromtimestamp(row['at'])
+        if full:
+            return (datetime.fromtimestamp(start).strftime('%Y.%m.%d %H:%M') if start is not None else '—')+' – '+end.strftime('%Y.%m.%d %H:%M')
+        if start is None:return '— – '+end.strftime('%m.%d %H:%M')
+        first=datetime.fromtimestamp(start)
+        if first.date()==end.date():return first.strftime('%m.%d %H:%M')+'–'+end.strftime('%H:%M')
+        return first.strftime('%m.%d')+'–'+end.strftime('%m.%d')
+
+    def history_boundary_labels(self):
+        if not self.rows:return []
+        stamps=[self.history_start(self.rows[0])]+[row['at'] for row in self.rows]
+        dates=[datetime.fromtimestamp(stamp) if stamp is not None else None for stamp in stamps]
+        counts={}
+        for day in dates:
+            if day is not None:counts[day.date()]=counts.get(day.date(),0)+1
+        labels=['—' if day is None else day.strftime('%m/%d %H:%M' if counts[day.date()]>1 else '%m/%d') for day in dates]
+        label_counts={}
+        for label in labels:label_counts[label]=label_counts.get(label,0)+1
+        return [day.strftime('%m/%d %H:%M:%S') if day is not None and label_counts[label]>1 else label for day,label in zip(dates,labels)]
+
+    def history_boundary_rect(self,index):
+        label=self.boundary_labels[index];width=QFontMetricsF(face(7)).horizontalAdvance(label)
+        x=18+self.history_padding[0]+index*self.column_width-self.history_scroll.value()
+        left=x-width/2
+        return QRectF(left,self.BASELINE+9,width,16)
 
     def history_tokens(self,row):
         tokens=row.get('tokens')
@@ -1628,8 +1667,11 @@ class ResetPopup(TaskPopup):
         self.sync_history_focus();self.update()
 
     def ensure_history_visible(self,index):
-        left=index*self.column_width;right=left+self.column_width;visible=self.width()-36;offset=self.history_scroll.value()
-        self.history_scroll.setValue(round(max(right-visible,min(offset,left))))
+        metrics=QFontMetricsF(face(7));start=self.history_padding[0]+index*self.column_width
+        left=start-metrics.horizontalAdvance(self.boundary_labels[index])/2
+        right=start+self.column_width+metrics.horizontalAdvance(self.boundary_labels[index+1])/2
+        visible=self.width()-36;offset=self.history_scroll.value()
+        self.history_scroll.setValue(max(math.ceil(right-visible),min(offset,math.floor(left))))
 
     def history_parts(self,row):
         tokens=self.history_tokens(row)
@@ -1652,11 +1694,9 @@ class ResetPopup(TaskPopup):
 
     def history_bar_rect(self,row,index):
         value=self.history_tokens(row)
-        center=18+(index+.5)*self.column_width-self.history_scroll.value()
-        return usage_column_rect(center,self.BASELINE,value,self.history_max)
-
-    def history_column_rect(self,center):
-        return usage_date_rect(center,self.BASELINE,self.column_width).adjusted(3,-1,-3,1)
+        center=18+self.history_padding[0]+(index+.5)*self.column_width-self.history_scroll.value()
+        height=USAGE_COLUMN_HEIGHT*max(0,value)/max(self.history_max,1) if value is not None else 0
+        return QRectF(center-self.column_width/2+3,self.BASELINE-height,self.column_width-6,height)
 
     def layout_history_scroll(self):
         y=usage_date_rect(0,self.BASELINE,self.column_width).bottom()+4+self.forecast_height-self.scroll
@@ -1664,30 +1704,38 @@ class ResetPopup(TaskPopup):
         self.history_scroll.setVisible(bool(self.history_scroll.maximum() and y>=48+self.forecast_height and y+12<=self.height()-56))
 
     def draw_history(self,p):
-        colors=popup_palette(self.owner)
+        colors=popup_palette(self.owner);font=face(7);metrics=QFontMetricsF(font)
         active=self.active_history_index()
         if active is not None:
-            row=self.rows[active];font=face(7);source=self.history_label(row);prefix=self.history_percent(row)+(' · ' if source else '')
-            text(p,18,82,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),font,colors['muted'])
-            left=self.width()-18-QFontMetricsF(font).horizontalAdvance(prefix+source)
+            row=self.rows[active];source=self.history_label(row);prefix=self.history_percent(row)+(' · ' if source else '')
+            left=self.width()-18-metrics.horizontalAdvance(prefix+source)
+            interval=metrics.elidedText(self.history_interval(row),Qt.TextElideMode.ElideMiddle,max(0,left-18-10))
+            text(p,18,82,interval,font,colors['muted'])
             text(p,left,82,prefix,font,colors['text'])
-            text(p,left+QFontMetricsF(font).horizontalAdvance(prefix),82,source,font,colors['lilac'] if row['kind']=='official' else colors['link'])
-            center=18+self.history_focus.value-self.history_scroll.value()
-            fill=QColor(colors['link']);fill.setAlpha(18);p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill)
-            p.drawRoundedRect(self.history_column_rect(center),5,5)
-        if self.history_press and not self.history_press['dragged']:
-            index=next((i for i,row in enumerate(self.rows) if self.history_key(row)==self.history_press['key']),None)
-            if index is not None:
-                center=18+(index+.5)*self.column_width-self.history_scroll.value()
-                fill=QColor(colors['link']);fill.setAlpha(10);p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill);p.drawRoundedRect(self.history_column_rect(center),5,5)
+            text(p,left+metrics.horizontalAdvance(prefix),82,source,font,colors['lilac'] if row['kind']=='official' else colors['link'])
         for index,row in enumerate(self.rows):
             box=self.history_bar_rect(row,index);center=box.center().x()
-            if center+self.column_width/2<18 or center-self.column_width/2>self.width()-18:continue
-            if box.left()<18 or box.right()>self.width()-18:continue
-            value=self.history_tokens(row);day=datetime.fromtimestamp(row['at'])
-            paint_usage_column(p,center,self.BASELINE,self.column_width,value,self.history_max,
-                               ' '.join(part for part in self.history_parts(row) if part),f'{day.month}/{day.day}',
-                               colors['link'] if value is not None else colors['muted'],label_bounds=QRectF(18,0,self.width()-36,self.height()))
+            if box.right()<18 or box.left()>self.width()-18:continue
+            value=self.history_tokens(row)
+            weight=max(0,1-abs((index+.5)*self.column_width-self.history_focus.value)/self.column_width)
+            pressed=self.history_press and not self.history_press['dragged'] and self.history_press['key']==self.history_key(row)
+            color=QColor(colors['link']);color.setAlphaF(.6+.4*weight)
+            if pressed:color=color.lighter(112)
+            if value:
+                p.setPen(Qt.PenStyle.NoPen);p.setBrush(color);p.drawRoundedRect(box,2,2)
+            elif value==0:
+                pen(p,color,.9);p.drawLine(QPointF(box.left(),self.BASELINE),QPointF(box.right(),self.BASELINE))
+            label=' '.join(part for part in self.history_parts(row) if part);width=metrics.horizontalAdvance(label)
+            if center-width/2>=18 and center+width/2<=self.width()-18:
+                text(p,center-width/2,(box.top()-12) if value is not None else self.BASELINE-1,label,font,colors['text'] if weight>.5 else colors['muted'])
+        previous_right=18-6
+        for index,label in enumerate(self.boundary_labels):
+            x=18+self.history_padding[0]+index*self.column_width-self.history_scroll.value()
+            if not 18<=x<=self.width()-18:continue
+            rect=self.history_boundary_rect(index)
+            if rect.left()<previous_right+6 or rect.right()>self.width()-18:continue
+            pen(p,colors['divider'],.6);p.drawLine(QPointF(x,self.BASELINE+2),QPointF(x,self.BASELINE+6))
+            text(p,rect.left(),rect.center().y(),label,font,colors['muted']);previous_right=rect.right()
 
     def paintEvent(self,event):
         colors=popup_palette(self.owner)
@@ -1708,7 +1756,7 @@ class ResetPopup(TaskPopup):
         p.translate(0,self.forecast_height);divider(44)
         if self.scroll_body:
             p.save();p.setClipRect(QRectF(0,48,self.width(),max(0,self.height()-104-self.forecast_height)));p.translate(0,-self.scroll)
-        text(p,18,64,self.owner.label('Usage history'),face(8),colors['muted'])
+        text(p,18,64,self.owner.label('Reset periods'),face(8),colors['muted'])
         p.save();p.setClipRect(QRectF(18,self.HISTORY_START,self.width()-36,self.history_height),Qt.ClipOperation.IntersectClip)
         if not self.rows:text(p,18,89,self.owner.label('No records yet'),face(8),colors['muted'])
         self.draw_history(p)
@@ -1733,8 +1781,10 @@ class ResetPopup(TaskPopup):
     def history_at(self,point):
         local_y=point.y()-self.forecast_height+self.scroll
         if not (18<=point.x()<self.width()-18 and self.CHART_TOP<=local_y<usage_date_rect(0,self.BASELINE,1).bottom()+2 and point.y()>=48+self.forecast_height and point.y()<self.height()-56):return None
-        index=int((point.x()-18+self.history_scroll.value())//self.column_width)
-        return index if 0<=index<len(self.rows) else None
+        local_x=point.x()-18+self.history_scroll.value()
+        if not self.rows or not 0<=local_x<self.history_width:return None
+        index=int((local_x-self.history_padding[0])//self.column_width)
+        return max(0,min(len(self.rows)-1,index))
 
     def mouseMoveEvent(self,event):
         if self.history_press is not None:

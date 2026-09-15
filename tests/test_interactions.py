@@ -355,15 +355,15 @@ class InteractionTests(unittest.TestCase):
         for language,expected in [('en','Tokens 20.37 ×100M'),('zh-CN','Token 20.37 亿'),('ja','Token 20.37 億'),('es','Tokens 20.37 ×100M')]:
             self.bar.settings['language']=language
             panel=app.ResetPopup(self.bar);panel.refresh(self.data)
-            with patch('codex_taskbar.app.text',wraps=app.text) as draw,patch('codex_taskbar.app.paint_usage_column',wraps=app.paint_usage_column) as columns:panel.grab()
+            with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
             labels=[call.args[3] for call in draw.call_args_list]
             self.assertEqual(panel.history_usage(self.data['reset_events'][0]),expected)
-            self.assertNotIn(self.bar.label('Tokens'),labels);self.assertIn(self.bar.label('Usage history'),labels)
+            self.assertNotIn(self.bar.label('Tokens'),labels);self.assertIn(self.bar.label('Reset periods'),labels)
             self.assertNotIn('History · 100M',labels)
             category=next(call for call in draw.call_args_list if call.args[3]==panel.history_label(self.data['reset_events'][0]))
             self.assertEqual(category.args[5],app.BLUE)
             self.assertEqual(panel.history_usage({'tokens':None}),self.bar.label('Tokens')+' —')
-            self.assertIn('20.37 '+panel.history_parts(self.data['reset_events'][0])[1],[call.args[6] for call in columns.call_args_list])
+            self.assertIn('20.37 '+panel.history_parts(self.data['reset_events'][0])[1],labels)
             panel.close();panel.deleteLater()
 
     def test_history_uses_100m_for_both_small_and_large_totals(self):
@@ -379,15 +379,18 @@ class InteractionTests(unittest.TestCase):
         for language in app.LANGUAGES:
             self.bar.settings['language']=language
             panel=app.ResetPopup(self.bar);panel.refresh(self.data)
-            with patch('codex_taskbar.app.text',wraps=app.text) as draw,patch('codex_taskbar.app.paint_usage_column',wraps=app.paint_usage_column) as columns:panel.grab()
+            with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
             calls=draw.call_args_list
-            labels=[c for c in calls if c.args[3]==self.bar.label('Usage history')]
+            labels=[c for c in calls if c.args[3]==self.bar.label('Reset periods')]
             self.assertEqual(len(labels),1)
             self.assertEqual(len({c.args[1] for c in labels}),1)
             for index,row in enumerate(panel.rows):
+                panel.select_history(index)
+                with patch('codex_taskbar.app.text',wraps=app.text) as amount_draw:panel.grab()
                 box=panel.history_bar_rect(row,index);value=' '.join(part for part in panel.history_parts(row) if part)
-                call=next(c for c in columns.call_args_list if c.args[6]==value)
-                self.assertAlmostEqual(call.args[1],box.center().x());self.assertEqual(call.args[2],box.bottom())
+                call=next(c for c in amount_draw.call_args_list if c.args[3]==value and c.args[2]<=panel.BASELINE)
+                self.assertAlmostEqual(call.args[1]+app.QFontMetricsF(app.face(7)).horizontalAdvance(value)/2,box.center().x())
+                self.assertLess(call.args[2],box.top())
             panel.close();panel.deleteLater()
 
     def test_history_window_labels_depend_on_event_not_current_account_windows(self):
@@ -494,7 +497,7 @@ class InteractionTests(unittest.TestCase):
         self.data['reset_credits']=[credit()]
         for language in app.LANGUAGES:
             self.bar.settings['language']=language
-            for kind,key in ((app.TaskPopup,'Cycle · Tokens'),(app.SessionPopup,'Reset {time}'),(app.ResetPopup,'Usage history')):
+            for kind,key in ((app.TaskPopup,'Cycle · Tokens'),(app.SessionPopup,'Reset {time}'),(app.ResetPopup,'Reset periods')):
                 panel=kind(self.bar);panel.refresh(self.data)
                 with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
                 labels=[c.args[3] for c in draw.call_args_list]

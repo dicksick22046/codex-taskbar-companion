@@ -61,6 +61,21 @@ class ResetTests(unittest.TestCase):
         self.ledger.observe(changed)
         self.assertEqual(self.ledger.view()['reset_events'],[])
 
+    def test_event_view_exposes_counted_period_bounds_without_persisting_them(self):
+        self.ledger.record['events']=[
+            {'id':'second','at':300,'kind':'manual','before':{'10080':{'starts_at':20}}},
+            {'id':'first','at':200,'kind':'scheduled','before':{'10080':{'starts_at':100}}}]
+        original=copy.deepcopy(self.ledger.record)
+        events=self.ledger.view()['reset_events']
+        self.assertEqual([(e['id'],e['period_start'],e['at']) for e in events],list(self.ledger.periods()))
+        self.assertEqual([e['period_start'] for e in events],[100,200])
+        self.assertEqual(self.ledger.record,original)
+
+    def test_event_view_does_not_invent_first_period_start(self):
+        self.ledger.record['events']=[{'id':'first','at':200,'kind':'manual'},
+                                     {'id':'second','at':300,'kind':'official'}]
+        self.assertEqual([e['period_start'] for e in self.ledger.view()['reset_events']],[None,200])
+
     def test_deadline_jitter_and_zero_balance_settling_are_not_resets(self):
         deadline=time.time()+604800
         for used in (10,0):

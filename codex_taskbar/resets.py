@@ -163,9 +163,10 @@ class ResetLedger:
     def view(self):
         pending = self.record.get('pending') if self.record else None
         selected = dict(pending['credit']) if pending else default_credit(self.credits)
+        starts={identifier:start for identifier,start,_ in self.periods()}
         return {'reset_account': self.account, 'reset_selected': selected,
                 'reset_credits':available_credits(self.credits),
                 'reset_available': self.credits.get('availableCount') if isinstance(self.credits, dict) else None,
-                'reset_events': [dict(e) for e in sorted(self.record['events'],key=lambda e:e['at'])] if self.record else [],
+                'reset_events': [dict(e,period_start=starts.get(e['id'])) for e in sorted(self.record['events'],key=lambda e:e['at'])] if self.record else [],
                 'session_history': [dict(s) for s in self.record.get('session_samples', [])] if self.record else [],
                 'reset_state': self.state, 'reset_retry': bool(pending)}
