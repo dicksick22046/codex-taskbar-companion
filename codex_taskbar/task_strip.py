@@ -304,11 +304,10 @@ class PinnedPanel(QWidget):
             box=QRectF(self.detail_box).toRect();box.setHeight(height)
             if self.detail_box.top()<self.owner.y():box.moveBottom(self.owner.y())
         else:box=panel_rect(self.owner.geometry(),bounds,self.owner.width(),height,-1)
-        height_changed=height!=self.height()
         moved=box!=self.geometry()
         if moved:self.setGeometry(box)
         edge='top' if box.top()<self.owner.y() else 'bottom'
-        if edge!=self.joined_edge or height_changed:self.joined_edge=edge;self.owner.update()
+        if edge!=self.joined_edge or moved:self.joined_edge=edge;self.owner.update()
         if self.detail:self.detail.move(0,height-self.detail.height() if edge=='top' else 0)
         offset=height-(len(self.active)*30+1) if edge=='top' else 0
         for index,kind in enumerate(self.active):self.rows[kind].move(0,offset+index*30)

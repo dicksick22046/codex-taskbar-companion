@@ -1282,7 +1282,7 @@ class TaskPopup(QWidget):
         self.host=parent
         self.owner=owner;self.data={};self.rows=[];self.days=[];self.scroll=0;self.full_height=172
         self.setWindowTitle('Codex · '+owner.label('Usage'))
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        if not self.host:self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -1809,6 +1809,7 @@ class TaskListPopup(TaskPopup):
         if self.host:width_limit=max(260,width_limit)
         width=min(width_limit,max(260,math.ceil(self.TITLE_X+longest+24+info_width+18)))
         if self.mode=='daily':width=max(self.usage_width(),width)
+        elif self.host:width=max(260,self.owner.width())
         self.value_right=width-18
         self.info_divider=self.value_right-info_width-12
         self.TITLE_WIDTH=max(0,self.info_divider-12-self.TITLE_X)

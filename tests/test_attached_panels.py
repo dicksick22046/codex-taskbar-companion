@@ -132,5 +132,37 @@ class AttachedPanelTests(unittest.TestCase):
                 self.assertEqual(self.host.size_motion.target,target)
                 self.bar.hide_popup(immediate=True)
 
+    def test_hosted_details_restore_parent_background_on_content_repaint(self):
+        for mode in ('running','usage','resets'):
+            panel=self.open(mode)
+            self.assertFalse(panel.testAttribute(Qt.WidgetAttribute.WA_NoSystemBackground))
+            self.assertFalse(panel.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground))
+        standalone=app.TaskPopup(self.bar)
+        self.addCleanup(standalone.deleteLater)
+        self.assertTrue(standalone.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground))
+
+    def test_width_only_host_change_invalidates_footer_shared_outline(self):
+        panel=self.open('usage')
+        previous=self.host.geometry()
+        self.host.detail_box.setWidth(previous.width()+20)
+        with patch.object(self.bar,'update') as footer:
+            self.host.layout_rows(self.host.size_motion.value)
+        self.assertEqual(self.host.height(),previous.height())
+        self.assertNotEqual(self.host.width(),previous.width());footer.assert_called_once()
+        with patch.object(self.bar,'update') as unchanged:
+            self.host.layout_rows(self.host.size_motion.value)
+        unchanged.assert_not_called()
+
+    def test_status_width_tracks_footer_not_task_title_length(self):
+        self.bar.resize(340,30);self.bar.content_limit=600
+        panel=self.open('running');before=self.host.geometry()
+        self.assertEqual(self.host.width(),self.bar.width())
+        self.data['tasks'][0]['title']='A much longer task title '*12
+        panel.refresh(self.data)
+        self.assertEqual(self.host.geometry(),before)
+        self.data['tasks'][0]['title']='Short'
+        panel.refresh(self.data)
+        self.assertEqual(self.host.geometry(),before)
+
 
 if __name__=='__main__':unittest.main()
