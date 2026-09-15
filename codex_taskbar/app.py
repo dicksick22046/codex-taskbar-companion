@@ -1288,7 +1288,7 @@ class TaskPopup(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         if not self.host:self.setWindowOpacity(0.)
         self.reveal=0.;self.reveal_target=None
-        self.fade=Spring(self,response=.14 if self.host else .18)
+        self.fade=Spring(self,response=.22 if self.host else .18)
         self.fade.changed.connect(self.set_reveal);self.fade.finished.connect(self.finish_reveal)
         self.content_opacity=QGraphicsOpacityEffect(self) if self.host else None
         if self.content_opacity:

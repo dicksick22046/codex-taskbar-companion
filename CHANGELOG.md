@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Soften incoming panel content, particularly when switching between similarly sized panels, while retaining the current layout and height motion.
+
 - Reveal attached details from their heading instead of sweeping trailing rows into view, soften large height changes, and fade in only incoming content on switches. Fit hosted quota/daily widths to navigation and actual labels.
 
 - Restore normal parent-background painting for embedded details, refresh the shared footer outline on width changes, and keep status-list width aligned with navigation instead of varying with task titles.
