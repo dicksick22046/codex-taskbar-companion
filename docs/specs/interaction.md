@@ -2,13 +2,23 @@
 
 ## Shared navigation panels
 
-Use the selected second visual concept as a material/type reference, not its single-task metadata layout. Keep every task's project beside that task; no project grouping or removal of pinned summaries. The navigation bar, pinned rows and quota/daily/5h/reset/status panels share restrained graphite/light materials, fine edges, clear primary text and subdued metadata. Keep all existing semantic state colors, charts, metrics, pins and motion.
+Use the selected second visual concept as a material/type reference, not its single-task metadata layout. Keep every task's project beside that task; no project grouping. The navigation bar, pinned rows and quota/daily/5h/reset/status panels share restrained graphite/light materials, fine edges, clear primary text and subdued metadata. Keep all existing semantic state colors, charts, metrics, pins and motion.
 
-Panels use the navigation bar's existing left-edge anchor and the pinned region's existing occupied/target geometry. Never center a panel on its triggering button. Preserve screen clamping and safe placement above (below only when the screen requires it), and keep pinned rows visible. Use the existing opacity spring, with no new position animation, arrows, necks, connecting lines or shared expansion host.
+Panels use the navigation bar's existing left-edge anchor and the pinned region's existing occupied/target geometry. Never center a panel on its triggering button. Preserve screen clamping and safe placement above (below only when the screen requires it). The attached-region behavior below supersedes the previous separate popover/summary layout. Do not add arrows, necks or connecting lines.
 
 The invoking button shows a gentle selected fill while its panel is open; hover is weaker and does not select it. Selection follows click/active panel, including changing panels and closing with Escape or outside click. Keep compact content-based sizes and scrolling for long lists. Dark/light applies to panel content/controls as well as the compact component; detail surfaces remain opaque and capsule transparency keeps its existing scope.
 
-Verify all five panel kinds stay on the same left baseline through button changes and refreshes, pinned rows remain visible and unobscured, multiple projects remain per-row, selection follows the open panel, both themes have legible values and controls, and existing chart/keyboard/motion/data behavior is retained. Verify native positioning after installation without controlling the user's pointer.
+Verify all five panel kinds stay on the same left baseline through button changes and refreshes, pinned rows restore correctly, multiple projects remain per-row, selection follows the open panel, both themes have legible values and controls, and existing chart/keyboard/motion/data behavior is retained. Verify native positioning after installation without controlling the user's pointer.
+
+## Attached panel region
+
+Reuse the existing pinned-window region as the single presentation host for both compact scrolling rows and full detail panels. Full panels attach directly to the navigation bar, with the same continuous outer surface and a subtle inset divider at the boundary. They are not another independent floating card. Keep the bar's left edge fixed; panel width must accommodate its existing readable content and the bar, clamped to the screen, without stretching the bar's controls.
+
+When any detail opens, its contents temporarily replace the compact scrolling rows. Saved pin selections are unchanged. Clicking the selected button again, Escape or outside dismissal restores the current pinned rows; switching panel kinds does not flash the compact rows. Empty pins restore to no rows. Pin/unpin continues to update the saved setting through the existing action.
+
+Use the pinned region's existing interruptible height spring for open, close and content-height changes. Content is clipped during expansion rather than scaled or repeatedly reflowed; preserve scroll position and keyboard focus through ordinary refreshes. Reduced motion settles immediately. Retain native owner/stack repair behavior, transparent-window setup ordering, taskbar pointer hit testing, scrolling, the guarded reset action, and readable opaque detail content. The compact bar/pinned transparency preference remains unchanged.
+
+Acceptance: all detail types form an attached surface; one host alternates summary/detail; close/switch/reversal and zero-to-many pins restore correctly; multiple projects and Side remain separate rows; long lists scroll, controls and Escape remain operable; above/below/narrow/edge placement and menus stay in bounds; show/hide never activates other applications or consumes reset credits. Verify native child input and geometry as well as controlled renders.
 
 新增悬浮显示的几何、拖动与设置约定见[Windows companion](windows-companion.md)。下面涉及任务栏锚点的约束用于Taskbar模式；Floating模式复用相同数据与内容，由屏幕可用区域决定面板方向。
 
