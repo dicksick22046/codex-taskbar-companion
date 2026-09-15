@@ -209,12 +209,41 @@ class TaskStrip(QWidget):
 
 class PinnedPanel(QWidget):
     def __init__(self,owner):
-        super().__init__(None,visuals.FLAGS)
+        super().__init__(None,visuals.FLAGS & ~Qt.WindowType.WindowDoesNotAcceptFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground);self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.owner=owner;self.setWindowTitle('Codex · Pinned tasks');self.joined_edge=None;self.active=[];self.stopped=False
+        self.owner=owner;self.setWindowTitle('Codex · Pinned tasks');self.joined_edge=None;self.active=[];self.stopped=False;self.detail=None;self.detail_box=None;self.detail_hidden=False
         self.rows={kind:TaskStrip(owner,kind,self) for kind in STATUS_CATEGORIES}
-        self.size_motion=Spring(self,response=.18);self.size_motion.changed.connect(self.layout_rows)
+        self.size_motion=Spring(self,response=.18);self.size_motion.changed.connect(self.layout_rows);self.size_motion.finished.connect(self.finish_detail)
         self.host_key=None;self.surface_loss_since=None;self.surface_repaired=False;self.frame_key=None
+
+    def attach_detail(self,popup):
+        self.detail=popup;self.detail_box=None;self.detail_hidden=False
+        for row in self.rows.values():row.refresh(self.owner.data,hidden=True)
+        self.active=[]
+
+    def detach_detail(self,restore=True):
+        self.detail=None;self.detail_box=None
+        if restore and not self.stopped:self.refresh(self.owner.data,resize=True)
+
+    def place_detail(self,width,height):
+        if not self.detail:return
+        screen=self.owner.screen();bounds=screen.availableGeometry() if self.owner.floating else screen.geometry()
+        box=panel_rect(self.owner.geometry(),bounds,max(width,self.owner.width()),height,-1)
+        self.detail_box=box;self.detail.resize(box.size())
+        self.reveal_detail(self.detail.reveal_target!=0.)
+
+    def reveal_detail(self,target):
+        if not self.detail or self.detail_box is None or self.detail_hidden:return
+        summaries=[kind for kind in self.owner.settings.get('pinned_statuses',[]) if panel_rows(self.owner.data,kind)] if self.owner.settings.get('show_tasks',True) else []
+        height=self.detail_box.height() if target else len(summaries)*30+1 if summaries else 0
+        if self.owner.motion_enabled:
+            if height!=self.size_motion.target or not self.size_motion.timer.isActive() and abs(self.size_motion.value-height)>=.001:self.size_motion.retarget(height)
+            else:self.layout_rows(self.size_motion.value)
+        else:self.size_motion.snap(height);self.finish_detail()
+
+    def finish_detail(self):
+        if self.detail and self.detail.reveal_target==0. and abs(self.size_motion.value-self.size_motion.target)<.001:
+            self.owner.hide_popup(immediate=True)
 
     def nativeEvent(self,event_type,message):
         native=windows.w.MSG.from_address(int(message))
@@ -227,21 +256,26 @@ class PinnedPanel(QWidget):
         for row in self.rows.values():row.animate()
     def sync_motion(self):
         for row in self.rows.values():row.sync_motion()
-        if not self.owner.motion_enabled:self.size_motion.snap(self.size_motion.target)
+        if not self.owner.motion_enabled:self.size_motion.snap(self.size_motion.target);self.finish_detail()
     def occupied_geometry(self):
         if not self.isVisible() or self.joined_edge is None:return QRectF().toRect()
         box=self.geometry();target=round(self.size_motion.target)
+        if target>=2 and self.detail_box is not None:return box.united(self.detail_box)
         if target>=2:
             screen=self.owner.screen();bounds=screen.availableGeometry() if self.owner.floating else screen.geometry()
             box=box.united(panel_rect(self.owner.geometry(),bounds,self.owner.width(),target,-1))
         return box
     def reposition_popup(self):
         popup=self.owner.popup
-        if isinstance(popup,visuals.TaskPopup):
+        if isinstance(popup,visuals.TaskPopup) and not popup.host:
             size=popup.size();popup.reposition()
             if popup.size()!=size:popup.refresh(popup.data)
     def refresh(self,data,resize=False,hidden=False):
         if self.stopped:return
+        if self.detail:
+            self.detail_hidden=hidden or not self.owner.isVisible()
+            if self.detail_hidden:self.size_motion.timer.stop();self.hide();return
+            self.place_detail(*self.detail.requested_size);return
         visible=not hidden and self.owner.isVisible() and self.owner.settings.get('show_tasks',True)
         selected=self.owner.settings.get('pinned_statuses',[])
         active=[kind for kind in STATUS_CATEGORIES if kind in selected and panel_rows(data,kind)] if visible else []
@@ -261,17 +295,21 @@ class PinnedPanel(QWidget):
 
     def layout_rows(self,value):
         height=round(value)
-        if height<2 or not self.owner.isVisible():
+        if height<2 or not self.owner.isVisible() or self.detail and self.detail_hidden:
             self.hide()
             if self.joined_edge is not None:self.joined_edge=None;self.owner.update();self.reposition_popup()
             return
         screen=self.owner.screen();bounds=screen.availableGeometry() if self.owner.floating else screen.geometry()
-        box=panel_rect(self.owner.geometry(),bounds,self.owner.width(),height,-1)
+        if self.detail and self.detail_box is not None:
+            box=QRectF(self.detail_box).toRect();box.setHeight(height)
+            if self.detail_box.top()<self.owner.y():box.moveBottom(self.owner.y())
+        else:box=panel_rect(self.owner.geometry(),bounds,self.owner.width(),height,-1)
         height_changed=height!=self.height()
         moved=box!=self.geometry()
         if moved:self.setGeometry(box)
         edge='top' if box.top()<self.owner.y() else 'bottom'
         if edge!=self.joined_edge or height_changed:self.joined_edge=edge;self.owner.update()
+        if self.detail:self.detail.move(0,height-self.detail.height() if edge=='top' else 0)
         offset=height-(len(self.active)*30+1) if edge=='top' else 0
         for index,kind in enumerate(self.active):self.rows[kind].move(0,offset+index*30)
         self.ensure_visible()
@@ -301,8 +339,15 @@ class PinnedPanel(QWidget):
 
     def paintEvent(self,event):
         p=visuals.painter(self)
-        visuals.capsule_surface(p,QRectF(1,1,self.width()-2,self.height()-2),self.owner.settings.get('capsule_theme','dark'),
-                                self.owner.settings.get('capsule_transparency',0),'bottom' if self.joined_edge=='top' else 'top',self.owner.height())
+        if self.detail:
+            visuals.expanded_surface(p,self,self)
+            color=QColor(visuals.CAPSULE_COLORS[self.owner.settings.get('capsule_theme','dark')]['divider']);color.setAlpha(100)
+            visuals.pen(p,color,.6);y=self.height()-1 if self.joined_edge=='top' else 1
+            left=max(12,self.owner.x()-self.x()+12);right=min(self.width()-12,self.owner.x()-self.x()+self.owner.width()-12)
+            p.drawLine(QPointF(left,y),QPointF(right,y))
+        else:
+            visuals.capsule_surface(p,QRectF(1,1,self.width()-2,self.height()-2),self.owner.settings.get('capsule_theme','dark'),
+                                    self.owner.settings.get('capsule_transparency',0),'bottom' if self.joined_edge=='top' else 'top',self.owner.height())
         p.end()
     def shutdown(self):
         self.stopped=True;self.size_motion.stop()

@@ -93,6 +93,8 @@ def popup_palette(owner):
 
 
 def panel_painter(widget):
+    if getattr(widget,'host',None):
+        p=QPainter(widget);p.setRenderHints(QPainter.RenderHint.Antialiasing|QPainter.RenderHint.TextAntialiasing);return p
     p=painter(widget)
     capsule_surface(p,QRectF(widget.rect()).adjusted(.5,.5,-.5,-.5),popup_palette(widget.owner)['theme'],0)
     return p
@@ -270,6 +272,24 @@ def capsule_surface(p,box,theme,transparency,edge=None,joined_height=0):
         color=QColor(base);color.setAlphaF(opacity);fill.setColorAt(stop,color)
         color=QColor(border);color.setAlphaF(.65*opacity);rim.setColorAt(stop,color)
     p.setPen(QPen(rim,.7));p.setBrush(fill);p.drawPath(connected_surface(box))
+
+
+def expanded_surface(p,widget,host,transparency=0):
+    origin=widget.mapToGlobal(QPointF().toPoint())
+    body=QRectF(host.geometry()).translated(-origin.x(),-origin.y()).adjusted(1,1,-1,-1)
+    footer=QRectF(host.owner.geometry()).translated(-origin.x(),-origin.y()).adjusted(1,1,-1,-1)
+    path=connected_surface(body).united(connected_surface(footer))
+    left=max(body.left(),footer.left());right=min(body.right(),footer.right())
+    bridge=QPainterPath();bridge.addRect(QRectF(left,min(body.center().y(),footer.center().y()),max(0,right-left),abs(body.center().y()-footer.center().y())))
+    path=path.united(bridge)
+    box=body.united(footer);opacity=max(1/255,1-transparency/100)
+    colors=CAPSULE_COLORS[host.owner.settings.get('capsule_theme','dark')]['surface']
+    fill=QLinearGradient(box.topLeft(),box.bottomLeft());rim=QLinearGradient(box.topLeft(),box.bottomLeft())
+    for stop,base,border in ((0,colors[0],colors[2]),(1,colors[1],colors[3])):
+        color=QColor(base);color.setAlphaF(opacity);fill.setColorAt(stop,color)
+        color=QColor(border);color.setAlphaF(.65*opacity);rim.setColorAt(stop,color)
+    p.setPen(QPen(rim,.7));p.setBrush(fill);p.drawPath(path)
+    return path
 
 
 class PinButton(QPushButton):
@@ -500,7 +520,7 @@ class StatusBar(QWidget):
             # would also steal clicks from other windows covering a floating strip.
             if button in ('left_up','right_up'):return False
             if self.popup:
-                boxes=[windows.rect(int(widget.winId())) for widget in (self,self.popup) if widget.isVisible()]
+                boxes=[windows.rect(int(widget.winId())) for widget in (self,self.popup.host or self.popup) if widget.isVisible()]
                 if not any(box and box[0]<=x<box[2] and box[1]<=y<box[3] for box in boxes):QTimer.singleShot(0,self.hide_popup)
             return False
         if button=='left_up':
@@ -528,7 +548,7 @@ class StatusBar(QWidget):
                 self.settle_quota(mode)
                 self.begin_press(hit,QRectF(box[0]+rect.x()*ratio,box[1]+rect.y()*ratio,rect.width()*ratio,rect.height()*ratio))
                 return True  # Transparent pixels must not forward a second action to the taskbar.
-        if self.popup and not inside(self.popup):QTimer.singleShot(0,self.hide_popup)
+        if self.popup and not inside(self.popup.host or self.popup):QTimer.singleShot(0,self.hide_popup)
         return False
 
     def begin_press(self,hit,rect=None):
@@ -546,16 +566,16 @@ class StatusBar(QWidget):
             self.hover_suppressed=mode if closing else None
             self.popup.reveal_to(0. if closing else 1.)
         else:
-            self.hide_popup(immediate=True)
-            if mode=='usage':self.popup=TaskPopup(self)
-            elif mode=='session':self.popup=SessionPopup(self)
-            elif mode=='resets':self.popup=ResetPopup(self)
-            else:self.popup=TaskListPopup(self,mode)
+            self.hide_popup(immediate=True,restore=False)
+            if mode=='usage':self.popup=TaskPopup(self,self.task_strip)
+            elif mode=='session':self.popup=SessionPopup(self,self.task_strip)
+            elif mode=='resets':self.popup=ResetPopup(self,self.task_strip)
+            else:self.popup=TaskListPopup(self,mode,self.task_strip)
+            self.task_strip.attach_detail(self.popup)
             self.popup.refresh(self.data)
-            windows.popup_glass(int(self.popup.winId()))
-            self.popup.show()
+            self.popup.show();self.popup.reveal_to(1.)
         if activate and self.popup and self.popup.reveal_target==1.:
-            self.popup.activateWindow();self.popup.setFocus(Qt.FocusReason.MouseFocusReason)
+            (self.popup.host or self.popup).activateWindow();self.popup.setFocus(Qt.FocusReason.MouseFocusReason)
         self.update()
 
     def update_hover_popup(self,point,now=None):
@@ -566,7 +586,7 @@ class StatusBar(QWidget):
         local=self.mapFromGlobal(point)
         mode=next((m for m,r,t in self.hit_regions if r.contains(local)),None)
         if self.floating and QApplication.widgetAt(point) is not self:mode=None
-        inside=bool(self.popup and self.popup.isVisible() and self.popup.geometry().contains(point))
+        inside=bool(self.popup and self.popup.isVisible() and self.popup.global_geometry().contains(point))
         if inside:
             self.hover_target=None;self.hover_leave_since=None
             if self.hover_suppressed!=self.popup.mode:self.popup.reveal_to(1.)
@@ -1155,7 +1175,8 @@ class StatusBar(QWidget):
                     p.setPen(Qt.PenStyle.NoPen);p.setBrush(color);p.drawRoundedRect(region,7,7)
             if self.hit_regions:
                 box=QRectF(1,1,self.width()-2,self.height()-2)
-                capsule_surface(p,box,theme,self.settings.get('capsule_transparency',0),getattr(self.task_strip,'joined_edge',None),self.task_strip.height())
+                if self.task_strip.detail and self.task_strip.isVisible():expanded_surface(p,self,self.task_strip,self.settings.get('capsule_transparency',0))
+                else:capsule_surface(p,box,theme,self.settings.get('capsule_transparency',0),getattr(self.task_strip,'joined_edge',None),self.task_strip.height())
             if self.floating:
                 shape=connected_surface(QRectF(1,1,self.width()-2,self.height()-2),getattr(self.task_strip,'joined_edge',None))
                 p.setClipPath(shape,Qt.ClipOperation.IntersectClip)
@@ -1232,11 +1253,12 @@ class StatusBar(QWidget):
                 self.hit_regions.append((mode,QRectF(badge_x-2,0,width+4,self.height()),None));badge_x+=width+6
         finish()
 
-    def hide_popup(self,immediate=False):
+    def hide_popup(self,immediate=False,restore=True):
         if self.popup:
             if immediate:
                 self.hover_target=None;self.hover_leave_since=None
                 popup=self.popup;self.popup=None;popup.fade.stop();popup.close();popup.deleteLater()
+                if popup.host:popup.host.detach_detail(restore)
             else:self.popup.reveal_to(0.)
             self.update()
 
@@ -1255,15 +1277,16 @@ class TaskPopup(QWidget):
     GAP=8
     TITLE_HEIGHT=26
     UNIT_RECTS={'M':QRectF(277,9,28,24),'100M':QRectF(309,9,40,24)}
-    def __init__(self,owner):
-        super().__init__(None,FLAGS & ~Qt.WindowType.WindowDoesNotAcceptFocus)
+    def __init__(self,owner,parent=None):
+        super().__init__(parent,Qt.WindowType.Widget if parent else FLAGS & ~Qt.WindowType.WindowDoesNotAcceptFocus)
+        self.host=parent
         self.owner=owner;self.data={};self.rows=[];self.days=[];self.scroll=0;self.full_height=172
         self.setWindowTitle('Codex · '+owner.label('Usage'))
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.setWindowOpacity(0.)
+        if not self.host:self.setWindowOpacity(0.)
         self.reveal=0.;self.reveal_target=None
         self.fade=Spring(self,response=.18)
         self.fade.changed.connect(self.set_reveal);self.fade.finished.connect(self.finish_reveal)
@@ -1297,6 +1320,7 @@ class TaskPopup(QWidget):
                 'QScrollBar::add-line:horizontal,QScrollBar::sub-line:horizontal{width:0;}'
                 'QScrollBar::add-page:horizontal,QScrollBar::sub-page:horizontal{background:none;}')%colors)
         if getattr(self,'pin_button',None):self.pin_button.update()
+        if self.host:self.host.update()
         self.update()
 
     def sync_units(self):
@@ -1324,12 +1348,18 @@ class TaskPopup(QWidget):
         target=float(target)
         if target==self.reveal_target and not force:return
         self.reveal_target=target
+        if self.host:
+            self.host.reveal_detail(target);return
         if getattr(self.owner,'motion_enabled',True):self.fade.retarget(target)
         else:self.fade.snap(target);self.finish_reveal()
 
     def finish_reveal(self):
         if self.reveal_target==0 and self.owner.popup is self:
             self.owner.popup=None;self.owner.update();self.close();self.deleteLater()
+
+    def global_geometry(self):
+        if self.host:return QRect(self.mapToGlobal(QPointF().toPoint()),self.size()).intersected(self.host.geometry())
+        return self.geometry()
 
     def anchor_bottom(self):
         return self.anchor_rect().top()-self.GAP
@@ -1347,6 +1377,7 @@ class TaskPopup(QWidget):
         return anchor
 
     def sync_owner(self):
+        if self.host:self.host.ensure_visible();return
         group=getattr(self.owner,'task_strip',None)
         parent=group if group and group.isVisible() else self.owner
         parent_handle=int(parent.winId());hwnd=int(self.winId());window=self.windowHandle()
@@ -1362,6 +1393,8 @@ class TaskPopup(QWidget):
     def reposition(self):
         if not hasattr(self,'requested_size'):return
         width,height=self.requested_size
+        if self.host:
+            self.host.place_detail(width,height);return
         if self.owner_unplaced():
             bounds=(self.owner.floating_screen() if self.owner.floating else self.owner.screen()).availableGeometry()
             anchor=QRect(bounds.left()+16,bounds.bottom()-29,min(420,bounds.width()-32),30)
@@ -1489,8 +1522,8 @@ class ResetPopup(TaskPopup):
     BASELINE=usage_chart_baseline(CHART_TOP)
     DATE_Y=usage_date_rect(0,BASELINE,1).center().y()
 
-    def __init__(self,owner):
-        super().__init__(owner)
+    def __init__(self,owner,parent=None):
+        super().__init__(owner,parent)
         self.button=QPushButton(owner.label('Reset quota'),self);self.button.setFont(face(8))
         self.button.clicked.connect(owner.confirm_reset)
         self.history_scroll=QScrollBar(Qt.Orientation.Horizontal,self)
@@ -1730,8 +1763,8 @@ class TaskListPopup(TaskPopup):
     TITLE_X=88
     TITLE_WIDTH=150
 
-    def __init__(self,owner,mode='daily'):
-        super().__init__(owner)
+    def __init__(self,owner,mode='daily',parent=None):
+        super().__init__(owner,parent)
         self.mode=mode
         self.setWindowTitle('Codex · '+owner.label('Tasks'))
         self.hovered=None;self.rows=[];self.hover_started=time.monotonic()
@@ -1744,11 +1777,13 @@ class TaskListPopup(TaskPopup):
     def showEvent(self,event):super().showEvent(event);self.sync_animation()
     def hideEvent(self,event):self.animation.stop();super().hideEvent(event)
 
+    def content_top(self):return 32+self.TITLE_HEIGHT if self.mode=='daily' else 32 if self.host else 8
+
     def sync_animation(self):
         hovered=next((t for t in self.rows if t['id']==self.hovered),None)
         extra=side_tag_width(self.owner.language,task_role_label(hovered))+7 if hovered and task_role_label(hovered) else 0
         marquee=hovered and QFontMetricsF(face()).horizontalAdvance(task_title(hovered,self.owner.language))>self.TITLE_WIDTH-extra
-        clip_top=32+self.TITLE_HEIGHT if self.mode=='daily' else 8
+        clip_top=self.content_top()
         running=any(task.get('running') and not task.get('needs_input') and clip_top<8+top+self.ROW_HEIGHT-self.scroll and 8+top-self.scroll<self.height()-8 for task,top in zip(self.rows,self.row_positions))
         needed=self.isVisible() and getattr(self.owner,'motion_enabled',True) and (marquee or running)
         if needed and not self.animation.isActive():self.animation.start(33)
@@ -1770,7 +1805,9 @@ class TaskListPopup(TaskPopup):
         longest=max([title_metrics.horizontalAdvance(task_title(task,self.owner.language))+(side_tag_width(self.owner.language,task_role_label(task))+7 if task_role_label(task) else 0) for task in self.rows]+[0])
         self.values={t['id']:chart_number(t.get('tokens'),self.owner.chart_unit) if self.mode=='daily' else duration_text(t.get('round_seconds')) for t in self.rows}
         info_width=max([metrics.horizontalAdvance(value) for value in self.values.values()]+[24])
-        width=min(getattr(self.owner,'content_limit',None) or self.owner.width(),max(260,math.ceil(self.TITLE_X+longest+24+info_width+18)))
+        width_limit=getattr(self.owner,'content_limit',None) or self.owner.width()
+        if self.host:width_limit=max(260,width_limit)
+        width=min(width_limit,max(260,math.ceil(self.TITLE_X+longest+24+info_width+18)))
         if self.mode=='daily':width=max(self.usage_width(),width)
         self.value_right=width-18
         self.info_divider=self.value_right-info_width-12
@@ -1799,7 +1836,7 @@ class TaskListPopup(TaskPopup):
 
     def task_at(self,point):
         if self.mode=='daily' and any(rect.contains(point) for rect in self.unit_rects().values()):return None
-        if self.mode=='daily' and point.y()<32+self.TITLE_HEIGHT:return None
+        if point.y()<self.content_top():return None
         if not QRectF(10,8,self.width()-20,max(0,self.height()-16)).contains(point):return None
         local_y=point.y()-8+self.scroll
         return next((task for task,y in zip(self.rows,self.row_positions) if y<=local_y<y+self.ROW_HEIGHT),None)
@@ -1817,11 +1854,13 @@ class TaskListPopup(TaskPopup):
         p=panel_painter(self)
         def right_label(value,right,y,font,color=colors['text']):
             text(p,right-QFontMetricsF(font).horizontalAdvance(value),y,value,font,color)
-        top=32+self.TITLE_HEIGHT if self.mode=='daily' else 8
+        top=self.content_top()
+        if self.host and self.mode!='daily':text(p,18,18,self.owner.label(CATEGORY_LABELS[self.mode]),face(8),colors['muted'])
         p.save();p.setClipRect(QRectF(10,top,self.width()-20,max(0,self.height()-top-8)))
         if not self.rows:text(p,18,50+self.header_extra,self.owner.label('No tasks'),face(8),colors['text'])
-        for label,position in self.sections:
-            text(p,18,8+position+10-self.scroll,label,face(8),colors['muted'])
+        if not self.host or self.mode=='daily':
+            for label,position in self.sections:
+                text(p,18,8+position+10-self.scroll,label,face(8),colors['muted'])
         for task,position in zip(self.rows,self.row_positions):
             yy=8+position-self.scroll;y=yy+self.ROW_HEIGHT/2
             if yy+self.ROW_HEIGHT<8 or yy>self.height()-8:continue
@@ -1890,7 +1929,7 @@ class TaskListPopup(TaskPopup):
             if event.key()==Qt.Key.Key_Home:index=0
             elif event.key()==Qt.Key.Key_End:index=len(ids)-1
             else:index=max(0,min(len(ids)-1,index+(1 if event.key()==Qt.Key.Key_Down else -1)))
-            self.keyboard_task=ids[index];top=32+self.TITLE_HEIGHT if self.mode=='daily' else 8;position=self.row_positions[index]+8
+            self.keyboard_task=ids[index];top=self.content_top();position=self.row_positions[index]+8
             self.scroll=max(0,min(max(0,self.full_height-(self.height()-16)),max(position+self.ROW_HEIGHT-self.height()+8,min(self.scroll,position-top))))
             if index==0:self.scroll=0
             self.sync_animation();self.update();event.accept();return

@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Open detail panels inside the pinned region, directly attached to navigation with a subtle divider. Reuse its height animation and restore pinned rows on dismissal, without changing pin settings.
+
 - Match navigation panels and pinned rows with shared dark/light materials and clearer text hierarchy. Keep panels on the original left anchor, preserve per-task projects, and use soft button selection with lighter hover feedback.
 
 - Repaint the shared capsule surface throughout pin and unpin animations, preventing a stale rim or shading seam until the next click.

@@ -79,11 +79,12 @@ class InteractionQualityTests(unittest.TestCase):
         self.assertEqual(strip.task_tween.state(),QAbstractAnimation.State.Running)
 
     def test_hover_open_never_activates_but_explicit_open_accepts_keyboard(self):
-        panel=Mock();panel.mode='usage';panel.reveal_target=1.;panel.winId.return_value=1
-        with patch('codex_taskbar.app.TaskPopup',return_value=panel),patch('codex_taskbar.app.windows.popup_glass'):
-            self.bar.toggle_popup('usage',activate=False);panel.activateWindow.assert_not_called();panel.setFocus.assert_not_called()
-            self.bar.popup=None;self.bar.toggle_popup('usage');panel.activateWindow.assert_called_once();panel.setFocus.assert_called_once()
-        self.bar.popup=None
+        panel=Mock();panel.mode='usage';panel.reveal_target=1.;panel.host=self.bar.task_strip
+        with patch('codex_taskbar.app.TaskPopup',return_value=panel),patch.object(self.bar.task_strip,'activateWindow') as activate:
+            self.bar.toggle_popup('usage',activate=False);activate.assert_not_called();panel.setFocus.assert_not_called()
+            self.bar.popup=None;self.bar.toggle_popup('usage');activate.assert_called_once();panel.setFocus.assert_called_once()
+            panel.activateWindow.assert_not_called()
+        self.bar.popup=None;self.bar.task_strip.detach_detail(restore=False)
 
     def test_empty_cycle_does_not_fabricate_a_period(self):
         panel=app.TaskPopup(self.bar);self.bar.popup=panel;panel.refresh({})
