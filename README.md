@@ -41,6 +41,8 @@ Choose **Status bar placement → Floating** to move the quota/status strip. Pin
 
 Open a status list and click its pin to keep one lightweight row above the status bar. Multiple pinned states share one connected panel, with a colored dot, task title and unpin button per row. Each row rotates independently; hovering highlights it, pauses rotation and reveals long titles. Empty rows hide while keeping the pin preference. Existing enabled Running strips migrate to a pinned Running row. Main/Side details remain in the full status list and tooltips; Side opens its parent task.
 
+Detail panels open in that same attached area and temporarily replace the scrolling rows. Closing a panel restores your pinned rows without changing their settings.
+
 Settings include English, Simplified Chinese, Japanese, and Spanish UI selection, optional hover-to-open panels, and optional quota rotation. With rotation enabled, all enabled left-side indicators, including the reset countdown, share one fixed-width position.
 
 Capsule colors and background transparency are set manually in Settings. Choose Dark or Light; 0% transparency gives a solid background. Text and ring opacity are unaffected.

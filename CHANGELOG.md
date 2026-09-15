@@ -4,24 +4,14 @@
 
 ## Unreleased
 
-- Keep the current panel open while a different hovered button waits to open, preventing a close-and-reopen gap during hover switching.
+## 0.11.0
 
-- Soften incoming panel content, particularly when switching between similarly sized panels, while retaining the current layout and height motion.
+- Open quota, usage, reset and task details directly above navigation. Closing restores pinned summaries without changing pin settings.
+- Share dark/light surfaces and clearer text across navigation, pinned rows and detail panels.
+- Smooth panel expansion and switching, including hover handoffs that previously closed the current panel too early.
+- Compare reset periods in a horizontally scrollable chart. Open on the latest period and inspect recorded quota percentages with clicks or keyboard navigation; missing readings remain unknown.
+- Use a gentler grayscale sweep for running titles, preserving breathing indicators, long-title reading and reduced-motion behavior.
 
-- Reveal attached details from their heading instead of sweeping trailing rows into view, soften large height changes, and fade in only incoming content on switches. Fit hosted quota/daily widths to navigation and actual labels.
-
-- Restore normal parent-background painting for embedded details, refresh the shared footer outline on width changes, and keep status-list width aligned with navigation instead of varying with task titles.
-
-- Open detail panels inside the pinned region, directly attached to navigation with a subtle divider. Reuse its height animation and restore pinned rows on dismissal, without changing pin settings.
-
-- Match navigation panels and pinned rows with shared dark/light materials and clearer text hierarchy. Keep panels on the original left anchor, preserve per-task projects, and use soft button selection with lighter hover feedback.
-
-- Repaint the shared capsule surface throughout pin and unpin animations, preventing a stale rim or shading seam until the next click.
-
-- Give dark and light capsules a gently shaded surface and fine rim, with one continuous outline across pinned rows and the status bar. Transparency still affects only the surface.
-
-- Match the running title to Codex-style grayscale motion: fixed glyphs and a moving opacity mask, with a gentler 1.8-second sweep and a 0.2-second pause. Keep the effect on fitting-title hover and preserve steady long-title reading, reduced motion and task handoffs.
-- Reuse the weekly usage chart renderer for reset history, including column shapes, value labels and date-axis spacing. Highlight the selected date and reserve scrollbar space only when needed. Open on the latest period; clicks or arrow keys change selection, while hovering and scrolling preserve it. Zero and missing readings stay distinct.
 ## 0.10.1
 
 - Restore synchronized Running dot breathing and a gentler travelling title highlight; keep hidden and reduced-motion views still.

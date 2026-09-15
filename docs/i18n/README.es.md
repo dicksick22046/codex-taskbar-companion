@@ -41,6 +41,8 @@ La ubicación de la barra de estado controla la cuota y los recuentos. Las filas
 
 Abre una lista de estado y pulsa su chincheta para fijar una fila encima de la barra. Varios estados forman un solo panel: cada fila contiene un punto de color, el título y un botón para desfijar. La rotación es independiente; al pasar el cursor, la fila se resalta, se detiene el cambio de tarea y se puede leer el título largo. Las filas vacías se ocultan sin perder su preferencia. Las antiguas barras activas migran a una fila fijada. Los detalles Main/Side permanecen en la lista completa y las ayudas.
 
+Los paneles de detalles se abren en esa misma zona conectada y sustituyen temporalmente las filas fijadas. Al cerrarlos, las filas vuelven sin cambiar la configuración de fijación.
+
 En los ajustes puedes elegir inglés, chino simplificado, japonés o español, abrir paneles al pasar el ratón y activar la rotación de cuotas. En este modo, todos los indicadores activados de la izquierda, incluida la cuenta atrás, comparten una posición de ancho fijo.
 
 En Ajustes puedes elegir manualmente el color oscuro o claro de la cápsula y la transparencia del fondo. Un 0% significa fondo opaco; el texto y los anillos no se atenúan.
