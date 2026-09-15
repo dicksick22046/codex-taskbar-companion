@@ -106,19 +106,17 @@ class QuotaPresentationTests(unittest.TestCase):
             self.assertEqual(panel.toolTip(),'')
         finally:panel.close();panel.deleteLater()
 
-    def test_history_amounts_and_percentages_use_separate_real_sources(self):
+    def test_history_hides_percentages_but_preserves_raw_source_records(self):
         self.data['reset_events']=[{'kind':'official','at':datetime.now().timestamp(),'tokens':500000000,
                                     'before':{'10080':{'remaining':51},'300':{'remaining':80}}},
                                    {'kind':'manual','at':datetime.now().timestamp(),'tokens':100000000}]
         panel=app.ResetPopup(self.bar);panel.refresh(self.data)
         try:
-            self.assertEqual(panel.history_percent(self.data['reset_events'][0]),'49%')
-            self.assertEqual(panel.history_percent(dict(self.data['reset_events'][0],windows=['300'])),'20%')
-            self.assertEqual(panel.history_percent(self.data['reset_events'][1]),'—')
-            panel.select_history(0)
+            self.assertEqual(panel.rows[0]['before']['10080']['remaining'],51)
+            self.assertNotIn('%',panel.accessibleDescription())
             with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
             official=next(c for c in draw.call_args_list if c.args[3]=='Official')
-            self.assertEqual(official.args[5],app.LILAC)
+            self.assertEqual(panel.history_color('official'),app.LILAC)
             self.assertNotIn('7d',self.rendered_labels(panel));self.assertNotIn('Tokens',self.rendered_labels(panel))
         finally:panel.close();panel.deleteLater()
 

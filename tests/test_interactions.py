@@ -350,9 +350,9 @@ class InteractionTests(unittest.TestCase):
         self.assertEqual(panel.history_bar_rect(self.data['reset_events'][0],0).bottom(),panel.BASELINE)
         panel.close();panel.deleteLater()
 
-    def test_history_rows_identify_usage_and_units_and_use_blue_categories(self):
+    def test_history_heading_identifies_units_and_legend_has_fixed_categories(self):
         self.data['reset_events']=[{'kind':'scheduled','at':datetime.now().timestamp(),'tokens':2036647183,'windows':['10080']}]
-        for language,expected in [('en','Tokens 20.37 ×100M'),('zh-CN','Token 20.37 亿'),('ja','Token 20.37 億'),('es','Tokens 20.37 ×100M')]:
+        for language,expected in [('en','20.37 100M'),('zh-CN','20.37 亿'),('ja','20.37 億'),('es','20.37 100M')]:
             self.bar.settings['language']=language
             panel=app.ResetPopup(self.bar);panel.refresh(self.data)
             with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
@@ -361,19 +361,19 @@ class InteractionTests(unittest.TestCase):
             self.assertNotIn(self.bar.label('Tokens'),labels);self.assertIn(self.bar.label('Reset periods'),labels)
             self.assertNotIn('History · 100M',labels)
             category=next(call for call in draw.call_args_list if call.args[3]==panel.history_label(self.data['reset_events'][0]))
-            self.assertEqual(category.args[5],app.BLUE)
-            self.assertEqual(panel.history_usage({'tokens':None}),self.bar.label('Tokens')+' —')
-            self.assertIn('20.37 '+panel.history_parts(self.data['reset_events'][0])[1],labels)
+            self.assertEqual(panel.history_color('scheduled'),app.BLUE)
+            self.assertEqual(panel.history_usage({'tokens':None}),'—')
+            self.assertIn('20.37',labels);self.assertIn(panel.history_unit(),labels)
             panel.close();panel.deleteLater()
 
     def test_history_uses_100m_for_both_small_and_large_totals(self):
         panel=app.ResetPopup(self.bar)
-        self.assertEqual(panel.history_usage({'tokens':521911499}),'Tokens 5.22 ×100M')
-        self.assertEqual(panel.history_usage({'tokens':1_000_000_000}),'Tokens 10 ×100M')
-        self.assertEqual(panel.history_usage({'tokens':0}),'Tokens 0 ×100M')
+        self.assertEqual(panel.history_usage({'tokens':521911499}),'5.22 100M')
+        self.assertEqual(panel.history_usage({'tokens':1_000_000_000}),'10 100M')
+        self.assertEqual(panel.history_usage({'tokens':0}),'0 100M')
         panel.close();panel.deleteLater()
 
-    def test_history_amount_labels_keep_units_above_their_period_bars(self):
+    def test_history_amount_labels_are_numeric_and_unit_is_in_heading(self):
         self.data['reset_events']=[{'kind':'scheduled','at':datetime.now().timestamp()+i,'tokens':value,'windows':['10080']}
                                    for i,value in enumerate((2037000000,522000000,None))]
         for language in app.LANGUAGES:
@@ -385,9 +385,9 @@ class InteractionTests(unittest.TestCase):
             self.assertEqual(len(labels),1)
             self.assertEqual(len({c.args[1] for c in labels}),1)
             for index,row in enumerate(panel.rows):
-                panel.select_history(index)
+                panel.history_scroll.setValue(round(panel.history_padding[0]+(index+.5)*panel.column_width-(panel.width()-36)/2))
                 with patch('codex_taskbar.app.text',wraps=app.text) as amount_draw:panel.grab()
-                box=panel.history_bar_rect(row,index);value=' '.join(part for part in panel.history_parts(row) if part)
+                box=panel.history_bar_rect(row,index);value=panel.history_amount(row)
                 call=next(c for c in amount_draw.call_args_list if c.args[3]==value and c.args[2]<=panel.BASELINE)
                 self.assertAlmostEqual(call.args[1]+app.QFontMetricsF(app.face(7)).horizontalAdvance(value)/2,box.center().x())
                 self.assertLess(call.args[2],box.top())

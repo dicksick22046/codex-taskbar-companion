@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Simplify reset history to slimmer, type-colored bars with one heading unit and legend. Remove the percentage/detail row and click selection; keep horizontal browsing.
+
 - Restore project tags in pinned task rows and make the row's blank space clickable, while keeping the unpin button separate.
 
 - Remove verbose explanatory tooltips from quota and reset panels; keep navigation hints brief.

@@ -51,7 +51,7 @@ class PopupThemeTests(unittest.TestCase):
                     self.assertIn(app.popup_palette(self.bar)['title'],button.styleSheet())
                     self.assertEqual(button.isChecked(),unit==self.bar.chart_unit)
                 if isinstance(panel,app.ResetPopup):
-                    self.assertEqual(panel.history_selected,'one');self.assertEqual(panel.history_percent(panel.rows[0]),'91%')
+                    self.assertEqual(panel.rows[0]['id'],'one');self.assertEqual(panel.rows[0]['before']['10080']['remaining'],9)
                     self.assertIn(app.popup_palette(self.bar)['button'],panel.button.styleSheet())
                     self.assertIn(app.popup_palette(self.bar)['link'],panel.history_scroll.styleSheet())
                 if getattr(panel,'pin_button',None):self.assertTrue(panel.pin_button.light_surface)
