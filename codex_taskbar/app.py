@@ -596,8 +596,9 @@ class StatusBar(QWidget):
             self.hover_leave_since=None
             if mode!=self.hover_target:self.hover_target=mode;self.hover_since=now
             if mode==self.hover_suppressed:return
-            if self.popup and self.popup.mode==mode:
-                self.popup.reveal_to(1.);return
+            if self.popup:
+                self.popup.reveal_to(1.)
+                if self.popup.mode==mode:return
             if now-self.hover_since>=.35:self.toggle_popup(mode,activate=False)
         else:
             self.hover_target=None

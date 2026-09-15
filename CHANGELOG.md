@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Keep the current panel open while a different hovered button waits to open, preventing a close-and-reopen gap during hover switching.
+
 - Soften incoming panel content, particularly when switching between similarly sized panels, while retaining the current layout and height motion.
 
 - Reveal attached details from their heading instead of sweeping trailing rows into view, soften large height changes, and fade in only incoming content on switches. Fit hosted quota/daily widths to navigation and actual labels.

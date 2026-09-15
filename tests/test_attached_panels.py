@@ -233,5 +233,24 @@ class AttachedPanelTests(unittest.TestCase):
             self.assertIs(self.bar.popup,panel)
         self.assertTrue(reached)
 
+    def test_hover_reentering_different_button_keeps_detail_during_switch_dwell(self):
+        self.bar.resize(800,30);self.bar.settings.update(placement='taskbar',hover_panels=True)
+        self.bar.grab();panel=self.open('resets');self.bar.motion_enabled=True
+        self.bar.hide_popup();self.host.size_motion.advance(.06);panel.fade.advance(.06)
+        self.assertEqual(panel.reveal_target,0.)
+        point=self.bar.mapToGlobal(next(rect for mode,rect,_ in self.bar.hit_regions if mode=='unread').center().toPoint())
+        self.bar.update_hover_popup(point,10.)
+        self.assertIs(self.bar.popup,panel);self.assertEqual(panel.reveal_target,1.)
+        for tick in range(1,22):
+            self.host.size_motion.advance(.016);panel.fade.advance(.016)
+            self.bar.update_hover_popup(point,10.+tick*.016)
+            app.QApplication.instance().processEvents()
+            self.assertIs(self.bar.popup,panel)
+            self.assertGreater(self.host.size_motion.target,31)
+            self.assertEqual(self.bar.hover_target,'unread')
+        self.bar.update_hover_popup(point,10.36)
+        self.assertEqual(self.bar.popup.mode,'unread');self.assertIsNot(self.bar.popup,panel)
+        self.assertGreater(self.host.size_motion.target,0)
+
 
 if __name__=='__main__':unittest.main()
