@@ -77,7 +77,7 @@ class AttachedPanelTests(unittest.TestCase):
     def test_global_hit_region_is_only_visible_clipped_child(self):
         panel=self.open('usage');self.host.layout_rows(50)
         self.assertEqual(panel.global_geometry(),self.host.geometry())
-        self.assertLess(panel.y(),0);self.assertEqual(panel.height(),self.host.detail_box.height())
+        self.assertEqual(panel.y(),0);self.assertEqual(panel.height(),self.host.detail_box.height())
         self.assertFalse(panel.global_geometry().contains(self.host.geometry().topLeft()-QPoint(0,1)))
 
     def test_static_detail_refresh_does_not_restart_height_motion_or_reposition_recursively(self):
@@ -163,6 +163,75 @@ class AttachedPanelTests(unittest.TestCase):
         self.data['tasks'][0]['title']='Short'
         panel.refresh(self.data)
         self.assertEqual(self.host.geometry(),before)
+
+    def test_detail_header_stays_in_view_through_height_transition(self):
+        self.open('running');self.bar.motion_enabled=True
+        panel=self.open('daily')
+        for seconds in (0,.016,.016,.032,.064):
+            if seconds:self.host.size_motion.advance(seconds)
+            self.assertEqual(panel.y(),0)
+            self.assertEqual(panel.mapToGlobal(QPoint(0,0)),self.host.geometry().topLeft())
+            self.assertLess(panel.TITLE_HEIGHT,self.host.height())
+        self.assertEqual(self.host.size_motion.response,.28)
+        self.bar.hide_popup(immediate=True);self.assertEqual(self.host.size_motion.response,.18)
+
+    def test_daily_and_session_fit_measured_header_without_fixed_360_width(self):
+        from datetime import datetime
+        self.bar.resize(334,30);self.bar.settings['language']='zh-CN';self.bar.content_limit=600
+        self.data['usage_at']=self.data['quota_updated_at']=datetime.now().astimezone().isoformat()
+        for mode in ('daily','session'):
+            panel=self.open(mode)
+            self.assertEqual(self.host.width(),334)
+            self.data['tasks'][0]['title']='Long task title '*40
+            panel.refresh(self.data)
+            self.assertEqual(self.host.width(),334)
+
+    def test_narrow_weekly_chart_reserves_measured_date_and_amount_slots(self):
+        from datetime import datetime
+        self.bar.resize(180,30);self.data['usage_at']=datetime.now().astimezone().isoformat()
+        self.data['history']={datetime.now().astimezone().date().isoformat():1234567890000}
+        panel=self.open('usage');metrics=app.QFontMetricsF(app.face(7))
+        values,_=app.chart_values(panel.days,self.data['history'],datetime.now().astimezone().date())
+        labels=[f'{day.month}/{day.day}' for day in panel.days]+[app.chart_number(value,self.bar.chart_unit) for value in values]
+        self.assertGreaterEqual((panel.width()-36)/len(panel.days),max(metrics.horizontalAdvance(label) for label in labels)+8)
+
+    def test_new_content_fades_without_retaining_previous_child(self):
+        old=self.open('running');height=self.host.height();self.bar.motion_enabled=True
+        panel=self.open('unread')
+        self.assertTrue(old.isHidden());self.assertIs(self.host.detail,panel)
+        self.assertEqual(self.host.height(),height)
+        self.assertEqual(panel.reveal,0.);self.assertTrue(panel.content_opacity.isEnabled())
+        panel.fade.advance(.03)
+        self.assertGreater(panel.reveal,0.);self.assertLess(panel.reveal,1.)
+        value=panel.reveal;velocity=panel.fade.velocity
+        self.bar.hide_popup()
+        self.assertEqual(panel.reveal,value);self.assertEqual(panel.fade.velocity,velocity)
+        self.bar.toggle_popup('unread',activate=False)
+        self.assertEqual(panel.reveal,value);self.assertEqual(panel.fade.velocity,velocity)
+        for _ in range(60):panel.fade.advance(.016)
+        self.assertEqual(panel.reveal,1.);self.assertFalse(panel.content_opacity.isEnabled())
+
+    def test_reduced_motion_content_is_immediately_opaque_without_effect(self):
+        panel=self.open('usage')
+        self.assertEqual(panel.reveal,1.)
+        self.assertFalse(panel.content_opacity.isEnabled())
+        self.assertFalse(panel.fade.timer.isActive())
+
+    def test_close_restores_summary_on_first_final_pixel_frame(self):
+        panel=self.open('daily');self.bar.motion_enabled=True
+        self.bar.hide_popup();target=round(self.host.size_motion.target)
+        reached=False
+        for _ in range(120):
+            self.host.size_motion.advance(.016)
+            if round(self.host.size_motion.value)==target:
+                reached=True
+                self.assertIsNone(self.bar.popup)
+                self.assertEqual(self.host.active,['running'])
+                self.assertEqual(self.host.size_motion.value,target)
+                self.assertFalse(self.host.size_motion.timer.isActive())
+                break
+            self.assertIs(self.bar.popup,panel)
+        self.assertTrue(reached)
 
 
 if __name__=='__main__':unittest.main()

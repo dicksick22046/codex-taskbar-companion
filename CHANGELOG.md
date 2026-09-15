@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Reveal attached details from their heading instead of sweeping trailing rows into view, soften large height changes, and fade in only incoming content on switches. Fit hosted quota/daily widths to navigation and actual labels.
+
 - Restore normal parent-background painting for embedded details, refresh the shared footer outline on width changes, and keep status-list width aligned with navigation instead of varying with task titles.
 
 - Open detail panels inside the pinned region, directly attached to navigation with a subtle divider. Reuse its height animation and restore pinned rows on dismissal, without changing pin settings.

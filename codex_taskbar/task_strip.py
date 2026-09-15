@@ -217,12 +217,12 @@ class PinnedPanel(QWidget):
         self.host_key=None;self.surface_loss_since=None;self.surface_repaired=False;self.frame_key=None
 
     def attach_detail(self,popup):
-        self.detail=popup;self.detail_box=None;self.detail_hidden=False
+        self.detail=popup;self.detail_box=None;self.detail_hidden=False;self.size_motion.response=.28
         for row in self.rows.values():row.refresh(self.owner.data,hidden=True)
         self.active=[]
 
     def detach_detail(self,restore=True):
-        self.detail=None;self.detail_box=None
+        self.detail=None;self.detail_box=None;self.size_motion.response=.18
         if restore and not self.stopped:self.refresh(self.owner.data,resize=True)
 
     def place_detail(self,width,height):
@@ -295,6 +295,8 @@ class PinnedPanel(QWidget):
 
     def layout_rows(self,value):
         height=round(value)
+        if self.detail and self.detail.reveal_target==0. and not self.detail_hidden and self.owner.isVisible() and height==round(self.size_motion.target):
+            self.owner.hide_popup(immediate=True);self.size_motion.snap(self.size_motion.target);return
         if height<2 or not self.owner.isVisible() or self.detail and self.detail_hidden:
             self.hide()
             if self.joined_edge is not None:self.joined_edge=None;self.owner.update();self.reposition_popup()
@@ -308,7 +310,7 @@ class PinnedPanel(QWidget):
         if moved:self.setGeometry(box)
         edge='top' if box.top()<self.owner.y() else 'bottom'
         if edge!=self.joined_edge or moved:self.joined_edge=edge;self.owner.update()
-        if self.detail:self.detail.move(0,height-self.detail.height() if edge=='top' else 0)
+        if self.detail:self.detail.move(0,0)
         offset=height-(len(self.active)*30+1) if edge=='top' else 0
         for index,kind in enumerate(self.active):self.rows[kind].move(0,offset+index*30)
         self.ensure_visible()

@@ -18,7 +18,7 @@ RUNTIME = runtime_dir()
 try:
     from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QPointF, QVariantAnimation, QEasingCurve,QAbstractAnimation
     from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPen, QCursor, QLinearGradient, QImage
-    from PySide6.QtWidgets import QApplication, QWidget, QMenu, QSystemTrayIcon, QPushButton, QMessageBox,QButtonGroup,QToolTip,QScrollBar
+    from PySide6.QtWidgets import QApplication, QWidget, QMenu, QSystemTrayIcon, QPushButton, QMessageBox,QButtonGroup,QToolTip,QScrollBar,QGraphicsOpacityEffect
     from PySide6.QtSvg import QSvgRenderer
 except ImportError:
     if '--smoke-test' in sys.argv:raise SystemExit(1)
@@ -1288,8 +1288,11 @@ class TaskPopup(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         if not self.host:self.setWindowOpacity(0.)
         self.reveal=0.;self.reveal_target=None
-        self.fade=Spring(self,response=.18)
+        self.fade=Spring(self,response=.14 if self.host else .18)
         self.fade.changed.connect(self.set_reveal);self.fade.finished.connect(self.finish_reveal)
+        self.content_opacity=QGraphicsOpacityEffect(self) if self.host else None
+        if self.content_opacity:
+            self.content_opacity.setOpacity(0.);self.setGraphicsEffect(self.content_opacity)
         self.unit_buttons={};self.unit_group=QButtonGroup(self);self.unit_group.setExclusive(True)
         if self.mode in ('usage','daily'):
             for unit in ('M','100M'):
@@ -1337,23 +1340,27 @@ class TaskPopup(QWidget):
     def showEvent(self,event):
         super().showEvent(event)
         self.sync_owner()
-        self.reveal_to(1.)
+        self.reveal_to(self.reveal_target if self.host and self.reveal_target is not None else 1.,force=bool(self.host))
 
     def hideEvent(self,event):self.fade.stop();super().hideEvent(event)
 
     def set_reveal(self,value):
-        self.reveal=max(0.,min(1.,float(value)));self.setWindowOpacity(self.reveal);self.update()
+        self.reveal=max(0.,min(1.,float(value)))
+        if self.content_opacity:
+            self.content_opacity.setOpacity(self.reveal);self.content_opacity.setEnabled(self.reveal<1.)
+        else:self.setWindowOpacity(self.reveal)
+        self.update()
 
     def reveal_to(self,target,force=False):
         target=float(target)
         if target==self.reveal_target and not force:return
         self.reveal_target=target
-        if self.host:
-            self.host.reveal_detail(target);return
+        if self.host:self.host.reveal_detail(target)
         if getattr(self.owner,'motion_enabled',True):self.fade.retarget(target)
         else:self.fade.snap(target);self.finish_reveal()
 
     def finish_reveal(self):
+        if self.host:return
         if self.reveal_target==0 and self.owner.popup is self:
             self.owner.popup=None;self.owner.update();self.close();self.deleteLater()
 
@@ -1440,10 +1447,24 @@ class TaskPopup(QWidget):
         return {unit:rect.translated(self.width()-360,0) for unit,rect in self.UNIT_RECTS.items()}
 
     def usage_width(self):
-        if self.mode=='session':return 360
+        small=QFontMetricsF(face(7))
+        if self.mode=='session':
+            if not self.host:return 360
+            window=quota_window(effective_quota_data(self.data),300)
+            value=self.owner.label('{value}% remaining',value=f"{window['remaining']:g}") if window else '—'
+            first=49+QFontMetricsF(face(8)).horizontalAdvance(value)+18
+            if quota_is_cached(self.data):first+=10+small.horizontalAdvance(self.owner.label('Cached'))
+            reset=datetime.fromtimestamp(window['resets_at']).strftime('%H:%M') if window and window.get('resets_at') else '—'
+            metadata=48+small.horizontalAdvance(quota_update_label(self.owner,self.data))+small.horizontalAdvance(self.owner.label('Reset {time}',time=reset))
+            return math.ceil(max(self.owner.width(),first,metadata,66+2*small.horizontalAdvance('00:00')))
         title=self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens')
-        return math.ceil(max(360,QFontMetricsF(face(9)).horizontalAdvance(title)+
-                             QFontMetricsF(face(7)).horizontalAdvance(usage_update_label(self.owner,self.data))+134))
+        width=max(self.owner.width() if self.host else 360,QFontMetricsF(face(9)).horizontalAdvance(title)+
+                  small.horizontalAdvance(usage_update_label(self.owner,self.data))+134)
+        if self.host and self.mode=='usage' and self.days:
+            values,_=chart_values(self.days,self.data.get('history',{}),datetime.now().astimezone().date())
+            labels=[f'{day.month}/{day.day}' for day in self.days]+[chart_number(value,self.owner.chart_unit) for value in values]
+            width=max(width,36+len(self.days)*(max(small.horizontalAdvance(label) for label in labels)+8))
+        return math.ceil(width)
 
     def usage_tooltip(self):
         return '\n'.join((self.owner.label('Local today · Tokens' if self.mode=='daily' else 'Local cycle · Tokens'),
@@ -1808,7 +1829,7 @@ class TaskListPopup(TaskPopup):
         width_limit=getattr(self.owner,'content_limit',None) or self.owner.width()
         if self.host:width_limit=max(260,width_limit)
         width=min(width_limit,max(260,math.ceil(self.TITLE_X+longest+24+info_width+18)))
-        if self.mode=='daily':width=max(self.usage_width(),width)
+        if self.mode=='daily':width=max(self.usage_width(),260 if self.host else width)
         elif self.host:width=max(260,self.owner.width())
         self.value_right=width-18
         self.info_divider=self.value_right-info_width-12
