@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+- Restore project tags in pinned task rows and make the row's blank space clickable, while keeping the unpin button separate.
+
+- Remove verbose explanatory tooltips from quota and reset panels; keep navigation hints brief.
+
 - Compare reset-period totals with wider adjacent bars and dates at reset boundaries. Keep per-bar units, show the selected interval, and preserve unknown starts instead of implying daily usage.
 
 - Avoid task-row highlights on panel opening: hit-test only the visible viewport and show keyboard selection only after keyboard navigation or keyboard focus.

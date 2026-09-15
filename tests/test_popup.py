@@ -72,25 +72,31 @@ class PopupInitialFrameTests(unittest.TestCase):
                 panel.close();panel.deleteLater()
         owner.close();owner.deleteLater()
 
-    def test_task_hit_area_follows_visible_content(self):
+    def test_task_hit_area_covers_visible_row_and_keeps_text_clear_of_pin(self):
         fixtures.InteractionTests.setUp(self);self.addCleanup(fixtures.InteractionTests.tearDown,self)
         bar=self.bar;strip=self.strip
         task={'id':'a','project':'Project','title':'Short','running':True}
         bar.data={'tasks':[task]};strip.refresh(bar.data);strip.task_tween.setCurrentTime(strip.task_tween.duration());strip.grab()
-        self.assertLess(strip.task_area.right(),strip.width()-100)
+        self.assertTrue(strip.task_at_point(QPointF(2,15)))
+        self.assertTrue(strip.task_at_point(QPointF(strip.width()-3,15)))
+        self.assertFalse(strip.task_at_point(QPointF(strip.pin_button.geometry().center())))
         self.assertLess(strip.task_rect.width(),100)
         def send(kind,point):
             held=Qt.MouseButton.NoButton if kind==QEvent.Type.MouseButtonRelease else Qt.MouseButton.LeftButton
             self.application.sendEvent(strip,QMouseEvent(kind,point,QPointF(strip.mapToGlobal(point.toPoint())),Qt.MouseButton.LeftButton,held,Qt.KeyboardModifier.NoModifier))
         with patch.object(bar,'open_task') as opened:
-            blank=QPointF(strip.width()-10,15)
-            send(QEvent.Type.MouseButtonPress,blank);send(QEvent.Type.MouseButtonRelease,blank);opened.assert_not_called()
+            blank=QPointF(strip.pin_button.x()-3,15)
+            send(QEvent.Type.MouseButtonPress,blank);opened.assert_not_called()
+            send(QEvent.Type.MouseButtonRelease,blank);opened.assert_called_once_with(task);opened.reset_mock()
+            pin=QPointF(strip.pin_button.geometry().center())
+            send(QEvent.Type.MouseButtonPress,pin);send(QEvent.Type.MouseButtonRelease,pin);opened.assert_not_called()
             point=strip.task_area.center();send(QEvent.Type.MouseButtonPress,point);opened.assert_not_called()
             send(QEvent.Type.MouseButtonRelease,point);opened.assert_called_once_with(task)
         task['title']='A long task title '*40
         strip.refresh(bar.data);strip.grab()
-        self.assertLessEqual(strip.task_area.right(),strip.width()-5)
-        self.assertEqual(strip.task_area.right()-strip.task_rect.right(),6)
+        self.assertLessEqual(strip.task_rect.right(),strip.pin_button.x()-8)
+        self.assertGreater(strip.task_rect.left(),30)
+        self.assertTrue(strip.task_at_point(QPointF(strip.pin_button.x()-3,15)))
         bar.data={'tasks':[]};strip.refresh(bar.data);strip.grab();bar.grab()
         self.assertTrue(strip.task_area.isEmpty())
         self.assertEqual(sum(mode=='daily' for mode,rect,target in bar.hit_regions),1)

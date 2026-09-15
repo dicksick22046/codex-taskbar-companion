@@ -96,10 +96,54 @@ class TaskStripTests(unittest.TestCase):
         self.refresh([{**item,'title':'updated after press'}],now=10);self.release(point)
         self.owner.open_task.assert_called_once_with(item)
 
-    def test_release_outside_task_or_click_on_blank_does_not_open(self):
+    def test_release_outside_task_or_click_on_pin_does_not_open(self):
         self.refresh([task('a')]);self.press();self.release(QPointF(-2,-2))
         self.press(QPointF(self.strip.width()-20,15));self.release(QPointF(self.strip.width()-20,15))
         self.owner.open_task.assert_not_called()
+
+    def test_visible_row_padding_opens_task_but_corners_and_pin_do_not(self):
+        item=task('a','Short',project='Demo');self.refresh([item])
+        points=(QPointF(2,15),QPointF(self.strip.pin_button.x()-3,15),QPointF(self.strip.width()-3,15))
+        for point in points:
+            with self.subTest(point=point):
+                self.owner.open_task.reset_mock();self.assertTrue(self.strip.task_at_point(point))
+                self.press(point);self.release(point);self.owner.open_task.assert_called_once_with(item)
+        self.owner.open_task.reset_mock()
+        for point in (QPointF(1,1),QPointF(self.strip.width()-1,1),QPointF(self.strip.pin_button.geometry().center())):
+            self.assertFalse(self.strip.task_at_point(point));self.press(point);self.release(point)
+        self.strip.pin_button.click()
+        self.owner.open_task.assert_not_called();self.owner.set_status_pinned.assert_called_once_with('running',False)
+
+    def test_project_tag_and_title_share_handoff_and_keep_marquee_out_of_tag_and_pin(self):
+        self.owner.motion_enabled=True;items=[task('a','First title '*30,project='Alpha'),task('b','Second title '*30,project='Beta')]
+        self.refresh(items);self.refresh(items,now=8);self.strip.task_tween.setCurrentTime(180)
+        with patch('codex_taskbar.app.project_tag',wraps=app.project_tag) as tags,patch('codex_taskbar.app.running_title',wraps=app.running_title) as titles:
+            self.strip.grab()
+        self.assertEqual([call.args[3] for call in tags.call_args_list],['Alpha','Beta'])
+        for tag,title in zip(tags.call_args_list,titles.call_args_list):
+            self.assertEqual(tag.args[2],title.args[2])
+            self.assertGreater(title.args[1],tag.args[1]);self.assertEqual(title.args[1],title.args[5])
+            self.assertLessEqual(title.args[5]+title.args[6],self.strip.pin_button.x()-8)
+        self.strip.task_tween.setCurrentTime(450);self.strip.task_hover=True
+        with patch('codex_taskbar.app.marquee_offset',wraps=app.marquee_offset) as marquee,patch('codex_taskbar.app.project_tag',wraps=app.project_tag) as tags:
+            self.strip.grab()
+        self.assertEqual(tags.call_args.args[1],30)
+        available=self.strip.width()-40-self.strip.task_rect.x()
+        self.assertAlmostEqual(marquee.call_args.args[1],app.QFontMetricsF(self.owner.font).horizontalAdvance(items[1]['title'])-available)
+
+    def test_long_and_missing_projects_are_localized_and_elided(self):
+        for language in ('en','zh-CN','ja','es'):
+            self.owner.language=language
+            for project in ('','A very long project name '*8):
+                self.refresh([task('a','Title',project=project)])
+                with patch('codex_taskbar.app.text',wraps=app.text) as draw:self.strip.grab()
+                project_draw=next(call.args for call in draw.call_args_list if call.args[1]==36)
+                rendered=project_draw[3]
+                self.assertTrue(rendered)
+                self.assertLessEqual(app.QFontMetricsF(project_draw[4]).horizontalAdvance(rendered)+12,90)
+                if not project:self.assertEqual(rendered,app.project_label('',language))
+                else:self.assertIn('…',rendered)
+                self.assertGreater(self.strip.task_rect.x(),36)
 
     def test_transition_click_uses_visible_item_and_freezes_both_labels(self):
         self.owner.motion_enabled=True;items=[task('a','First',project='Alpha'),task('b','Second',project='Beta')]

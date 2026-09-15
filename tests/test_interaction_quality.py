@@ -158,7 +158,10 @@ class InteractionQualityTests(unittest.TestCase):
     def test_task_feedback_keeps_text_clear_of_both_ends_when_elided(self):
         for title in ('Short task','A long task title '*30):
             self.data['tasks'][0]['title']=title;self.strip.task=self.data['tasks'][0];self.strip.grab()
-            box=self.strip.task_area.adjusted(0,4,0,-4)
-            self.assertGreaterEqual(box.right()-self.strip.task_rect.right(),5)
-            self.assertLessEqual(box.right(),self.strip.width()-5)
-            self.assertTrue(self.strip.task_area.contains(box))
+            text_box=self.strip.task_rect
+            self.assertGreater(text_box.left(),30)
+            self.assertGreaterEqual(self.strip.pin_button.x()-text_box.right(),8)
+            self.assertTrue(self.strip.task_at_point(app.QPointF(2,15)))
+            self.assertTrue(self.strip.task_at_point(app.QPointF(self.strip.pin_button.x()-3,15)))
+            self.assertFalse(self.strip.task_at_point(app.QPointF(self.strip.pin_button.geometry().center())))
+            self.assertFalse(self.strip.task_at_point(app.QPointF(0,0)))

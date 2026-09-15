@@ -124,13 +124,27 @@ class TaskStrip(QWidget):
             if self.task:self.setAccessibleDescription(task_title(self.task,self.language))
             self.update()
 
+    def row_hit_path(self):
+        parent=self.parentWidget();edge=getattr(parent,'joined_edge',None)
+        if edge:
+            box=QRectF(parent.rect()).adjusted(1,1,-1,-1).translated(-self.x(),-self.y())
+            if edge=='top':box.adjust(0,0,0,self.owner.height())
+            else:box.adjust(0,-self.owner.height(),0,0)
+        else:box=QRectF(self.rect()).adjusted(1,1,-1,-1)
+        path=visuals.connected_surface(box)
+        row=QPainterPath();row.addRect(QRectF(self.rect()))
+        pin=QPainterPath();pin.addRect(QRectF(self.pin_button.geometry()))
+        return path.intersected(row).subtracted(pin)
+
+    def task_at_point(self,point):return bool(self.task and self.row_hit_path().contains(point))
+
     def track_pointer(self,point):
-        inside=bool(self.pressed_local and self.pressed_local.contains(point))
+        inside=bool(self.pressed_local and self.pressed_local.contains(point) and self.task_at_point(point))
         if inside!=self.press_inside:self.press_inside=inside;self.update()
         hovering=QRectF(self.rect()).contains(point)
         if hovering!=self.task_hover:
             self.task_hover=hovering;self.title_hover_started=time.monotonic();self._sync_pause(self.title_hover_started);self.update()
-        self.setCursor(Qt.CursorShape.PointingHandCursor if self.task_area.contains(point) else Qt.CursorShape.ArrowCursor)
+        self.setCursor(Qt.CursorShape.PointingHandCursor if self.task_at_point(point) else Qt.CursorShape.ArrowCursor)
         task=self.displayed_task();tip=''
         if hovering and task:
             role=task_role_label(task)
@@ -155,13 +169,13 @@ class TaskStrip(QWidget):
     def mousePressEvent(self,event):
         if event.button()!=Qt.MouseButton.LeftButton:return
         task=self.displayed_task()
-        if task and self.task_area.contains(event.position()):
+        if task and self.task_at_point(event.position()):
             self.begin_press(task);self.drag_origin=event.globalPosition();self.dragging=False;event.accept()
 
     def mouseReleaseEvent(self,event):
         if event.button()!=Qt.MouseButton.LeftButton:return
         pressed=self.release_press();dragged=self.dragging;self.drag_origin=None;self.dragging=False
-        if not dragged and pressed and pressed[0].contains(event.position()) and any(t['id']==pressed[1]['id'] for t in self.candidates):self.owner.open_task(pressed[1])
+        if not dragged and pressed and pressed[0].contains(event.position()) and self.task_at_point(event.position()) and any(t['id']==pressed[1]['id'] for t in self.candidates):self.owner.open_task(pressed[1])
         self.track_pointer(event.position());self._sync_pause(time.monotonic());event.accept()
 
     def mouseMoveEvent(self,event):
@@ -182,24 +196,28 @@ class TaskStrip(QWidget):
         color=palette[{'running':'green','waiting':'amber','unread':'amber','failed':'failed','stopped':'stopped'}[self.category]]
         visuals.running_dot(p,17,y,color,self.category=='running' and self.motion_enabled)
         def label(task,opacity,offset,current=False):
-            metrics=QFontMetricsF(self.owner.font);title=task_title(task,self.language);available=max(0,self.width()-70)
+            metrics=QFontMetricsF(self.owner.font);title=task_title(task,self.language)
+            content_width=max(0,self.width()-70);project_width=min(90,max(0,content_width*.35))
+            p.save();p.setOpacity(opacity)
+            tag_width=visuals.project_tag(p,30,y+offset,task.get('project'),visuals.face(8),project_width,self.language,palette['link'],palette['muted'])
+            title_x=30+tag_width+8;available=max(0,self.width()-40-title_x)
             full_width=metrics.horizontalAdvance(title);shown=min(available,full_width)
             reading_overflow=self.task_hover and full_width>available+.5
-            area=QRectF(30,0,shown,self.height())
+            area=QRectF(title_x,0,shown,self.height())
             if current:self.task_rect=area
-            if opacity>0:self.task_area=self.task_area.united(area.adjusted(-5,0,6,0))
-            p.save();p.setOpacity(opacity);p.setClipRect(QRectF(30,0,available,self.height()))
+            p.setClipRect(QRectF(title_x,0,available,self.height()))
             shift=0.
             if self.task_hover and self.motion_enabled and self.task_blend>=1 and not self.pressed and not self.dragging:
                 shift=visuals.marquee_offset(time.monotonic()-self.title_hover_started,metrics.horizontalAdvance(title)-available)
             else:title=metrics.elidedText(title,Qt.TextElideMode.ElideRight,available)
             if self.category=='running' and self.motion_enabled and not reading_overflow and not self.pressed and not self.dragging:
                 elapsed=max(0,time.monotonic()-self.shimmer_started) if self.shimmer_started is not None else 0
-                visuals.running_title(p,30,y+offset,title,self.owner.font,30,shown,palette['text'],elapsed=elapsed)
-            else:visuals.text(p,30-shift,y+offset,title,self.owner.font,palette['text'])
+                visuals.running_title(p,title_x,y+offset,title,self.owner.font,title_x,shown,palette['text'],elapsed=elapsed)
+            else:visuals.text(p,title_x-shift,y+offset,title,self.owner.font,palette['text'])
             p.restore()
         if self.previous_task and self.task_blend<1:label(self.previous_task,1-self.task_blend,-14*self.task_blend)
         label(self.task,self.task_blend,14*(1-self.task_blend),True)
+        self.task_area=self.row_hit_path().boundingRect()
         self.hit_regions=[('task',QRectF(self.task_area),dict(self.displayed_task()))];p.end()
 
     def shutdown(self):self.stopped=True;self.task_tween.stop();self.cancel_press();self.hide()

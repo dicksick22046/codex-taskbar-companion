@@ -42,7 +42,7 @@ class QuotaPresentationTests(unittest.TestCase):
         try:
             chart.refresh(self.data);resets.refresh(self.data)
             self.assertTrue(chart.window_known);self.assertEqual(chart.end.timestamp(),reset)
-            self.assertIn('Account quota · Week left — · Cached',chart.toolTip())
+            self.assertEqual(chart.toolTip(),'')
             self.assertNotIn('Account quota · Week left — · Cached',self.rendered_labels(chart))
             labels=self.rendered_labels(resets)
             self.assertNotIn(datetime.fromtimestamp(reset).strftime('%m.%d %H:%M'),labels)
@@ -50,7 +50,7 @@ class QuotaPresentationTests(unittest.TestCase):
         finally:
             chart.close();chart.deleteLater();resets.close();resets.deleteLater()
 
-    def test_cache_marker_and_quota_tooltip_only_follow_quota_read_errors(self):
+    def test_cache_marker_remains_and_entry_tooltips_stay_brief(self):
         stamp=datetime.now().astimezone().replace(hour=9,minute=12).isoformat()
         self.data.update(quota_updated_at=stamp,error='catalog failed',daily_observed_at=stamp)
         self.assertEqual(self.bar.cached_width(),0)
@@ -59,11 +59,11 @@ class QuotaPresentationTests(unittest.TestCase):
         labels=self.rendered_labels(self.bar);self.assertIn('Cached',labels)
         quota=next(rect for mode,rect,target in self.bar.hit_regions if mode=='usage')
         self.bar.track_pointer(quota.center())
-        self.assertIn('Account quota',self.bar.toolTip());self.assertIn('09:12',self.bar.toolTip())
+        self.assertEqual(self.bar.toolTip(),'Weekly quota remaining')
         daily=next(rect for mode,rect,target in self.bar.hit_regions if mode=='daily')
-        self.bar.track_pointer(daily.center());self.assertIn('Observed since 09:12',self.bar.toolTip())
+        self.bar.track_pointer(daily.center());self.assertEqual(self.bar.toolTip(),"Today's quota consumption")
         self.data.pop('quota_updated_at');self.bar.track_pointer(quota.center())
-        self.assertIn('Update time unknown',self.bar.toolTip())
+        self.assertEqual(self.bar.toolTip(),'Weekly quota remaining')
 
     def test_local_panel_headers_fit_all_languages_and_large_totals(self):
         stamp=datetime.now().astimezone().replace(hour=9,minute=12).isoformat()
@@ -83,7 +83,8 @@ class QuotaPresentationTests(unittest.TestCase):
                     title_right=title_call.args[1]+app.QFontMetricsF(title_call.args[4]).horizontalAdvance(title)
                     self.assertLess(title_right,min(rect.left() for rect in panel.unit_rects().values())-6)
                     for context in app.quota_context_lines(self.bar,self.data,mode):
-                        self.assertNotIn(context,[c.args[3] for c in calls]);self.assertIn(context,panel.toolTip())
+                        self.assertNotIn(context,[c.args[3] for c in calls])
+                    self.assertEqual(panel.toolTip(),'')
                     updated=self.bar.label('Updated {time}',time='08:34')
                     update_call=next(c for c in calls if c.args[3]==updated)
                     self.assertEqual(update_call.args[2],title_call.args[2])
@@ -102,7 +103,7 @@ class QuotaPresentationTests(unittest.TestCase):
         panel=app.ResetPopup(self.bar);panel.refresh(self.data)
         try:
             self.assertEqual(panel.history_label({'kind':'official','windows':['10080']}),'Official')
-            self.assertIn('inferred',panel.toolTip())
+            self.assertEqual(panel.toolTip(),'')
         finally:panel.close();panel.deleteLater()
 
     def test_history_amounts_and_percentages_use_separate_real_sources(self):
@@ -126,7 +127,7 @@ class QuotaPresentationTests(unittest.TestCase):
         panel=app.ResetPopup(self.bar);panel.refresh(self.data)
         try:
             labels=self.rendered_labels(panel);self.assertIn('Reset forecast',labels);self.assertIn('Within 48h · ~3%',labels)
-            self.assertIn('Low confidence',panel.toolTip());self.assertIn('codex-reset.today',panel.toolTip())
+            self.assertEqual(panel.toolTip(),'')
             self.bar.forecast.value['end']=now-1;panel.refresh(self.data)
             self.assertNotIn('Reset forecast',self.rendered_labels(panel));self.assertEqual(panel.forecast_height,0)
         finally:panel.close();panel.deleteLater()

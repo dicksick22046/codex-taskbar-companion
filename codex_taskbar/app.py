@@ -35,7 +35,7 @@ from .i18n import LANGUAGES, translate, project_label, task_title
 from .presentation import floating_rect,remember_position,clamp_rect,panel_rect,AutoPlacement
 from .motion import Spring
 from .attention_notices import AttentionNotices
-from .forecast import ResetForecast,SOURCE as FORECAST_SOURCE
+from .forecast import ResetForecast
 
 PANEL, MUTED, ACCENT, BLUE = "#262b33", "#bac5d2", "#53d5a0", "#79b6f5"
 TITLE_MUTED = "#8797aa"
@@ -767,8 +767,8 @@ class StatusBar(QWidget):
         font_metrics=QFontMetricsF(face(8));badge_x=x-6
         for kind in statuses:badge_x+=font_metrics.horizontalAdvance(self.count_label(kind,counts[kind]))+30
         if statuses:right=badge_x-6
-        titles=[task_title(task,self.language) for kind in self.settings.get('pinned_statuses',[]) if kind in counts for task in panel_rows(self.data,kind)]
-        minimum=min(240,70+max(QFontMetricsF(self.font).horizontalAdvance(title) for title in titles)) if titles else 0
+        pinned=[task for kind in self.settings.get('pinned_statuses',[]) if kind in counts for task in panel_rows(self.data,kind)]
+        minimum=min(240,78+max(min(90,font_metrics.horizontalAdvance(project_label(task.get('project'),self.language))+12)+QFontMetricsF(self.font).horizontalAdvance(task_title(task,self.language)) for task in pinned)) if pinned else 0
         return min(limit,math.ceil(max(minimum,right+12)))
 
     def fitted_width(self,limit,resize=False):
@@ -998,11 +998,7 @@ class StatusBar(QWidget):
         if hit:
             mode,_,_=hit
             tip=self.label({'usage':'Weekly quota remaining','daily':"Today's quota consumption",'session':'5-hour quota remaining','resets':'Next quota reset'}.get(mode,CATEGORY_LABELS.get(mode,mode)))
-            if mode in ('usage','daily','session','resets'):
-                tip=self.label('Account quota')+' · '+tip+'\n'+quota_update_label(self,self.data)
-                if mode=='daily':tip+='\n'+quota_context_lines(self,self.data,'daily')[1].split(' · ',1)[1]
-                if quota_is_cached(self.data):tip+='\n'+self.label('Showing the last available quota.')
-            else:tip+=' · '+str(category_counts(self.data).get(mode,0))
+            if mode in STATUS_CATEGORIES:tip+=' · '+str(category_counts(self.data).get(mode,0))
         if self.toolTip()!=tip:self.setToolTip(tip)
 
     def mousePressEvent(self,event):
@@ -1423,7 +1419,6 @@ class TaskPopup(QWidget):
         self.full_height=158+self.TITLE_HEIGHT
         shown=round(self.full_height) if self.owner.floating else min(round(self.full_height),max(180,self.owner.y()-16))
         self.place_panel(self.usage_width(),shown)
-        self.setToolTip(self.usage_tooltip())
         self.scroll=min(self.scroll,max(0,self.full_height-self.height()));self.sync_units();self.update()
 
     def paintEvent(self,event):
@@ -1467,10 +1462,6 @@ class TaskPopup(QWidget):
             width=max(width,36+len(self.days)*(max(small.horizontalAdvance(label) for label in labels)+8))
         return math.ceil(width)
 
-    def usage_tooltip(self):
-        return '\n'.join((self.owner.label('Local today · Tokens' if self.mode=='daily' else 'Local cycle · Tokens'),
-                          usage_update_label(self.owner,self.data,False),*quota_context_lines(self.owner,self.data,self.mode)))
-
     def usage_header(self,p,period,total):
         colors=popup_palette(self.owner)
         width=text(p,18,21,self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens'),face(9),colors['title'])
@@ -1500,7 +1491,6 @@ class SessionPopup(TaskPopup):
 
     def refresh(self,data):
         self.data=data;self.place_panel(self.usage_width(),210)
-        self.setToolTip('\n'.join(quota_context_lines(self.owner,data,self.mode)))
         self.update()
 
     def paintEvent(self,event):
@@ -1598,10 +1588,6 @@ class ResetPopup(TaskPopup):
         self.button.setText(self.owner.label(label))
         self.scroll=min(self.scroll,self.scroll_limit())
         self.layout_history_scroll()
-        self.setToolTip(self.owner.label('Local tokens; account quota percentages.')+'\n'+quota_update_label(self.owner,data)+'\n'+self.owner.label('Official resets are inferred from recovery outside scheduled or confirmed manual resets.')+'\n'+self.owner.label('Percentages are the last recorded quota usage before each reset; missing records show a dash.'))
-        if self.forecast:
-            confidence=self.owner.label({'low':'Low confidence','medium':'Medium confidence','high':'High confidence'}[self.forecast['confidence']])
-            self.setToolTip(self.toolTip()+'\n'+self.owner.label('Community forecast for global resets, not your account schedule.')+' '+confidence+'\n'+FORECAST_SOURCE)
         self.sync_history_focus()
         self.setAccessibleDescription(self.owner.label('Reset periods')+'. '+self.owner.label('Local tokens; account quota percentages.')+'\n'+'\n'.join(
             self.history_interval(row,full=True)+' · '+self.history_usage(row)+' · '+self.owner.label('Quota used')+' '+self.history_percent(row)+' · '+self.history_label(row) for row in self.rows))
@@ -1902,7 +1888,6 @@ class TaskListPopup(TaskPopup):
         self.scroll=min(self.scroll,max(0,self.full_height-(height-16)))
         if self.pin_button:
             self.pin_button.move(self.width()-34,5);self.pin_button.sync(self.mode in self.owner.settings.get('pinned_statuses',[]))
-        if self.mode=='daily' and self.hovered is None:self.setToolTip(self.usage_tooltip())
         self.sync_units();self.track_hover(self.mapFromGlobal(QCursor.pos()));self.sync_animation()
         if self.keyboard_task not in {t['id'] for t in self.rows}:self.keyboard_task=self.rows[0]['id'] if self.rows else None
         self.update()
@@ -1919,7 +1904,7 @@ class TaskListPopup(TaskPopup):
         task=self.task_at(point);hovered=task['id'] if task else None
         if hovered!=self.hovered:
             self.hovered=hovered;self.hover_started=time.monotonic()
-            self.setToolTip('<qt>'+escape(task_title(task,self.owner.language))+'</qt>' if task else self.usage_tooltip() if self.mode=='daily' else '')
+            self.setToolTip('<qt>'+escape(task_title(task,self.owner.language))+'</qt>' if task else '')
         over_unit=self.mode=='daily' and any(rect.contains(point) for rect in self.unit_rects().values())
         self.setCursor(Qt.CursorShape.PointingHandCursor if task or over_unit else Qt.CursorShape.ArrowCursor)
 
