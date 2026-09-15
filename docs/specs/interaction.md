@@ -1,5 +1,15 @@
 # v0.2 分区面板与额度重置
 
+## Shared navigation panels
+
+Use the selected second visual concept as a material/type reference, not its single-task metadata layout. Keep every task's project beside that task; no project grouping or removal of pinned summaries. The navigation bar, pinned rows and quota/daily/5h/reset/status panels share restrained graphite/light materials, fine edges, clear primary text and subdued metadata. Keep all existing semantic state colors, charts, metrics, pins and motion.
+
+Panels use the navigation bar's existing left-edge anchor and the pinned region's existing occupied/target geometry. Never center a panel on its triggering button. Preserve screen clamping and safe placement above (below only when the screen requires it), and keep pinned rows visible. Use the existing opacity spring, with no new position animation, arrows, necks, connecting lines or shared expansion host.
+
+The invoking button shows a gentle selected fill while its panel is open; hover is weaker and does not select it. Selection follows click/active panel, including changing panels and closing with Escape or outside click. Keep compact content-based sizes and scrolling for long lists. Dark/light applies to panel content/controls as well as the compact component; detail surfaces remain opaque and capsule transparency keeps its existing scope.
+
+Verify all five panel kinds stay on the same left baseline through button changes and refreshes, pinned rows remain visible and unobscured, multiple projects remain per-row, selection follows the open panel, both themes have legible values and controls, and existing chart/keyboard/motion/data behavior is retained. Verify native positioning after installation without controlling the user's pointer.
+
 新增悬浮显示的几何、拖动与设置约定见[Windows companion](windows-companion.md)。下面涉及任务栏锚点的约束用于Taskbar模式；Floating模式复用相同数据与内容，由屏幕可用区域决定面板方向。
 
 额度有效性、缓存提示、清楚的来源标签、独立开关和渐进历史统计按[产品清晰度](product-clarity.md)执行。当前额度统一排除过期窗口，保留原始历史边界；Today在提示中注明当天观测起点，重置显示自然、手动、官方三类。
