@@ -46,7 +46,7 @@ LILAC = "#b59bea"
 AMBER = "#ebb45f"
 FAILED = "#df8589"
 CAPSULE_COLORS = {
-    'dark': {'surface':('#343c48','#2c333e','#778597','#454f5d'),'text':MUTED,'muted':TITLE_MUTED,'link':BLUE,'green':ACCENT,'amber':AMBER,'failed':FAILED,'stopped':'#8795a5','divider':'#53606d',
+    'dark': {'surface':('#303640','#272d36','#65707e','#3e4753'),'text':'#e1e6ed','muted':'#97a3b3','link':BLUE,'green':ACCENT,'amber':AMBER,'failed':FAILED,'stopped':'#8795a5','divider':'#53606d',
              'rings':{'quota':'#45ba91','session':'#51adb4','clock':'#5d9dd7','spent':'#a088d1'}},
     'light': {'surface':('#f8fafc','#e9edf2','#aab5c3','#929faf'),'text':'#27374b','muted':'#43556b','link':'#2169ad','green':'#19775d','amber':'#936005','failed':'#ab3443','stopped':'#596a7d','divider':'#abb7c5',
               'rings':{'quota':'#19775d','session':'#14767e','clock':'#286dab','spent':'#7150a1'}},
@@ -82,10 +82,19 @@ def painter(widget):
     return p
 
 
+def popup_palette(owner):
+    theme=getattr(owner,'settings',{}).get('capsule_theme','dark')
+    colors=CAPSULE_COLORS[theme]
+    controls=({'title':colors['text'],'lilac':'#7150a1','well':'#e0e6ee','hover':'#dce5ef',
+               'selected':'#c8d9eb','pressed':'#b9cee4','button':'#d0e1f2','disabled':'#e0e5ec'} if theme=='light' else
+              {'title':colors['text'],'lilac':LILAC,'well':'#252c36','hover':'#3b4655',
+               'selected':'#455a73','pressed':'#36506e','button':'#3b536c','disabled':'#303945'})
+    return {**colors,**controls,'theme':theme}
+
+
 def panel_painter(widget):
-    p=painter(widget);p.setPen(QPen(QColor('#454b56'),.7))
-    surface=QLinearGradient(0,0,0,widget.height());surface.setColorAt(0,QColor('#30343c'));surface.setColorAt(1,QColor('#25282f'))
-    p.setBrush(surface);p.drawRoundedRect(QRectF(widget.rect()).adjusted(.5,.5,-.5,-.5),12,12)
+    p=painter(widget)
+    capsule_surface(p,QRectF(widget.rect()).adjusted(.5,.5,-.5,-.5),popup_palette(widget.owner)['theme'],0)
     return p
 
 
@@ -196,10 +205,10 @@ def running_title(p,x,y,value,font,left,width,color,elapsed=None):
     p.drawImage(origin,raster)
 
 
-def activity_count(p,x,y,count,color=ACCENT,pulse=True,text_color=None,glyph=None,emphasis=0):
+def activity_count(p,x,y,count,color=ACCENT,pulse=True,text_color=None,glyph=None,emphasis=0,hover=False):
     font=face(8);label=str(count)
     width=QFontMetricsF(font).horizontalAdvance(label)+24
-    background=QColor(color);background.setAlpha(26+16*emphasis)
+    background=QColor(color);background.setAlpha(26+16*emphasis+(8 if hover and not emphasis else 0))
     p.setPen(Qt.PenStyle.NoPen);p.setBrush(background)
     p.drawRoundedRect(QRectF(x,y-9,width,18),9,9)
     if glyph:text(p,x+5,y,glyph,face(8),color)
@@ -272,7 +281,7 @@ class PinButton(QPushButton):
         self.hover_tween=QVariantAnimation(self);self.hover_tween.setDuration(140);self.hover_tween.setEasingCurve(QEasingCurve.Type.InOutCubic)
         self.hover_tween.valueChanged.connect(self.set_hover_value)
     @property
-    def light_surface(self):return not self.dark_panel and self.owner.settings.get('capsule_theme')=='light'
+    def light_surface(self):return self.owner.settings.get('capsule_theme')=='light'
     def glyph_rect(self):return QRectF((self.width()-self.ICON_SIZE)/2,(self.height()-self.ICON_SIZE)/2,self.ICON_SIZE,self.ICON_SIZE)
     def set_hover_value(self,value):self.hover_value=float(value);self.update()
     def hover_to(self,target):
@@ -659,6 +668,7 @@ class StatusBar(QWidget):
     def set_capsule_theme(self,value):
         if value not in CAPSULE_COLORS:return
         self.settings['capsule_theme']=value;self.save_settings();self.update()
+        if self.popup:self.popup.sync_theme()
 
     def set_capsule_transparency(self,value,save=True):
         self.settings['capsule_transparency']=max(0,min(100,int(value)))
@@ -961,6 +971,8 @@ class StatusBar(QWidget):
         self.quota_hover=any(m in ('usage','daily','session','resets') and r.contains(point) for m,r,t in self.hit_regions)
         self.setCursor(Qt.CursorShape.PointingHandCursor if any(r.contains(point) for m,r,t in self.hit_regions) else Qt.CursorShape.ArrowCursor)
         hit=next((item for item in self.hit_regions if item[1].contains(point)),None)
+        hovered=hit[0] if hit else None
+        if hovered!=getattr(self,'hovered_button',None):self.hovered_button=hovered;self.update()
         tip=''
         if hit:
             mode,_,_=hit
@@ -1138,8 +1150,8 @@ class StatusBar(QWidget):
             p.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOver)
             for mode,region in self.feedback_regions.items():
                 state=emphasis(mode)
-                if state:
-                    color=QColor('#ffffff' if theme=='dark' else '#22354b');color.setAlpha(25 if state==2 else 14)
+                if state or mode==getattr(self,'hovered_button',None):
+                    color=QColor('#ffffff' if theme=='dark' else '#22354b');color.setAlpha(34 if state==2 else 22 if state else 9)
                     p.setPen(Qt.PenStyle.NoPen);p.setBrush(color);p.drawRoundedRect(region,7,7)
             if self.hit_regions:
                 box=QRectF(1,1,self.width()-2,self.height()-2)
@@ -1163,7 +1175,10 @@ class StatusBar(QWidget):
                     text(p,x+12,line_y,label,face(8),palette['muted'])
                     number_x=x+12+QFontMetricsF(face(8)).horizontalAdvance(label)+(3 if label else 0)
                     text(p,number_x,line_y,number,face(8),palette['text'])
-                else:text(p,x+12,line_y,value,face(8),palette['muted'])
+                else:
+                    _,number=self.metric_parts(draw_kind,value);prefix=value[:-len(number)] if number else value
+                    number_x=x+12+text(p,x+12,line_y,prefix,face(8),palette['muted'])
+                    text(p,number_x,line_y,number,face(8),palette['text'])
             current_fraction=None if fraction is None else self.ring_values.get(kind,fraction)
             previous=self.quota_previous if self.settings.get('rotate_quotas') else None
             hit_kind=kind
@@ -1213,7 +1228,7 @@ class StatusBar(QWidget):
             badge_x=self.width()-12-total
         for mode,color in [('waiting',palette['amber']),('running',palette['green']),('unread',palette['amber']),('failed',palette['failed']),('stopped',palette['stopped'])]:
             if counts[mode]:
-                width=activity_count(p,badge_x,y,self.count_label(mode,counts[mode]),color,pulse=mode=='running' and self.motion_enabled,text_color=color if theme=='light' else None,emphasis=emphasis(mode))
+                width=activity_count(p,badge_x,y,self.count_label(mode,counts[mode]),color,pulse=mode=='running' and self.motion_enabled,text_color=color if theme=='light' else None,emphasis=emphasis(mode),hover=mode==getattr(self,'hovered_button',None))
                 self.hit_regions.append((mode,QRectF(badge_x-2,0,width+4,self.height()),None));badge_x+=width+6
         finish()
 
@@ -1256,8 +1271,33 @@ class TaskPopup(QWidget):
         if self.mode in ('usage','daily'):
             for unit in ('M','100M'):
                 button=QPushButton(unit,self);button.setFont(face(8));button.setCheckable(True);button.setAutoDefault(False);button.setCursor(Qt.CursorShape.PointingHandCursor)
-                button.setAccessibleName(unit+' Tokens');button.setStyleSheet('QPushButton{background:transparent;color:#a0a7b4;border:1px solid transparent;border-radius:5px;} QPushButton:checked{color:#eef4fc;background:#46566f;} QPushButton:hover{color:#ffffff;} QPushButton:pressed{background:#365072;} QPushButton:focus{border-color:#82b6ff;}')
+                button.setAccessibleName(unit+' Tokens')
                 button.clicked.connect(lambda checked=False,u=unit:self.owner.set_chart_unit(u));self.unit_group.addButton(button);self.unit_buttons[unit]=button
+
+        self.sync_theme()
+
+    def sync_theme(self):
+        colors=popup_palette(self.owner)
+        unit_style=('QPushButton{background:transparent;color:%(muted)s;border:1px solid transparent;border-radius:5px;}'
+                    'QPushButton:hover{background:%(hover)s;color:%(title)s;}'
+                    'QPushButton:checked{background:%(selected)s;color:%(title)s;}'
+                    'QPushButton:pressed{background:%(pressed)s;}'
+                    'QPushButton:focus{border-color:%(link)s;}')%colors
+        for button in self.unit_buttons.values():button.setStyleSheet(unit_style)
+        if hasattr(self,'button'):
+            self.button.setStyleSheet(('QPushButton{color:%(title)s;background:%(button)s;border:1px solid transparent;border-radius:6px;}'
+                                      'QPushButton:hover{background:%(selected)s;} QPushButton:pressed{background:%(pressed)s;}'
+                                      'QPushButton:focus{border-color:%(link)s;}'
+                                      'QPushButton:disabled{color:%(muted)s;background:%(disabled)s;}')%colors)
+        if hasattr(self,'history_scroll'):
+            self.history_scroll.setStyleSheet(('QScrollBar:horizontal{background:transparent;height:12px;}'
+                'QScrollBar::handle:horizontal{background:%(muted)s;min-width:28px;border-radius:3px;margin:3px 0;}'
+                'QScrollBar::handle:horizontal:hover,QScrollBar::handle:horizontal:pressed{background:%(link)s;}'
+                'QScrollBar:horizontal:focus{background:%(hover)s;border-radius:4px;}'
+                'QScrollBar::add-line:horizontal,QScrollBar::sub-line:horizontal{width:0;}'
+                'QScrollBar::add-page:horizontal,QScrollBar::sub-page:horizontal{background:none;}')%colors)
+        if getattr(self,'pin_button',None):self.pin_button.update()
+        self.update()
 
     def sync_units(self):
         for unit,button in self.unit_buttons.items():
@@ -1346,9 +1386,10 @@ class TaskPopup(QWidget):
         self.scroll=min(self.scroll,max(0,self.full_height-self.height()));self.sync_units();self.update()
 
     def paintEvent(self,event):
+        colors=popup_palette(self.owner)
         p=panel_painter(self)
         if not self.window_known:
-            self.usage_header(p,'—',None);p.setFont(face(8));p.setPen(QColor(TITLE_MUTED))
+            self.usage_header(p,'—',None);p.setFont(face(8));p.setPen(QColor(colors['muted']))
             p.drawText(QRectF(18,72,self.width()-36,max(20,self.height()-90)),Qt.AlignmentFlag.AlignCenter,self.owner.label('Connecting to Codex…' if self.data.get('loading') else 'No records yet'));p.end();return
         history=self.data.get("history",{});today=datetime.now().astimezone().date()
         values,extremes=chart_values(self.days,history,today)
@@ -1358,7 +1399,7 @@ class TaskPopup(QWidget):
         maximum=max([v for v in values if v is not None]+[1]);step=(self.width()-36)/len(self.days)
         for i,(day,value) in enumerate(zip(self.days,values)):
             x=18+(i+.5)*step;bottom=usage_chart_baseline(32+self.TITLE_HEIGHT)
-            color=ACCENT if day==today else ("#687583" if value is None else (LILAC if day in extremes else BLUE))
+            color=colors['green'] if day==today else (colors['muted'] if value is None else (colors['lilac'] if day in extremes else colors['link']))
             paint_usage_column(p,x,bottom,step,value,maximum,chart_number(value,self.owner.chart_unit),f'{day.month}/{day.day}',color,day>today)
         p.end()
 
@@ -1376,17 +1417,18 @@ class TaskPopup(QWidget):
                           usage_update_label(self.owner,self.data,False),*quota_context_lines(self.owner,self.data,self.mode)))
 
     def usage_header(self,p,period,total):
-        width=text(p,18,21,self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens'),face(9),'#d7dfe9')
-        text(p,18+width+12,21,usage_update_label(self.owner,self.data),face(7),TITLE_MUTED)
+        colors=popup_palette(self.owner)
+        width=text(p,18,21,self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens'),face(9),colors['title'])
+        text(p,18+width+12,21,usage_update_label(self.owner,self.data),face(7),colors['muted'])
         boxes=list(self.unit_rects().values());unit_box=boxes[0].united(boxes[1]).adjusted(-2,-2,2,2)
-        p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('#20242b'));p.drawRoundedRect(unit_box,7,7)
+        p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(colors['well']));p.drawRoundedRect(unit_box,7,7)
         y=21+self.TITLE_HEIGHT
-        icon(p,'chart',23,y,LILAC)
+        icon(p,'chart',23,y,colors['lilac'])
         total_label='Σ '+chart_number(total,self.owner.chart_unit);metrics=QFontMetricsF(face(8))
         shown=metrics.elidedText(period,Qt.TextElideMode.ElideRight,max(0,self.width()-39-18-14-metrics.horizontalAdvance(total_label)))
         total_x=39+metrics.horizontalAdvance(shown)+14
-        text(p,39,y,shown,face(8),BLUE)
-        text(p,total_x,y,total_label,face(8),LILAC)
+        text(p,39,y,shown,face(8),colors['link'])
+        text(p,total_x,y,total_label,face(8),colors['lilac'])
 
     def mouseMoveEvent(self,event):
         if self.mode!='usage':
@@ -1407,20 +1449,20 @@ class SessionPopup(TaskPopup):
         self.update()
 
     def paintEvent(self,event):
+        colors=popup_palette(self.owner)
         p=panel_painter(self);window=quota_window(effective_quota_data(self.data),300)
-        text(p,18,21,'5h',face(8),'#51adb4')
+        text(p,18,21,'5h',face(9),colors['title'])
         value=self.owner.label('{value}% remaining',value=f"{window['remaining']:g}") if window else '—'
-        text(p,49,21,value,face(8),MUTED)
+        value_width=text(p,49,21,value,face(8),colors['text'])
+        if quota_is_cached(self.data):text(p,49+value_width+10,21,self.owner.label('Cached'),face(7),colors['muted'])
         reset=datetime.fromtimestamp(window['resets_at']).strftime('%H:%M') if window and window.get('resets_at') else '—'
         label=self.owner.label('Reset {time}',time=reset)
-        text(p,self.width()-18-QFontMetricsF(face(7)).horizontalAdvance(label),21,label,face(7),'#8797aa')
-        context=self.owner.label('Account quota')+(' · '+self.owner.label('Cached') if quota_is_cached(self.data) else '')
-        text(p,18,43,context,face(7),MUTED)
-        text(p,18,61,quota_update_label(self.owner,self.data),face(7),TITLE_MUTED)
-        left,top,width,height=32.,87.,self.width()-54.,87.
+        text(p,self.width()-18-QFontMetricsF(face(7)).horizontalAdvance(label),47,label,face(7),colors['muted'])
+        text(p,18,47,quota_update_label(self.owner,self.data),face(7),colors['muted'])
+        left,top,width,height=32.,69.,self.width()-54.,87.
         for fraction,label in ((1,'100'),(0,'0')):
-            y=top+(1-fraction)*height;pen(p,'#46515d',.5)
-            p.drawLine(QPointF(left,y),QPointF(left+width,y));text(p,9,y,label,face(6),'#8797aa')
+            y=top+(1-fraction)*height;pen(p,colors['divider'],.5)
+            p.drawLine(QPointF(left,y),QPointF(left+width,y));text(p,9,y,label,face(6),colors['muted'])
         points=[]
         if window and window.get('starts_at') is not None and window.get('resets_at'):
             start,end=window['starts_at'],window['resets_at']
@@ -1429,13 +1471,13 @@ class SessionPopup(TaskPopup):
             if points:
                 path=QPainterPath(points[0])
                 for point in points[1:]:path.lineTo(point)
-                pen(p,'#51adb4',1.5);p.drawPath(path)
-                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('#51adb4'));p.drawEllipse(points[-1],2.5,2.5)
-            text(p,left,189,datetime.fromtimestamp(start).strftime('%H:%M'),face(7),'#8797aa')
+                pen(p,colors['rings']['session'],1.5);p.drawPath(path)
+                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(colors['rings']['session']));p.drawEllipse(points[-1],2.5,2.5)
+            text(p,left,171,datetime.fromtimestamp(start).strftime('%H:%M'),face(7),colors['muted'])
             label=datetime.fromtimestamp(end).strftime('%H:%M')
-            text(p,left+width-QFontMetricsF(face(7)).horizontalAdvance(label),189,label,face(7),'#8797aa')
+            text(p,left+width-QFontMetricsF(face(7)).horizontalAdvance(label),171,label,face(7),colors['muted'])
         if not points:
-            p.setFont(face(8));p.setPen(QColor(TITLE_MUTED));p.drawText(QRectF(left,top,width,height),Qt.AlignmentFlag.AlignCenter,self.owner.label('Connecting to Codex…' if self.data.get('loading') else 'No records yet'))
+            p.setFont(face(8));p.setPen(QColor(colors['muted']));p.drawText(QRectF(left,top,width,height),Qt.AlignmentFlag.AlignCenter,self.owner.label('Connecting to Codex…' if self.data.get('loading') else 'No records yet'))
         p.end()
 
 
@@ -1450,14 +1492,13 @@ class ResetPopup(TaskPopup):
     def __init__(self,owner):
         super().__init__(owner)
         self.button=QPushButton(owner.label('Reset quota'),self);self.button.setFont(face(8))
-        self.button.setStyleSheet('QPushButton{color:#d2dce7;background:#354a5c;border:0;border-radius:6px;} QPushButton:hover{background:#405a71;} QPushButton:pressed{background:#293f52;} QPushButton:focus{border:1px solid #86b6e6;} QPushButton:disabled{color:#8795a5;background:#303740;}')
         self.button.clicked.connect(owner.confirm_reset)
         self.history_scroll=QScrollBar(Qt.Orientation.Horizontal,self)
         self.history_scroll.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.history_scroll.setStyleSheet('QScrollBar:horizontal{background:transparent;height:12px;} QScrollBar::handle:horizontal{background:#59616f;min-width:28px;border-radius:3px;margin:3px 0;} QScrollBar::handle:horizontal:hover,QScrollBar::handle:horizontal:pressed{background:#79b6f5;} QScrollBar:horizontal:focus{background:#35414f;border-radius:4px;} QScrollBar::add-line:horizontal,QScrollBar::sub-line:horizontal{width:0;} QScrollBar::add-page:horizontal,QScrollBar::sub-page:horizontal{background:none;}')
         self.history_selected=None;self.history_press=None;self.history_structure=None
         self.history_focus=Spring(self,response=.16);self.history_focus.changed.connect(lambda value:self.update())
         self.history_scroll.valueChanged.connect(self.history_scrolled)
+        self.sync_theme()
 
     def refresh(self,data):
         self.data=data;self.rows=data.get('reset_events',[])
@@ -1568,21 +1609,22 @@ class ResetPopup(TaskPopup):
         self.history_scroll.setVisible(bool(self.history_scroll.maximum() and y>=48+self.forecast_height and y+12<=self.height()-56))
 
     def draw_history(self,p):
+        colors=popup_palette(self.owner)
         active=self.active_history_index()
         if active is not None:
             row=self.rows[active];font=face(7);source=self.history_label(row);prefix=self.history_percent(row)+(' · ' if source else '')
-            text(p,18,82,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),font,TITLE_MUTED)
+            text(p,18,82,datetime.fromtimestamp(row['at']).strftime('%m.%d %H:%M'),font,colors['muted'])
             left=self.width()-18-QFontMetricsF(font).horizontalAdvance(prefix+source)
-            text(p,left,82,prefix,font,MUTED)
-            text(p,left+QFontMetricsF(font).horizontalAdvance(prefix),82,source,font,LILAC if row['kind']=='official' else BLUE)
+            text(p,left,82,prefix,font,colors['text'])
+            text(p,left+QFontMetricsF(font).horizontalAdvance(prefix),82,source,font,colors['lilac'] if row['kind']=='official' else colors['link'])
             center=18+self.history_focus.value-self.history_scroll.value()
-            fill=QColor(BLUE);fill.setAlpha(18);p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill)
+            fill=QColor(colors['link']);fill.setAlpha(18);p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill)
             p.drawRoundedRect(self.history_column_rect(center),5,5)
         if self.history_press and not self.history_press['dragged']:
             index=next((i for i,row in enumerate(self.rows) if self.history_key(row)==self.history_press['key']),None)
             if index is not None:
                 center=18+(index+.5)*self.column_width-self.history_scroll.value()
-                fill=QColor(BLUE);fill.setAlpha(10);p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill);p.drawRoundedRect(self.history_column_rect(center),5,5)
+                fill=QColor(colors['link']);fill.setAlpha(10);p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill);p.drawRoundedRect(self.history_column_rect(center),5,5)
         for index,row in enumerate(self.rows):
             box=self.history_bar_rect(row,index);center=box.center().x()
             if center+self.column_width/2<18 or center-self.column_width/2>self.width()-18:continue
@@ -1590,42 +1632,43 @@ class ResetPopup(TaskPopup):
             value=self.history_tokens(row);day=datetime.fromtimestamp(row['at'])
             paint_usage_column(p,center,self.BASELINE,self.column_width,value,self.history_max,
                                ' '.join(part for part in self.history_parts(row) if part),f'{day.month}/{day.day}',
-                               BLUE if value is not None else '#687583',label_bounds=QRectF(18,0,self.width()-36,self.height()))
+                               colors['link'] if value is not None else colors['muted'],label_bounds=QRectF(18,0,self.width()-36,self.height()))
 
     def paintEvent(self,event):
+        colors=popup_palette(self.owner)
         p=panel_painter(self);window=countdown_window(effective_quota_data(self.data),self.owner.settings)
         right=self.width()-18
-        def right_label(value,y,color=MUTED,font=None):
+        def right_label(value,y,color=colors['text'],font=None):
             font=font or face(8)
             text(p,right-QFontMetricsF(font).horizontalAdvance(value),y,value,font,color)
         def divider(y):
-            pen(p,'#3d4652',.6);p.drawLine(QPointF(18,y),QPointF(right,y))
-        text(p,18,23,self.owner.label('Next reset'),face(8),'#94a2b3')
+            pen(p,colors['divider'],.6);p.drawLine(QPointF(18,y),QPointF(right,y))
+        text(p,18,23,self.owner.label('Next reset'),face(8),colors['muted'])
         value=datetime.fromtimestamp(window['resets_at']).strftime('%m.%d %H:%M') if window and window.get('resets_at') else '—'
-        right_label(value,23,BLUE)
+        right_label(value,23,colors['link'])
         if self.forecast:
-            text(p,18,49,self.owner.label('Reset forecast'),face(8),'#94a2b3')
+            text(p,18,49,self.owner.label('Reset forecast'),face(8),colors['muted'])
             hours=max(1,math.ceil((self.forecast['end']-time.time())/3600))
-            right_label(self.owner.label('Within {hours}h · ~{value}%',hours=hours,value=f"{self.forecast['chance']:g}"),49,LILAC,face(7))
+            right_label(self.owner.label('Within {hours}h · ~{value}%',hours=hours,value=f"{self.forecast['chance']:g}"),49,colors['lilac'],face(7))
         p.translate(0,self.forecast_height);divider(44)
         if self.scroll_body:
             p.save();p.setClipRect(QRectF(0,48,self.width(),max(0,self.height()-104-self.forecast_height)));p.translate(0,-self.scroll)
-        text(p,18,64,self.owner.label('Usage history'),face(8),'#94a2b3')
+        text(p,18,64,self.owner.label('Usage history'),face(8),colors['muted'])
         p.save();p.setClipRect(QRectF(18,self.HISTORY_START,self.width()-36,self.history_height),Qt.ClipOperation.IntersectClip)
-        if not self.rows:text(p,18,89,self.owner.label('No records yet'),face(8),'#94a2b3')
+        if not self.rows:text(p,18,89,self.owner.label('No records yet'),face(8),colors['muted'])
         self.draw_history(p)
         p.restore()
         divider(self.credits_top-14)
         count=self.data.get('reset_available');credit=self.data.get('reset_selected')
-        text(p,18,self.credits_top,self.owner.label('Reset credit expiry'),face(8),'#94a2b3')
-        right_label(self.owner.label('{count} available',count=count) if count is not None else '—',self.credits_top,ACCENT)
+        text(p,18,self.credits_top,self.owner.label('Reset credit expiry'),face(8),colors['muted'])
+        right_label(self.owner.label('{count} available',count=count) if count is not None else '—',self.credits_top,colors['green'])
         for i,item in enumerate(self.credits):
             selected=bool(credit and item['id']==credit['id'])
             expiry=datetime.fromtimestamp(item['expiresAt']).strftime('%m.%d %H:%M') if item.get('expiresAt') is not None else '—'
             y=self.credits_top+26+i*26
-            text(p,18,y,expiry,face(8),MUTED)
-            if selected:right_label(self.owner.label('Default'),y,BLUE,face(7))
-        if not self.credits:text(p,18,self.credits_top+26,self.owner.label('No credits') if count==0 else '—',face(8),'#94a2b3')
+            text(p,18,y,expiry,face(8),colors['text'])
+            if selected:right_label(self.owner.label('Default'),y,colors['link'],face(7))
+        if not self.credits:text(p,18,self.credits_top+26,self.owner.label('No credits') if count==0 else '—',face(8),colors['muted'])
         if self.scroll_body:p.restore()
         p.end()
 
@@ -1770,45 +1813,46 @@ class TaskListPopup(TaskPopup):
         self.setCursor(Qt.CursorShape.PointingHandCursor if task or over_unit else Qt.CursorShape.ArrowCursor)
 
     def paintEvent(self,event):
+        colors=popup_palette(self.owner)
         p=panel_painter(self)
-        def right_label(value,right,y,font,color=MUTED):
+        def right_label(value,right,y,font,color=colors['text']):
             text(p,right-QFontMetricsF(font).horizontalAdvance(value),y,value,font,color)
         top=32+self.TITLE_HEIGHT if self.mode=='daily' else 8
         p.save();p.setClipRect(QRectF(10,top,self.width()-20,max(0,self.height()-top-8)))
-        if not self.rows:text(p,18,50+self.header_extra,self.owner.label('No tasks'),face(8),MUTED)
+        if not self.rows:text(p,18,50+self.header_extra,self.owner.label('No tasks'),face(8),colors['text'])
         for label,position in self.sections:
-            text(p,18,8+position+10-self.scroll,label,face(8),'#8795a5')
+            text(p,18,8+position+10-self.scroll,label,face(8),colors['muted'])
         for task,position in zip(self.rows,self.row_positions):
             yy=8+position-self.scroll;y=yy+self.ROW_HEIGHT/2
             if yy+self.ROW_HEIGHT<8 or yy>self.height()-8:continue
             if task['id']==self.hovered or self.hasFocus() and task['id']==self.keyboard_task:
                 selected=self.hasFocus() and task['id']==self.keyboard_task
-                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('#3b4858' if task['id']==getattr(self,'pressed_task',None) else '#34465a' if selected else '#303740'))
+                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(colors['pressed'] if task['id']==getattr(self,'pressed_task',None) else colors['selected'] if selected else colors['hover']))
                 p.drawRoundedRect(QRectF(10,yy,self.width()-20,self.ROW_HEIGHT),5,5)
             if task.get('status')=='failed':
-                pen(p,FAILED,1.2);p.drawEllipse(QPointF(22,y),3.6,3.6)
+                pen(p,colors['failed'],1.2);p.drawEllipse(QPointF(22,y),3.6,3.6)
                 p.drawLine(QPointF(22,y-1.8),QPointF(22,y+.1));p.drawPoint(QPointF(22,y+2))
             elif task.get('status')=='stopped':
-                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('#8795a5'))
+                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(colors['muted']))
                 p.drawRoundedRect(QRectF(19.5,y-2.5,5,5),.8,.8)
-            elif task.get('needs_input'):text(p,19,y,'?',face(8),AMBER)
+            elif task.get('needs_input'):text(p,19,y,'?',face(8),colors['amber'])
             elif task.get('running'):
-                running_dot(p,22,y,ACCENT,getattr(self.owner,'motion_enabled',True))
+                running_dot(p,22,y,colors['green'],getattr(self.owner,'motion_enabled',True))
             else:
-                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(AMBER if task.get('unread') else '#718096'))
+                p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(colors['amber'] if task.get('unread') else colors['muted']))
                 p.drawEllipse(QPointF(22,y),2.4,2.4)
-            project_tag(p,33,y,task['project'],face(8),self.project_width,self.owner.language)
+            project_tag(p,33,y,task['project'],face(8),self.project_width,self.owner.language,colors['link'],colors['muted'])
             title_x=self.TITLE_X
-            if task_role_label(task):title_x+=side_tag(p,title_x,y,self.owner.language,role=task_role_label(task))+7
+            if task_role_label(task):title_x+=side_tag(p,title_x,y,self.owner.language,light=colors['theme']=='light',role=task_role_label(task))+7
             title_width=max(0,self.TITLE_WIDTH-(title_x-self.TITLE_X))
             title=task_title(task,self.owner.language);metrics=QFontMetricsF(face());shift=0.
             if task['id']==self.hovered and getattr(self.owner,'motion_enabled',True):
                 shift=marquee_offset(time.monotonic()-self.hover_started,metrics.horizontalAdvance(title)-title_width)
             else:title=metrics.elidedText(title,Qt.TextElideMode.ElideRight,title_width)
             p.save();p.setClipRect(QRectF(title_x,yy,title_width,self.ROW_HEIGHT),Qt.ClipOperation.IntersectClip)
-            text(p,title_x-shift,y,title,face());p.restore()
-            pen(p,'#4a5566',.6);p.drawLine(QPointF(self.info_divider,y-5),QPointF(self.info_divider,y+5))
-            right_label(self.values[task['id']],self.value_right,y,face(8),'#8eb1d4' if self.mode=='daily' else '#afa2c5')
+            text(p,title_x-shift,y,title,face(),colors['text']);p.restore()
+            pen(p,colors['divider'],.6);p.drawLine(QPointF(self.info_divider,y-5),QPointF(self.info_divider,y+5))
+            right_label(self.values[task['id']],self.value_right,y,face(8),colors['link'] if self.mode=='daily' else colors['lilac'])
         p.restore()
         if self.mode=='daily':
             total=(self.data.get('totals') or {}).get('total_tokens')

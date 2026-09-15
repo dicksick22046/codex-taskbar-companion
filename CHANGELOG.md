@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Match navigation panels and pinned rows with shared dark/light materials and clearer text hierarchy. Keep panels on the original left anchor, preserve per-task projects, and use soft button selection with lighter hover feedback.
+
 - Repaint the shared capsule surface throughout pin and unpin animations, preventing a stale rim or shading seam until the next click.
 
 - Give dark and light capsules a gently shaded surface and fine rim, with one continuous outline across pinned rows and the status bar. Transparency still affects only the surface.
