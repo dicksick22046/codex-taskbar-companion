@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Plot calendar days proportionally to the quota interval, including partial first/last days and no empty midnight-end day. Show both endpoint times and compact reset-history spacing so ordinary five-period histories fit without scrolling.
+
 - Keep attached details and navigation on one dynamic outer width, including switching and animation frames. Restore the compact bar on close and keep narrow layouts inside the available taskbar or screen space.
 
 ## 0.12.0

@@ -150,12 +150,41 @@ class ResetChartTests(unittest.TestCase):
             first=self.panel.history_bar_rect(self.panel.rows[0],0);second=self.panel.history_bar_rect(self.panel.rows[1],1)
             self.assertEqual(first.height(),64);self.assertEqual(first.width(),second.width())
             self.assertEqual(first.width(),24)
-            self.assertLess(first.width(),self.panel.column_width/2)
+            self.assertGreaterEqual(self.panel.column_width-first.width(),16)
             self.data['reset_events']=self.data['reset_events'][:1];self.panel.refresh(self.data)
             axis=app.usage_date_rect(0,self.panel.BASELINE,1)
             self.assertTrue(self.panel.history_scroll.isHidden())
             self.assertEqual(self.panel.credits_top-14-axis.bottom(),8)
         finally:weekly.close();weekly.deleteLater()
+
+    def test_five_ordinary_periods_fit_without_hiding_the_oldest_peak(self):
+        panel=self.panel;self.bar.settings['language']='zh-CN'
+        ends=[datetime(2026,9,day,12).timestamp() for day in (7,8,11,12,16)]
+        amounts=(20.37,5.22,8.59,5.72,8.06)
+        self.data['reset_events']=[dict(id=str(index),kind='manual',at=end,
+            period_start=ends[index-1] if index else datetime(2026,9,1,12).timestamp(),tokens=amount*100000000)
+            for index,(end,amount) in enumerate(zip(ends,amounts))]
+        panel.refresh(self.data)
+        self.assertEqual(panel.history_scroll.maximum(),0)
+        self.assertTrue(panel.history_scroll.isHidden())
+        self.assertLess(panel.column_width,64)
+        self.assertEqual(panel.history_bar_rect(panel.rows[0],0).height(),64)
+        self.assertGreaterEqual(panel.history_boundary_rect(0).left(),18)
+        self.assertLessEqual(panel.history_boundary_rect(len(panel.rows)).right(),panel.width()-18)
+        for index in range(len(panel.rows)-1):
+            left=panel.history_bar_rect(panel.rows[index],index)
+            right=panel.history_bar_rect(panel.rows[index+1],index+1)
+            self.assertGreaterEqual(right.left()-left.right(),16)
+
+    def test_large_dollar_amounts_expand_period_spacing_without_label_overlap(self):
+        panel=self.panel;self.bar.chart_unit='USD'
+        self.data['reset_events']=[dict(row,usd=12345678.91-index) for index,row in enumerate(panel.rows)]
+        panel.refresh(self.data)
+        metrics=app.QFontMetricsF(app.face(7))
+        for index in range(len(panel.rows)-1):
+            left=panel.history_bar_rect(panel.rows[index],index).center().x()+metrics.horizontalAdvance(panel.history_amount(panel.rows[index]))/2
+            right=panel.history_bar_rect(panel.rows[index+1],index+1).center().x()-metrics.horizontalAdvance(panel.history_amount(panel.rows[index+1]))/2
+            self.assertGreaterEqual(right-left,12)
 
     def test_start_metadata_and_boundary_labels_distinguish_same_day_resets(self):
         now=datetime(2026,9,15,10,0).timestamp()

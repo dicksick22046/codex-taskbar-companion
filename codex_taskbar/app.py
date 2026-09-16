@@ -366,6 +366,44 @@ def chart_total(values):
     return sum(known) if known else None
 
 
+def calendar_day_spans(start,end):
+    """Local calendar intersections with the quota's exact [start, end) interval."""
+    first,last=start.timestamp(),end.timestamp()
+    if last<=first:return []
+    result=[];day=start.date()
+    while day<=end.date():
+        # Resolve each local midnight independently, including daylight-saving changes.
+        midnight=datetime.combine(day,datetime.min.time()).timestamp()
+        following=datetime.combine(day+timedelta(days=1),datetime.min.time()).timestamp()
+        left,right=max(first,midnight),min(last,following)
+        if right>left:result.append((day,(left-first)/(last-first),(right-first)/(last-first)))
+        day+=timedelta(days=1)
+    return result
+
+
+def fit_chart_labels(centers,widths,left,right,gap=6):
+    """Fit text independently of time-positioned columns, preserving the column locations."""
+    indices=[i for i,width in enumerate(widths) if width>0];result=[None]*len(centers)
+    if not indices:return result
+    if sum(widths[i] for i in indices)+gap*(len(indices)-1)>right-left:
+        edge=left-gap
+        for i in indices:
+            if widths[i]>right-left:continue
+            x=max(left,min(centers[i]-widths[i]/2,right-widths[i]))
+            if x>=edge+gap:result[i]=x+widths[i]/2;edge=x+widths[i]
+        return result
+    starts={i:max(left,min(centers[i]-widths[i]/2,right-widths[i])) for i in indices}
+    for n,i in enumerate(indices[1:],1):
+        previous=indices[n-1];floor=starts[indices[n-2]]+widths[indices[n-2]]+gap if n>1 else left
+        deficit=max(0,starts[previous]+widths[previous]+gap-starts[i])
+        starts[previous]-=min(deficit,max(0,starts[previous]-floor))
+        starts[i]=max(starts[i],starts[previous]+widths[previous]+gap)
+    starts[indices[-1]]=min(starts[indices[-1]],right-widths[indices[-1]])
+    for previous,i in reversed(list(zip(indices,indices[1:]))):starts[previous]=min(starts[previous],starts[i]-gap-widths[previous])
+    for i in indices:result[i]=starts[i]+widths[i]/2
+    return result
+
+
 USAGE_COLUMN_HEIGHT=64
 
 
@@ -380,7 +418,7 @@ def usage_column_rect(x,bottom,value,maximum):
 def usage_date_rect(x,bottom,step):return QRectF(x-step/2,bottom+9,step,16)
 
 
-def paint_usage_column(p,x,bottom,step,value,maximum,amount,date,color,future=False,label_bounds=None):
+def paint_usage_column(p,x,bottom,step,value,maximum,amount,date,color,future=False,label_bounds=None,amount_x=None,date_x=None):
     box=usage_column_rect(x,bottom,value,maximum);height=box.height()
     if value:
         h=max(2,height);radius=min(2,h/2);left=x-4.5;top=bottom-h
@@ -390,15 +428,15 @@ def paint_usage_column(p,x,bottom,step,value,maximum,amount,date,color,future=Fa
         p.fillPath(path,QColor(color))
     p.setFont(face(7));p.setPen(QColor(color))
     def label(rect,value):
-        width=QFontMetricsF(face(7)).horizontalAdvance(value)
-        if label_bounds is None or x-width/2>=label_bounds.left() and x+width/2<=label_bounds.right():
+        width=QFontMetricsF(face(7)).horizontalAdvance(value);center=rect.center().x()
+        if label_bounds is None or center-width/2>=label_bounds.left() and center+width/2<=label_bounds.right():
             p.drawText(rect,Qt.AlignmentFlag.AlignCenter,value)
     if future:
         pen(p,color,.7);p.drawLine(QPointF(x-2,bottom),QPointF(x+2,bottom))
     else:
         label_top=bottom-height-20 if value else bottom-8
-        label(QRectF(x-step/2,label_top,step,16),amount)
-    p.setPen(QColor(color));label(usage_date_rect(x,bottom,step),date)
+        label(QRectF((x if amount_x is None else amount_x)-step/2,label_top,step,16),amount)
+    p.setPen(QColor(color));label(usage_date_rect(x if date_x is None else date_x,bottom,step),date)
 
 
 def marquee_offset(elapsed,distance):
@@ -1448,11 +1486,11 @@ class TaskPopup(QWidget):
     def refresh(self,data):
         self.data=data;now=datetime.now().astimezone()
         week=chart_window(data)
-        self.window_known=bool(week and week.get('starts_at') and week.get('resets_at'))
+        self.window_known=bool(week and week.get('starts_at') and week.get('resets_at') and week['resets_at']>week['starts_at'])
         self.start=datetime.fromtimestamp(week["starts_at"]).astimezone() if week and week.get("starts_at") else now
         self.end=datetime.fromtimestamp(week["resets_at"]).astimezone() if week and week.get("resets_at") else self.start+timedelta(days=7)
-        self.days=[];day=self.start.date()
-        while day<=self.end.date():self.days.append(day);day+=timedelta(days=1)
+        self.day_spans=calendar_day_spans(self.start,self.end)
+        self.days=[day for day,_,_ in self.day_spans]
         self.full_height=158+self.TITLE_HEIGHT
         shown=round(self.full_height) if self.owner.floating else min(round(self.full_height),max(180,self.owner.y()-16))
         self.place_panel(self.usage_width(),shown)
@@ -1466,22 +1504,35 @@ class TaskPopup(QWidget):
             p.drawText(QRectF(18,72,self.width()-36,max(20,self.height()-90)),Qt.AlignmentFlag.AlignCenter,self.owner.label('Connecting to Codex…' if self.data.get('loading') else 'No records yet'));p.end();return
         today=datetime.now().astimezone().date()
         values,extremes=self.usage_values()
-        self.usage_header(p,f"{self.start:%m.%d} — {self.end:%m.%d %H:%M}",self.usage_total(values))
+        self.usage_header(p,f"{self.start:%m.%d %H:%M} — {self.end:%m.%d %H:%M}",self.usage_total(values))
         p.setClipRect(QRectF(0,32+self.TITLE_HEIGHT,self.width(),max(0,self.height()-32-self.TITLE_HEIGHT)))
         p.translate(0,-self.scroll)
-        maximum=max([v for v in values if v is not None]+[.01 if self.usd else 1]);step=(self.width()-36)/len(self.days)
-        amount_right=date_right=12.;metrics=QFontMetricsF(face(7))
-        for i,(day,value) in enumerate(zip(self.days,values)):
-            x=18+(i+.5)*step;bottom=usage_chart_baseline(32+self.TITLE_HEIGHT)
+        maximum=max([v for v in values if v is not None]+[.01 if self.usd else 1])
+        slots=self.usage_slots(values);bottom=usage_chart_baseline(32+self.TITLE_HEIGHT)
+        pen(p,colors['divider'],.6)
+        for boundary in [slots[0][0]]+[right for _,right in slots]:
+            p.drawLine(QPointF(boundary,bottom+2),QPointF(boundary,bottom+6))
+        metrics=QFontMetricsF(face(7));centers=[(left+right)/2 for left,right in slots]
+        amounts=[chart_number(value,self.owner.selected_chart_unit) if day<=today else '' for day,value in zip(self.days,values)]
+        dates=[f'{day.month}/{day.day}' for day in self.days]
+        amount_widths=[metrics.horizontalAdvance(label) for label in amounts];date_widths=[metrics.horizontalAdvance(label) for label in dates]
+        amount_centers=fit_chart_labels(centers,amount_widths,18,self.width()-18)
+        date_centers=fit_chart_labels(centers,date_widths,18,self.width()-18)
+        for i,((left,right),day,value) in enumerate(zip(slots,self.days,values)):
+            x=(left+right)/2;step=right-left
             color=colors['green'] if day==today else (colors['muted'] if value is None else (colors['lilac'] if day in extremes else colors['link']))
-            amount=chart_number(value,self.owner.selected_chart_unit);date=f'{day.month}/{day.day}'
-            amount_width=metrics.horizontalAdvance(amount);date_width=metrics.horizontalAdvance(date)
-            if x-amount_width/2<amount_right+6 or x+amount_width/2>self.width()-18:amount=''
-            elif day<=today:amount_right=x+amount_width/2
-            if x-date_width/2<date_right+6 or x+date_width/2>self.width()-18:date=''
-            else:date_right=x+date_width/2
-            paint_usage_column(p,x,bottom,step,value,maximum,amount,date,color,day>today)
+            amount=amounts[i] if amount_centers[i] is not None else '';date=dates[i] if date_centers[i] is not None else ''
+            paint_usage_column(p,x,bottom,max(step,amount_widths[i]+2,date_widths[i]+2),value,maximum,amount,date,color,day>today,
+                               amount_x=amount_centers[i],date_x=date_centers[i])
         p.end()
+
+    def usage_slots(self,values):
+        metrics=QFontMetricsF(face(7))
+        edge_labels=[f'{day.month}/{day.day}' for day in (self.days[0],self.days[-1])]
+        edge_labels.extend(chart_number(value,self.owner.selected_chart_unit) for value in (values[0],values[-1]))
+        inset=max(metrics.horizontalAdvance(label) for label in edge_labels)/2
+        left=18+inset;width=max(0,self.width()-36-inset*2)
+        return [(left+a*width,left+b*width) for _,a,b in self.day_spans]
 
     def unit_rects(self):
         return {unit:rect.translated(self.width()-360,0) for unit,rect in self.UNIT_RECTS.items()}
@@ -1630,7 +1681,7 @@ class ResetPopup(TaskPopup):
         self.boundary_labels=self.history_boundary_labels()
         boundary_widths=[metrics.horizontalAdvance(label) for label in self.boundary_labels]
         edge_width=max(boundary_widths+[0])
-        self.column_width=math.ceil(max([64,edge_width+8]+[metrics.horizontalAdvance(self.history_amount(row))+12 for row in self.rows]))
+        self.column_width=math.ceil(max([40,edge_width+8]+[metrics.horizontalAdvance(self.history_amount(row))+12 for row in self.rows]))
         self.history_padding=(math.ceil(boundary_widths[0]/2),math.ceil(boundary_widths[-1]/2)) if boundary_widths else (0,0)
         self.history_width=len(self.rows)*self.column_width+sum(self.history_padding)
         screen=self.owner.floating_screen() if self.owner.floating else self.owner.screen()

@@ -40,7 +40,7 @@ class SharedWidthContentTests(unittest.TestCase):
                 for call in columns.call_args_list:
                     label=call.args[field]
                     if not label:continue
-                    x=call.args[1];width=app.QFontMetricsF(app.face(7)).horizontalAdvance(label)
+                    x=call.kwargs.get('amount_x' if field==6 else 'date_x',call.args[1]);width=app.QFontMetricsF(app.face(7)).horizontalAdvance(label)
                     self.assertGreaterEqual(x-width/2,end+6);self.assertLessEqual(x+width/2,panel.width()-18);end=x+width/2
             for button in panel.unit_buttons.values():self.assertTrue(panel.rect().contains(button.geometry()))
 

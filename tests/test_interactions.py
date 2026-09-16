@@ -508,7 +508,7 @@ class InteractionTests(unittest.TestCase):
                 else:self.assertIn(self.bar.label(key),labels)
                 if kind is app.ResetPopup:
                     self.assertEqual(panel.button.text(),self.bar.label('Reset quota'))
-                    self.assertGreaterEqual(panel.column_width,64)
+                    self.assertGreaterEqual(panel.column_width,40)
                 panel.close();panel.deleteLater()
             self.dialog(False)
         self.provider.request_reset.assert_not_called()
