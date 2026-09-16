@@ -10,6 +10,12 @@ The invoking button shows a gentle selected fill while its panel is open; hover 
 
 Verify all five panel kinds stay on the same left baseline through button changes and refreshes, pinned rows restore correctly, multiple projects remain per-row, selection follows the open panel, both themes have legible values and controls, and existing chart/keyboard/motion/data behavior is retained. Verify native positioning after installation without controlling the user's pointer.
 
+## Calendar-day coverage and reset-history spacing
+
+The weekly usage plot covers the exact half-open quota interval `[starts_at, resets_at)`. Calendar-day slots occupy horizontal space proportional to their actual intersection with that interval, so partial first/last dates do not occupy full-day slots. Exclude a reset date with zero coverage at midnight. Preserve each day's recorded total and the total period length; do not redistribute values into invented 24-hour buckets. Show the start and end times together in the existing period row. Keep thin columns, draw subtle calendar-boundary ticks, and fit labels without overlap; edge labels may align inward without shifting their columns.
+
+Reset history remains an equal-slot comparison of period totals, with a shared vertical maximum for the full history. Reduce the slot minimum from 64 to 40 DIP, measured upward when boundary dates or numeric values need more room. Preserve 24-DIP columns, the three reset colors, actual interval boundaries and existing horizontal browsing. Do not stretch sparse slots to fill the panel or rescale column heights while scrolling.
+
 ## Attached panel region
 
 Reuse the existing pinned-window region as the single presentation host for both compact scrolling rows and full detail panels. Full panels attach directly to the navigation bar, with the same continuous outer surface and a subtle inset divider at the boundary. They are not another independent floating card. While a detail is present, its host and the navigation bar share one dynamic outer width and both side edges. Measure the compact navigation content separately from this outer width; never stretch the controls or feed expanded width back into content measurement. Close restores the current compact width, and detail-to-detail switching preserves the compact measurement without flashing a collapsed frame.
