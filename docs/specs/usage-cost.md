@@ -4,21 +4,24 @@
 
 为周期用量、今日用量和重置周期历史提供 USD 查看方式。USD 是本机已记录 Token 按当前已核验的 OpenAI 标准 API 价格计算的等值估算，不是订阅账单、额度换算或实际 API 付款记录。日志未提供服务档位，统一以 Standard 为比较基准，不推测 Fast、Batch、地区加价或工具调用费。价格版本随应用维护，不从网页实时抓取，不发送任务数据。
 
-定价依据（2026-09-16 核验）：[官方价格表](https://developers.openai.com/api/docs/pricing)、[GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra)、[GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol)、[GPT-5.5](https://developers.openai.com/api/docs/models/gpt-5.5)。首批精确匹配模型 gpt-6-astra、gpt-5.6-sol、gpt-5.5；无已核验价格的模型保持未知，不按前缀猜测。
+定价依据（2026-09-16 核验）：[官方价格表](https://developers.openai.com/api/docs/pricing)、[GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra)、[GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol)、[GPT-5.6 Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra)、[GPT-5.5](https://developers.openai.com/api/docs/models/gpt-5.5)、[GPT-5.4](https://developers.openai.com/api/docs/models/gpt-5.4)、[GPT-5.4 mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini)。精确匹配上述六个模型标识；无已核验价格的模型保持未知，不按前缀猜测。
 
 | 模型 | 输入 / 百万 | 缓存读取 / 百万 | 缓存写入 / 百万 | 输出 / 百万 |
 |---|---:|---:|---:|---:|
 | gpt-6-astra | $10 | $1 | $12.50 | $50 |
 | gpt-5.6-sol | $4 | $0.40 | $5 | $20 |
+| gpt-5.6-terra | $2 | $0.20 | $2.50 | $12 |
 | gpt-5.5 | $5 | $0.50 | 不另计写入 | $30 |
+| gpt-5.4 | $2.50 | $0.25 | 不另计写入 | $15 |
+| gpt-5.4-mini | $0.75 | $0.075 | 不另计写入 | $4.50 |
 
-单次输入超过 272,000 时，输入及缓存费率乘 2，输出费率乘 1.5。门槛依据该次 last_token_usage.input_tokens，不使用会话累计输入判断。输入包含缓存读取与写入；三者拆分后计费，不重复相加。reasoning_output_tokens 是输出子集，不重复计费。
+除 gpt-5.4-mini 外，上述模型单次输入超过 272,000 时，输入及缓存费率乘 2，输出费率乘 1.5；gpt-5.4-mini 没有该长上下文加价。门槛依据该次 last_token_usage.input_tokens，不使用会话累计输入判断。输入包含缓存读取与写入；三者拆分后计费，不重复相加。reasoning_output_tokens 是输出子集，不重复计费。
 
 ## 采集与完整性
 
-复用 UsageCursor：只投影 turn_context 的模型元数据和 token_count 的计数，不保存对话内容。费用沿用 Token 的时间边界、累计差分去重和分叉继承排除。美元基于可证实的单次明细计算；首次基线、多次调用聚合、累计回退或明细缺失无法确定单次计价时，该部分保持未知，不拿整段累计量套用最后一个模型或上下文门槛。
+复用 UsageCursor：只投影 turn_context 的模型元数据和 token_count 的计数，不保存对话内容。费用沿用 Token 的时间边界、累计差分去重和分叉继承排除。美元基于可证实的单次明细计算；首次基线、多次调用聚合、累计回退或明细缺失无法确定单次计价时，该部分保持未知，不拿整段累计量套用最后一个模型或上下文门槛。累计回退后，只有全部计价字段的当前值与单次明细相同，且各字段按原 Token 差分规则得到的增量也与单次明细一致，才按已证实的新基线调用计价。
 
-每个日/周期聚合既有数值与完整性：存在未计价的正用量则该聚合的 USD 为 null，不能把已知部分当成完整合计。明确零用量为 0；无记录为 null。未知周期显示横杠，不画为零柱。模型变化前后分别计价。重放与增量结果一致；尾部读取需要覆盖有效模型上下文。Token 原始统计不变，不新增采集线程或全历史持久化索引。
+每个日/周期聚合既有数值与完整性：存在未计价的正用量则该聚合的 USD 为 null，不能把已知部分当成完整合计。明确零用量为 0；无记录为 null。未知周期显示横杠，不画为零柱。模型变化前后分别计价。复用原有尾部读取范围，不为费用扩大旧日志扫描；尾部缺少有效模型上下文的正用量保守未知，后续已知上下文的调用正常计价。相同读取范围内重放与增量结果一致。Token 原始统计不变，不新增采集线程或全历史持久化索引。
 
 Provider 内存快照增加 history_usd（日键）、daily_usd、普通任务 usd（日费用）、reset_events[].usd。已有 Token 字段、状态判定及搜索统计不改。聚合按原范围去重，Side 不复制父任务费用。保留数据缺失的 null 语义。
 

@@ -13,6 +13,7 @@ from .preferences import write_json
 from .resets import ResetLedger
 from .side_chats import SideChats
 from .task_statistics import TaskStatistics
+from .pricing import sum_costs
 
 
 class Provider:
@@ -93,6 +94,8 @@ class Provider:
         tasks = []
         recent = []
         daily = {}
+        daily_costs = []
+        history_costs = {}
         newest_usage = None
         native_running=[]
         unread_ids=self.unread_state.read()
@@ -102,8 +105,10 @@ class Provider:
                 continue
             for key in FIELDS:
                 totals[key] += cursor.daily[key]
+            daily_costs.append((cursor.daily['total_tokens'], getattr(cursor, 'daily_usd', None)))
             for day, tokens in cursor.by_day.items():
                 daily[day] = daily.get(day, 0) + tokens
+                history_costs.setdefault(day, []).append((tokens, getattr(cursor, 'by_day_usd', {}).get(day)))
             if cursor.usage_at and (not newest_usage or cursor.usage_at > newest_usage):
                 newest_usage = cursor.usage_at
             # An unfinished event from before this boot cannot be a live process.
@@ -127,6 +132,7 @@ class Provider:
             names=getattr(self,'project_names',{})
             task = {"id": thread["id"], "title": thread.get("name") or "",
                               "project": names[thread['id']] if thread['id'] in names else project_name(thread, projects), "tokens": cursor.daily["total_tokens"],
+                              "usd": getattr(cursor, 'daily_usd', None),
                               "started_at": cursor.started_at, "usage_at": cursor.usage_at,
                               "ended_at": ended_at, "activity_at": cursor.activity_at,
                               "run_tokens": cursor.run_tokens, "running": running, "status": status,
@@ -162,6 +168,8 @@ class Provider:
                     "task_statistics":self.statistics.view(native_running) if hasattr(self,'statistics') else {},
                     "unread_count": sum(task['unread'] is True for task in recent) if unread_ids is not None else None,
                     "history": daily, "daily_quota": daily_quota_text(self.quota_history, week, observed_now),
+                    "history_usd": {day:sum_costs(rows) for day,rows in history_costs.items()},
+                    "daily_usd": sum_costs(daily_costs),
                     "daily_observed_at": daily_observed_at(self.quota_history, week, observed_now),
                     "totals": totals, "usage_at": newest_usage, "loading": False,
                     "updated_at": datetime.now().astimezone().isoformat(), "error": error, "quota_error": quota_error,
@@ -174,6 +182,8 @@ class Provider:
                 for event in snapshot['reset_events']:
                     if event['id'] in period_ids and known:
                         event['tokens']=sum(getattr(c,'period_totals',{}).get(event['id'],0) for c in known)
+                        event['usd']=sum_costs((getattr(c,'period_totals',{}).get(event['id'],0),
+                                              getattr(c,'period_usd',{}).get(event['id'])) for c in known)
             snapshot['reset_busy']=getattr(self,'reset_busy',False)
             self.snapshot = snapshot
         self._write_snapshot()

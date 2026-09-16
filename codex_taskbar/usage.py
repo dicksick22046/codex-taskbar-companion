@@ -4,6 +4,7 @@ from bisect import bisect_right
 import json
 import math
 from pathlib import Path
+from .pricing import usage_cost
 
 FIELDS = ("total_tokens", "input_tokens", "cached_input_tokens", "output_tokens")
 LIFECYCLE = {"task_started", "task_complete", "turn_aborted"}
@@ -15,6 +16,9 @@ def event_from_line(line):
         if not isinstance(item,dict):return None
         payload=item.get('payload') or {}
         if not isinstance(payload,dict):return None
+        if item.get('type') == 'turn_context':
+            return {'kind':'model_context', 'at':datetime.fromisoformat(item['timestamp'].replace('Z','+00:00')),
+                    'turn':payload.get('turn_id'), 'model':payload.get('model')}
         if item.get('type')=='response_item':
             call=payload.get('call_id')
             if not isinstance(call,str) or not call:return None
@@ -35,7 +39,8 @@ def event_from_line(line):
         at = datetime.fromisoformat(item["timestamp"].replace("Z", "+00:00"))
         # Retain no prompt, tool output, reasoning text, or assistant message.
         return {"kind": kind, "at": at, "turn": payload.get("turn_id"),
-                "usage": (payload.get("info") or {}).get("total_token_usage")}
+                "usage": (payload.get("info") or {}).get("total_token_usage"),
+                "last_usage": (payload.get("info") or {}).get("last_token_usage")}
     except (ValueError, TypeError, KeyError):
         return None
 
@@ -49,7 +54,13 @@ class UsageCursor:
         self.periods=tuple(periods)
         self.period_starts=[row[1] for row in self.periods]
         self.period_totals={row[0]:0 for row in self.periods}
+        self.period_usd = {}
         self.by_day = {}
+        self.by_day_usd = {}
+        self.daily_usd = None
+        self.daily_cost_seen = False
+        self.model = None
+        self.model_turn = None
         self.offset = 0
         self.pending = b""
         self.last = None
@@ -72,6 +83,10 @@ class UsageCursor:
         if event is None:
             return
         kind = event["kind"]
+        if kind == 'model_context':
+            self.model = event.get('model') if isinstance(event.get('model'), str) else None
+            self.model_turn = event.get('turn')
+            return
         original = self.created_after is None or event["at"].timestamp() >= self.created_after
         if kind in ('input_requested','input_resolved'):
             if original and self.running:
@@ -81,6 +96,7 @@ class UsageCursor:
         if original:
             self.activity_at = event["at"].isoformat()
         if kind == "task_started":
+            if not event['turn'] or event['turn'] != self.model_turn:self.model = None
             if not self.running or self.turn!=event['turn']:self.pending_input.clear()
             if not self.running or self.turn != event["turn"] or self.duration_start is None:
                 self.duration_start = event["at"] if original else None
@@ -104,6 +120,23 @@ class UsageCursor:
             current = event["usage"]
             local_day = event["at"].astimezone().date()
             original = self.created_after is None or event["at"].timestamp() >= self.created_after
+            total = current.get('total_tokens')
+            previous = (self.last or {}).get('total_tokens')
+            if original and type(total) is int and total >= 0:
+                delta = total if previous is None or total < previous else total-previous
+                cost = 0. if delta == 0 else usage_cost(self.model, current, self.last, event.get('last_usage'))
+                if self.created_after is not None and self.last is None and delta > 0:cost = None
+                if local_day == self.day:
+                    self.daily_usd = cost if not self.daily_cost_seen else self.add_cost(self.daily_usd, cost)
+                    self.daily_cost_seen = True
+                if event['at'] >= self.since:
+                    name = local_day.isoformat()
+                    self.by_day_usd[name] = self.add_cost(self.by_day_usd.get(name, 0.), cost)
+                if self.periods:
+                    at=event['at'].timestamp();index=bisect_right(self.period_starts,at)-1
+                    if index>=0 and at<self.periods[index][2]:
+                        key=self.periods[index][0]
+                        self.period_usd[key] = self.add_cost(self.period_usd.get(key, 0.), cost)
             for key in FIELDS:
                 value = current.get(key)
                 previous = (self.last or {}).get(key)
@@ -121,6 +154,10 @@ class UsageCursor:
                         if index>=0 and at<self.periods[index][2]:self.period_totals[self.periods[index][0]]+=delta
             self.last = current
             self.usage_at = event["at"].isoformat()
+
+    @staticmethod
+    def add_cost(previous, cost):
+        return None if previous is None or cost is None else previous + cost
 
     def seconds_today(self,start,end):
         midnight=datetime.combine(self.day,datetime.min.time()).astimezone()
