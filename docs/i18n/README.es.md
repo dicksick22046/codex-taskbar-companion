@@ -36,7 +36,7 @@ La ubicación de la barra de estado controla la cuota y los recuentos. Las filas
 | Consumo de cuota de hoy | Tokens de hoy por tarea y estado |
 | Cuota de 5h, si está disponible | Cuota restante, hora de reinicio e historial registrado |
 | Cuenta atrás | Historial de reinicios y créditos de reinicio disponibles |
-| Punto de estado y cantidad | Tareas de ese estado, con la duración del turno actual o más reciente |
+| Punto de estado y cantidad | Abre directamente la tarea si solo hay una; en caso contrario, abre la lista |
 | Nombre de una tarea | Esa tarea en Codex |
 
 Abre una lista de estado y pulsa su chincheta para fijar una fila encima de la barra. Varios estados forman un solo panel: cada fila contiene un punto de color, el proyecto, el título y un botón para desfijar. La rotación es independiente; al pasar el cursor, la fila se resalta, se detiene el cambio de tarea y se puede leer el título largo. Las filas vacías se ocultan sin perder su preferencia. Las antiguas barras activas migran a una fila fijada. Los detalles Main/Side permanecen en la lista completa y las ayudas.

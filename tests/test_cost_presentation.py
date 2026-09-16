@@ -43,7 +43,7 @@ class CostPresentationTests(unittest.TestCase):
         panel.unit_buttons['USD'].click()
         self.assertTrue(panel.unit_buttons['USD'].isChecked())
         self.assertEqual(set(panel.values.values()),{'0.05'})
-        self.assertEqual(panel.usage_title(),'Estimated cost (USD)')
+        self.assertEqual(panel.usage_title(),'Estimated cost')
         panel.unit_buttons['M'].setFocus(Qt.FocusReason.TabFocusReason)
         event=QKeyEvent(QEvent.Type.KeyPress,Qt.Key.Key_Return,Qt.KeyboardModifier.NoModifier)
         self.fixture.application.sendEvent(panel.unit_buttons['M'],event)

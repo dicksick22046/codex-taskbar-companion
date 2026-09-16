@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Open single-task status counts directly in Codex; keep hover and menu access to the status list. Anchor the context menu after the detail panel has collapsed, and remove repeated USD labels from cycle/today headings.
+
 - Add USD estimates to cycle/today usage and reset history, using verified model-specific Standard API rates. Missing pricing details remain unknown; Token units and task-search statistics are preserved.
 
 - Simplify reset history to slimmer, type-colored bars with a clearly labeled period-usage unit and legend. Remove the percentage/detail row and click selection; keep horizontal browsing.

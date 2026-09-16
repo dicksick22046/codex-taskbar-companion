@@ -143,11 +143,12 @@ class InteractionTests(unittest.TestCase):
     def test_popup_regions_dispatch_their_own_mode(self):
         with patch.object(self.bar,'isVisible',return_value=True),patch('codex_taskbar.app.windows.rect',return_value=(0,0,1200,30)), \
              patch('codex_taskbar.app.windows.user32.GetDpiForWindow',return_value=96),patch.object(self.bar,'toggle_popup') as toggle, \
-             patch('codex_taskbar.app.QTimer.singleShot',side_effect=lambda ms,fn:fn()):
+             patch('codex_taskbar.app.QTimer.singleShot',side_effect=lambda ms,fn:fn()),patch.object(self.bar,'open_task',return_value=True) as navigate:
             for mode,region,payload in self.bar.hit_regions:
                 point=region.center();self.bar.desktop_click(point.x(),point.y())
                 self.bar.desktop_click(point.x(),point.y(),'left_up')
-                self.assertEqual(toggle.call_args.args[0],mode)
+                if mode in app.STATUS_CATEGORIES:self.assertEqual(app.task_category(navigate.call_args.args[0]),mode)
+                else:self.assertEqual(toggle.call_args.args[0],mode)
 
     def dialog(self, confirm):
         cancel_label=self.bar.label('Cancel');confirm_label=self.bar.label('Confirm reset')

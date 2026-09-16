@@ -527,7 +527,7 @@ class StatusBar(QWidget):
             if not pressed:return False
             mode,rect,payload=pressed
             if self.isVisible() and rect.contains(QPointF(x,y)) and windows.pointer_over(int(self.winId()),x,y):
-                QTimer.singleShot(0,lambda m=mode:self.toggle_popup(m))
+                QTimer.singleShot(0,lambda m=mode,t=payload:self.activate_status_entry(m,t))
             return True
         if button=='right_up':
             pressed=self.right_pressed;self.right_pressed=None
@@ -551,12 +551,21 @@ class StatusBar(QWidget):
         return False
 
     def begin_press(self,hit,rect=None):
-        self.pressed=(hit[0],rect or hit[1],hit[2]);self.pressed_local=QRectF(hit[1]);self.press_inside=True
+        rows=panel_rows(self.data,hit[0]) if hit[0] in STATUS_CATEGORIES else []
+        target=dict(rows[0]) if len(rows)==1 else None
+        self.pressed=(hit[0],rect or hit[1],target);self.pressed_local=QRectF(hit[1]);self.press_inside=True
         self.update()
 
     def release_press(self):
         pressed=self.pressed;self.pressed=None;self.pressed_local=None;self.press_inside=False
         self.update();return pressed
+
+    def activate_status_entry(self,mode,target=None):
+        if target and any(row['id']==target['id'] for row in panel_rows(self.data,mode)):
+            if self.open_task(target):
+                self.hover_suppressed=mode;self.hover_target=None;self.hover_leave_since=None
+            return
+        self.toggle_popup(mode)
 
     def toggle_popup(self,mode='usage',activate=True):
         self.settle_quota(mode)
@@ -905,7 +914,10 @@ class StatusBar(QWidget):
         self.task_finder.raise_();self.task_finder.activateWindow();self.task_finder.search.setFocus()
 
     def open_menu(self):
-        self.hide_popup(immediate=True);self.menu.ensurePolished()
+        self.hide_popup(immediate=True)
+        # Anchor the menu after restoring compact rows, not to a closing detail's old height.
+        self.task_strip.size_motion.snap(self.task_strip.size_motion.target)
+        self.menu.ensurePolished()
         bounds=(self.floating_screen() if self.floating else self.screen()).availableGeometry();size=self.menu.sizeHint()
         anchor=self.geometry();occupied=self.task_strip.occupied_geometry()
         if occupied.isValid():anchor=anchor.united(occupied)
@@ -1032,7 +1044,7 @@ class StatusBar(QWidget):
             if self.settings.get('floating_display') is not None or screen is not QApplication.primaryScreen():self.settings['floating_display']=screen.name()
             self.save_settings()
         elif hit and hit[1].contains(event.position()):
-            self.toggle_popup(hit[0])
+            self.activate_status_entry(hit[0],hit[2])
         elif not hit:self.hide_popup()
         self.track_pointer(event.position());event.accept()
 
@@ -1336,7 +1348,7 @@ class TaskPopup(QWidget):
     def usd(self):return self.owner.selected_chart_unit=='USD'
 
     def usage_title(self):
-        return self.owner.label('Estimated cost (USD)' if self.usd else 'Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens')
+        return self.owner.label('Estimated cost' if self.usd else 'Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens')
 
     def usage_values(self):
         history=self.data.get('history_usd' if self.usd else 'history',{})
@@ -1472,7 +1484,7 @@ class TaskPopup(QWidget):
             reset=datetime.fromtimestamp(window['resets_at']).strftime('%H:%M') if window and window.get('resets_at') else '—'
             metadata=48+small.horizontalAdvance(quota_update_label(self.owner,self.data))+small.horizontalAdvance(self.owner.label('Reset {time}',time=reset))
             return math.ceil(max(self.owner.width(),first,metadata,66+2*small.horizontalAdvance('00:00')))
-        titles=[self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens'),self.owner.label('Estimated cost (USD)')]
+        titles=[self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens'),self.owner.label('Estimated cost')]
         width=max(self.owner.width() if self.host else 360,max(QFontMetricsF(face(9)).horizontalAdvance(title) for title in titles)+
                   small.horizontalAdvance(usage_update_label(self.owner,self.data))+178)
         if self.host and self.mode=='usage' and self.days:

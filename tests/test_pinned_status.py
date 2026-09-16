@@ -139,6 +139,28 @@ class PinnedPanelTests(unittest.TestCase):
             point=opened.call_args.args[0]
             self.assertLessEqual(point.y()+self.bar.menu.sizeHint().height()+app.TaskPopup.GAP,self.group.occupied_geometry().top())
 
+    def test_context_menu_uses_restored_summary_height_not_closing_detail(self):
+        screen=Mock();screen.availableGeometry.return_value=app.QRect(0,0,1200,900);screen.geometry.return_value=app.QRect(0,0,1200,940)
+        self.bar.setGeometry(100,800,300,30);self.bar.settings['placement']='taskbar'
+        with patch.object(self.bar,'screen',return_value=screen),patch.object(self.group,'isVisible',return_value=True),patch.object(self.bar.menu,'popup') as opened:
+            for pins in ([],['running'],['running','unread']):
+                for closing in (False,True):
+                    with self.subTest(pins=pins,closing=closing):
+                        self.bar.motion_enabled=False;self.bar.settings['pinned_statuses']=pins
+                        self.group.refresh(self.data);self.bar.toggle_popup('usage',activate=False)
+                        detail_height=self.group.height();self.bar.motion_enabled=True
+                        if closing:
+                            self.bar.hide_popup();self.group.size_motion.advance(.015)
+                        self.bar.open_menu()
+                        target=len(pins)*30+1 if pins else 0
+                        self.assertGreater(detail_height,target)
+                        self.assertEqual(self.group.size_motion.value,target)
+                        self.assertFalse(self.group.size_motion.timer.isActive())
+                        self.assertIsNone(self.bar.popup);self.assertIsNone(self.group.detail)
+                        self.assertEqual(self.bar.settings['pinned_statuses'],pins)
+                        top=self.bar.y()-target+1 if target else self.bar.y()
+                        self.assertEqual(opened.call_args.args[0].y(),top-app.TaskPopup.GAP-self.bar.menu.sizeHint().height())
+
     def test_short_titles_do_not_leave_the_old_fixed_minimum(self):
         self.bar.settings.update(rotate_quotas=True,pinned_statuses=['running']);self.data['recent_tasks']=[]
         self.data['tasks'][0]['title']='Review'
