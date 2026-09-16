@@ -4,19 +4,14 @@
 
 ## Unreleased
 
-- Open single-task status counts directly in Codex; keep hover and menu access to the status list. Anchor the context menu after the detail panel has collapsed, and remove repeated USD labels from cycle/today headings.
+## 0.12.0
 
 - Add USD estimates to cycle/today usage and reset history, using verified model-specific Standard API rates. Missing pricing details remain unknown; Token units and task-search statistics are preserved.
-
-- Simplify reset history to slimmer, type-colored bars with a clearly labeled period-usage unit and legend. Remove the percentage/detail row and click selection; keep horizontal browsing.
-
+- Compare reset periods with slimmer, type-colored bars, boundary dates and a shared unit/legend. Remove the percentage/detail row and click selection; keep horizontal browsing.
+- Open single-task status counts directly in Codex; keep hover and menu access to status lists.
 - Restore project tags in pinned task rows and make the row's blank space clickable, while keeping the unpin button separate.
-
-- Remove verbose explanatory tooltips from quota and reset panels; keep navigation hints brief.
-
-- Compare reset-period totals with wider adjacent bars and dates at reset boundaries. Keep per-bar units, show the selected interval, and preserve unknown starts instead of implying daily usage.
-
-- Avoid task-row highlights on panel opening: hit-test only the visible viewport and show keyboard selection only after keyboard navigation or keyboard focus.
+- Fix context-menu placement after closing an expanded panel, and prevent accidental task-row highlights when a panel opens.
+- Remove verbose quota/reset tooltips and duplicate USD labels from cycle/today headings.
 
 ## 0.11.0
 
