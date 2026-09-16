@@ -782,8 +782,13 @@ class StatusBar(QWidget):
     def fitted_width(self,limit,resize=False):
         target=self.content_width(limit)
         interacting=self.underMouse() or self.pressed or self.drag_origin or self.popup or self.menu.isVisible()
-        if not resize and interacting and self.position:target=max(target,self.width())
+        if not resize and interacting and self.position and not self.task_strip.detail:target=max(target,self.navigation_width)
         return min(limit,target)
+
+    @property
+    def navigation_width(self):
+        compact=getattr(getattr(self,'task_strip',None),'compact_geometry',None)
+        return compact.width() if compact is not None else self.width()
 
     def set_quota_progress(self,value):
         self.quota_progress=float(value);self.update()
@@ -1147,6 +1152,7 @@ class StatusBar(QWidget):
         if self.floating and self.drag_origin is None:
             logical=floating_rect(self.floating_screen().availableGeometry(),self.settings.get('floating_position'),width).getRect()
         else:logical=(logical[0],logical[1],width,logical[3])
+        logical=self.task_strip.footer_geometry(QRect(*logical)).getRect()
         if self.position!=logical:self.setGeometry(*logical);self.position=logical
         recovered=self.ensure_visible()
         if self.floating:
@@ -1259,7 +1265,7 @@ class StatusBar(QWidget):
         if self.settings.get('rotate_quotas'):
             visible=[mode for mode in STATUS_CATEGORIES if counts[mode]];font=QFontMetricsF(face(8))
             total=sum(font.horizontalAdvance(self.count_label(mode,counts[mode]))+24 for mode in visible)+6*(len(visible)-1)
-            badge_x=self.width()-12-total
+            badge_x=self.navigation_width-12-total
         for mode,color in [('waiting',palette['amber']),('running',palette['green']),('unread',palette['amber']),('failed',palette['failed']),('stopped',palette['stopped'])]:
             if counts[mode]:
                 width=activity_count(p,badge_x,y,self.count_label(mode,counts[mode]),color,pulse=mode=='running' and self.motion_enabled,text_color=color if theme=='light' else None,emphasis=emphasis(mode),hover=mode==getattr(self,'hovered_button',None))
@@ -1464,10 +1470,17 @@ class TaskPopup(QWidget):
         p.setClipRect(QRectF(0,32+self.TITLE_HEIGHT,self.width(),max(0,self.height()-32-self.TITLE_HEIGHT)))
         p.translate(0,-self.scroll)
         maximum=max([v for v in values if v is not None]+[.01 if self.usd else 1]);step=(self.width()-36)/len(self.days)
+        amount_right=date_right=12.;metrics=QFontMetricsF(face(7))
         for i,(day,value) in enumerate(zip(self.days,values)):
             x=18+(i+.5)*step;bottom=usage_chart_baseline(32+self.TITLE_HEIGHT)
             color=colors['green'] if day==today else (colors['muted'] if value is None else (colors['lilac'] if day in extremes else colors['link']))
-            paint_usage_column(p,x,bottom,step,value,maximum,chart_number(value,self.owner.selected_chart_unit),f'{day.month}/{day.day}',color,day>today)
+            amount=chart_number(value,self.owner.selected_chart_unit);date=f'{day.month}/{day.day}'
+            amount_width=metrics.horizontalAdvance(amount);date_width=metrics.horizontalAdvance(date)
+            if x-amount_width/2<amount_right+6 or x+amount_width/2>self.width()-18:amount=''
+            elif day<=today:amount_right=x+amount_width/2
+            if x-date_width/2<date_right+6 or x+date_width/2>self.width()-18:date=''
+            else:date_right=x+date_width/2
+            paint_usage_column(p,x,bottom,step,value,maximum,amount,date,color,day>today)
         p.end()
 
     def unit_rects(self):
@@ -1483,9 +1496,9 @@ class TaskPopup(QWidget):
             if quota_is_cached(self.data):first+=10+small.horizontalAdvance(self.owner.label('Cached'))
             reset=datetime.fromtimestamp(window['resets_at']).strftime('%H:%M') if window and window.get('resets_at') else '—'
             metadata=48+small.horizontalAdvance(quota_update_label(self.owner,self.data))+small.horizontalAdvance(self.owner.label('Reset {time}',time=reset))
-            return math.ceil(max(self.owner.width(),first,metadata,66+2*small.horizontalAdvance('00:00')))
+            return math.ceil(max(self.owner.navigation_width,first,metadata,66+2*small.horizontalAdvance('00:00')))
         titles=[self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens'),self.owner.label('Estimated cost')]
-        width=max(self.owner.width() if self.host else 360,max(QFontMetricsF(face(9)).horizontalAdvance(title) for title in titles)+
+        width=max(self.owner.navigation_width if self.host else 360,max(QFontMetricsF(face(9)).horizontalAdvance(title) for title in titles)+
                   small.horizontalAdvance(usage_update_label(self.owner,self.data))+178)
         if self.host and self.mode=='usage' and self.days:
             values,_=self.usage_values()
@@ -1495,15 +1508,20 @@ class TaskPopup(QWidget):
 
     def usage_header(self,p,period,total):
         colors=popup_palette(self.owner)
-        width=text(p,18,21,self.usage_title(),face(9),colors['title'])
-        text(p,18+width+12,21,usage_update_label(self.owner,self.data),face(7),colors['muted'])
         boxes=list(self.unit_rects().values());unit_box=boxes[0].united(boxes[-1]).adjusted(-2,-2,2,2)
+        available=max(0,unit_box.left()-26)
+        title=QFontMetricsF(face(9)).elidedText(self.usage_title(),Qt.TextElideMode.ElideRight,available)
+        width=text(p,18,21,title,face(9),colors['title'])
+        updated=usage_update_label(self.owner,self.data)
+        if width+12+QFontMetricsF(face(7)).horizontalAdvance(updated)<=available:
+            text(p,18+width+12,21,updated,face(7),colors['muted'])
         p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(colors['well']));p.drawRoundedRect(unit_box,7,7)
         y=21+self.TITLE_HEIGHT
         icon(p,'chart',23,y,colors['lilac'])
-        total_label='Σ '+chart_number(total,self.owner.selected_chart_unit);metrics=QFontMetricsF(face(8))
+        metrics=QFontMetricsF(face(8))
+        total_label=metrics.elidedText('Σ '+chart_number(total,self.owner.selected_chart_unit),Qt.TextElideMode.ElideRight,max(0,self.width()-57))
         shown=metrics.elidedText(period,Qt.TextElideMode.ElideRight,max(0,self.width()-39-18-14-metrics.horizontalAdvance(total_label)))
-        total_x=39+metrics.horizontalAdvance(shown)+14
+        total_x=39+metrics.horizontalAdvance(shown)+(14 if shown else 0)
         text(p,39,y,shown,face(8),colors['link'])
         text(p,total_x,y,total_label,face(8),colors['lilac'])
 
@@ -1529,12 +1547,17 @@ class SessionPopup(TaskPopup):
         p=panel_painter(self);window=quota_window(effective_quota_data(self.data),300)
         text(p,18,21,'5h',face(9),colors['title'])
         value=self.owner.label('{value}% remaining',value=f"{window['remaining']:g}") if window else '—'
+        value=QFontMetricsF(face(8)).elidedText(value,Qt.TextElideMode.ElideRight,max(0,self.width()-67))
         value_width=text(p,49,21,value,face(8),colors['text'])
-        if quota_is_cached(self.data):text(p,49+value_width+10,21,self.owner.label('Cached'),face(7),colors['muted'])
+        cached=self.owner.label('Cached')
+        if quota_is_cached(self.data) and 49+value_width+10+QFontMetricsF(face(7)).horizontalAdvance(cached)<=self.width()-18:
+            text(p,49+value_width+10,21,cached,face(7),colors['muted'])
         reset=datetime.fromtimestamp(window['resets_at']).strftime('%H:%M') if window and window.get('resets_at') else '—'
         label=self.owner.label('Reset {time}',time=reset)
         text(p,self.width()-18-QFontMetricsF(face(7)).horizontalAdvance(label),47,label,face(7),colors['muted'])
-        text(p,18,47,quota_update_label(self.owner,self.data),face(7),colors['muted'])
+        updated=quota_update_label(self.owner,self.data)
+        if QFontMetricsF(face(7)).horizontalAdvance(updated+'  '+label)<=self.width()-36:
+            text(p,18,47,updated,face(7),colors['muted'])
         left,top,width,height=32.,69.,self.width()-54.,87.
         for fraction,label in ((1,'100'),(0,'0')):
             y=top+(1-fraction)*height;pen(p,colors['divider'],.5)
@@ -1612,8 +1635,9 @@ class ResetPopup(TaskPopup):
         self.history_width=len(self.rows)*self.column_width+sum(self.history_padding)
         screen=self.owner.floating_screen() if self.owner.floating else self.owner.screen()
         minimum=max(self.WIDTH,self.history_header_width())
-        width=min(max(minimum,self.owner.width()) if self.host else minimum,screen.availableGeometry().width())
-        overflow=self.history_width>width-36
+        width=min(max(minimum,self.owner.navigation_width) if self.host else minimum,screen.availableGeometry().width())
+        viewport=self.host.detail_width_for(width) if self.host else width
+        overflow=self.history_width>viewport-36
         axis_bottom=usage_date_rect(0,self.BASELINE,self.column_width).bottom()
         self.history_height=axis_bottom+(16 if overflow else 2)-self.HISTORY_START if self.rows else 28
         self.credits_top=self.HISTORY_START+self.history_height+20
@@ -1714,7 +1738,7 @@ class ResetPopup(TaskPopup):
 
     def draw_history_heading(self,p):
         colors=popup_palette(self.owner);font=face(7);metrics=QFontMetricsF(font)
-        left=18+self.history_choice_width()+18
+        left=18+self.history_choice.width()+18
         legend=self.history_legend();widths=[metrics.horizontalAdvance(label) for _,label in legend]
         available=max(0,self.width()-18-left-54);scale=min(1,available/max(1,sum(widths)))
         x=self.width()-18-(sum(widths)*scale+54)
@@ -1735,7 +1759,8 @@ class ResetPopup(TaskPopup):
 
     def layout_history_scroll(self):
         heading_y=64+self.forecast_height-self.scroll
-        self.history_choice.setGeometry(12,round(heading_y-13),self.history_choice_width(),26)
+        width=min(self.history_choice_width(),max(26,self.width()-108))
+        self.history_choice.setGeometry(12,round(heading_y-13),width,26)
         self.history_choice.setVisible(heading_y-13>=48+self.forecast_height and heading_y+13<=self.height()-56)
         y=usage_date_rect(0,self.BASELINE,self.column_width).bottom()+4+self.forecast_height-self.scroll
         self.history_scroll.setGeometry(18,round(y),self.width()-36,12)
@@ -1902,11 +1927,11 @@ class TaskListPopup(TaskPopup):
         longest=max([title_metrics.horizontalAdvance(task_title(task,self.owner.language))+(side_tag_width(self.owner.language,task_role_label(task))+7 if task_role_label(task) else 0) for task in self.rows]+[0])
         self.values={t['id']:chart_number(t.get('usd' if self.usd else 'tokens'),self.owner.selected_chart_unit) if self.mode=='daily' else duration_text(t.get('round_seconds')) for t in self.rows}
         info_width=max([metrics.horizontalAdvance(value) for value in self.values.values()]+[24])
-        width_limit=getattr(self.owner,'content_limit',None) or self.owner.width()
+        width_limit=getattr(self.owner,'content_limit',None) or self.owner.navigation_width
         if self.host:width_limit=max(260,width_limit)
         width=min(width_limit,max(260,math.ceil(self.TITLE_X+longest+24+info_width+18)))
         if self.mode=='daily':width=max(self.usage_width(),260 if self.host else width)
-        elif self.host:width=max(260,self.owner.width())
+        elif self.host:width=max(260,self.owner.navigation_width)
         self.value_right=width-18
         self.info_divider=self.value_right-info_width-12
         self.TITLE_WIDTH=max(0,self.info_divider-12-self.TITLE_X)
@@ -1923,6 +1948,8 @@ class TaskListPopup(TaskPopup):
         height=min(round(self.full_height+16),500) if self.owner.floating or self.owner_unplaced() else min(round(self.full_height+16),500,max(100,self.owner.y()-16))
         self.place_panel(width,height);height=self.height()
         self.value_right=self.width()-18;self.info_divider=self.value_right-info_width-12
+        self.project_width=min(self.project_width,max(0,(self.info_divider-55)/2))
+        self.TITLE_X=33+self.project_width+10
         self.TITLE_WIDTH=max(0,self.info_divider-12-self.TITLE_X)
         self.scroll=min(self.scroll,max(0,self.full_height-(height-16)))
         if self.pin_button:

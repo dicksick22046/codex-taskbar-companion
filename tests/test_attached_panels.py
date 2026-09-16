@@ -88,12 +88,91 @@ class AttachedPanelTests(unittest.TestCase):
         event=QKeyEvent(QEvent.Type.KeyPress,Qt.Key.Key_Escape,Qt.KeyboardModifier.NoModifier)
         panel.keyPressEvent(event);self.assertIsNone(self.bar.popup)
 
-    def test_narrow_footer_keeps_status_detail_readable(self):
+    def test_narrow_footer_expands_with_readable_status_detail_and_restores(self):
         self.bar.resize(200,30);self.bar.content_limit=200
         self.data['tasks'][0]['title']='A task title that needs a readable column'
         panel=self.open('running')
-        self.assertEqual(self.bar.width(),200);self.assertGreaterEqual(panel.width(),260)
+        self.assertEqual(self.bar.navigation_width,200);self.assertGreaterEqual(panel.width(),260)
+        self.assertEqual(self.bar.width(),panel.width());self.assertEqual(self.host.width(),panel.width())
         self.assertGreater(panel.TITLE_WIDTH,80)
+        self.bar.hide_popup(immediate=True);self.assertEqual(self.bar.width(),200)
+
+    def test_usd_values_expand_one_shared_surface_without_width_feedback(self):
+        from datetime import datetime
+        self.bar.settings['language']='zh-CN';self.bar.chart_unit='USD'
+        self.data['quota']=[dict(minutes=10080,remaining=0,
+            starts_at=datetime(2026,9,12,16,9).astimezone().timestamp(),resets_at=datetime(2026,9,19,16,9).astimezone().timestamp())]
+        self.data['history_usd']={f'2026-09-{i}':value for i,value in zip(range(12,17),[180.45,219.88,515.01,982.5,211.01])}
+        self.data['history']={day:100 for day in self.data['history_usd']}
+        panel=self.open('usage')
+        self.assertGreater(panel.width(),330)
+        for _ in range(3):
+            panel.refresh(self.data)
+            self.assertEqual(self.host.geometry().left(),self.bar.geometry().left())
+            self.assertEqual(self.host.geometry().right(),self.bar.geometry().right())
+            self.assertEqual(self.bar.navigation_width,330)
+        self.open('running')
+        self.assertEqual(self.bar.width(),330);self.assertEqual(self.host.width(),330)
+        self.bar.hide_popup(immediate=True);self.assertEqual(self.bar.width(),330)
+
+    def test_taskbar_shared_width_stays_inside_reserved_slot(self):
+        self.bar.settings['placement']='taskbar';self.bar.content_limit=340
+        self.open('usage');self.host.place_detail(600,180)
+        self.assertEqual(self.host.width(),340);self.assertEqual(self.bar.width(),340)
+        self.assertEqual(self.host.x(),30);self.assertEqual(self.bar.x(),30)
+        self.assertEqual(self.host.detail_width_for(600),340)
+        self.bar.hide_popup(immediate=True);self.assertEqual(self.bar.width(),330)
+
+    def test_expansion_at_screen_edge_keeps_original_left_anchor(self):
+        bounds=self.bar.screen().availableGeometry();left=bounds.right()-349
+        self.bar.move(left,700);self.open('usage');self.host.place_detail(600,180)
+        self.assertEqual(self.bar.x(),left);self.assertEqual(self.host.x(),left)
+        self.assertEqual(self.bar.width(),350);self.assertEqual(self.host.width(),350)
+        self.assertEqual(self.host.geometry().right(),bounds.right())
+
+    def test_open_surface_tracks_compact_layout_changes_and_restores_latest_width(self):
+        self.open('usage')
+        for width in (420,280):
+            compact=QRect(30,700,width,30);footer=self.host.footer_geometry(compact)
+            self.bar.setGeometry(footer);self.bar.position=footer.getRect();self.bar.popup.refresh(self.data)
+            self.assertEqual(self.bar.navigation_width,width)
+            self.assertEqual(self.host.geometry().right(),self.bar.geometry().right())
+        self.bar.hide_popup(immediate=True)
+        self.assertEqual(self.bar.width(),280)
+        with patch.object(self.bar,'content_width',return_value=250),patch.object(self.bar,'underMouse',return_value=False):
+            self.assertEqual(self.bar.fitted_width(500),250)
+
+    def test_rotation_buttons_stay_at_compact_content_position_when_expanded(self):
+        self.bar.settings['rotate_quotas']=True;self.bar.grab()
+        before={mode:rect for mode,rect,_ in self.bar.hit_regions}
+        self.open('usage');self.bar.grab()
+        after={mode:rect for mode,rect,_ in self.bar.hit_regions}
+        for mode in ('running','unread','failed','stopped'):self.assertEqual(before[mode],after[mode])
+
+    def test_switch_and_close_animation_frames_keep_common_edges(self):
+        self.bar.motion_enabled=True;self.open('usage')
+        self.assertEqual(self.host.geometry().right(),self.bar.geometry().right())
+        for mode in ('resets','running','usage'):
+            self.open(mode)
+            self.assertEqual(self.host.geometry().right(),self.bar.geometry().right())
+            for _ in range(12):
+                self.host.size_motion.advance(.016)
+                self.assertEqual(self.host.geometry().left(),self.bar.geometry().left())
+                self.assertEqual(self.host.geometry().right(),self.bar.geometry().right())
+        self.bar.hide_popup()
+        for _ in range(80):
+            self.host.size_motion.advance(.016)
+            if self.host.isVisible():
+                self.assertEqual(self.host.geometry().left(),self.bar.geometry().left())
+                self.assertEqual(self.host.geometry().right(),self.bar.geometry().right())
+        self.assertIsNone(self.bar.popup);self.assertEqual(self.bar.width(),330)
+
+    def test_immediate_detach_syncs_remaining_host_before_animation_tick(self):
+        self.open('usage');self.bar.motion_enabled=True
+        self.bar.hide_popup(immediate=True)
+        self.assertEqual(self.bar.width(),330)
+        self.assertEqual(self.host.width(),330)
+        self.assertEqual(self.host.geometry().right(),self.bar.geometry().right())
 
     def test_status_scroll_keeps_header_fixed_and_noninteractive(self):
         self.data['tasks']=[dict(self.data['tasks'][0],id=str(i),title='Task '+str(i)) for i in range(24)]

@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Keep attached details and navigation on one dynamic outer width, including switching and animation frames. Restore the compact bar on close and keep narrow layouts inside the available taskbar or screen space.
+
 ## 0.12.0
 
 - Add USD estimates to cycle/today usage and reset history, using verified model-specific Standard API rates. Missing pricing details remain unknown; Token units and task-search statistics are preserved.

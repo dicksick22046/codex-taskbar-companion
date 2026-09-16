@@ -230,23 +230,52 @@ class PinnedPanel(QWidget):
         super().__init__(None,visuals.FLAGS & ~Qt.WindowType.WindowDoesNotAcceptFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground);self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.owner=owner;self.setWindowTitle('Codex · Pinned tasks');self.joined_edge=None;self.active=[];self.stopped=False;self.detail=None;self.detail_box=None;self.detail_hidden=False
+        self.compact_geometry=None
         self.rows={kind:TaskStrip(owner,kind,self) for kind in STATUS_CATEGORIES}
         self.size_motion=Spring(self,response=.18);self.size_motion.changed.connect(self.layout_rows);self.size_motion.finished.connect(self.finish_detail)
         self.host_key=None;self.surface_loss_since=None;self.surface_repaired=False;self.frame_key=None
 
     def attach_detail(self,popup):
+        if self.compact_geometry is None:self.compact_geometry=self.owner.geometry()
         self.detail=popup;self.detail_box=None;self.detail_hidden=False;self.size_motion.response=.28
         for row in self.rows.values():row.refresh(self.owner.data,hidden=True)
         self.active=[]
 
     def detach_detail(self,restore=True):
         self.detail=None;self.detail_box=None;self.size_motion.response=.18
-        if restore and not self.stopped:self.refresh(self.owner.data,resize=True)
+        if restore:
+            if self.compact_geometry is not None:
+                compact=self.compact_geometry;self.compact_geometry=None
+                compact.moveTopLeft(self.owner.pos());compact.setHeight(self.owner.height())
+                self.owner.setGeometry(compact);self.owner.position=compact.getRect();self.owner.update()
+            if not self.stopped:self.refresh(self.owner.data,resize=True)
+
+    def footer_geometry(self,compact,width=None):
+        """Keep content measurements separate from the attached surface width."""
+        if self.compact_geometry is None:return compact
+        self.compact_geometry=QRectF(compact).toRect()
+        if width is None:width=self.detail.requested_size[0] if self.detail and hasattr(self.detail,'requested_size') else compact.width()
+        result=QRectF(compact).toRect();result.setWidth(self.detail_width_for(width,compact))
+        return result
+
+    def detail_width_for(self,width,compact=None):
+        current=compact is None
+        compact=compact if compact is not None else self.compact_geometry
+        compact=QRectF(compact if compact is not None else self.owner.geometry()).toRect()
+        if current:compact.moveTopLeft(self.owner.pos())
+        screen=self.owner.screen();bounds=screen.availableGeometry() if self.owner.floating else screen.geometry()
+        room=max(1,bounds.right()-compact.x()+1)
+        if not self.owner.floating and self.owner.content_limit is not None:room=min(room,self.owner.content_limit)
+        return max(1,min(room,max(width,compact.width())))
 
     def place_detail(self,width,height):
         if not self.detail:return
         screen=self.owner.screen();bounds=screen.availableGeometry() if self.owner.floating else screen.geometry()
-        box=panel_rect(self.owner.geometry(),bounds,max(width,self.owner.width()),height,-1)
+        compact=QRectF(self.compact_geometry).toRect();compact.moveTopLeft(self.owner.pos());compact.setHeight(self.owner.height())
+        footer=self.footer_geometry(compact,width)
+        if footer!=self.owner.geometry():
+            self.owner.setGeometry(footer);self.owner.position=footer.getRect();self.owner.update()
+        box=panel_rect(footer,bounds,footer.width(),height,-1)
         self.detail_box=box;self.detail.resize(box.size())
         self.reveal_detail(self.detail.reveal_target!=0.)
 
@@ -256,7 +285,7 @@ class PinnedPanel(QWidget):
         height=self.detail_box.height() if target else len(summaries)*30+1 if summaries else 0
         if self.owner.motion_enabled:
             if height!=self.size_motion.target or not self.size_motion.timer.isActive() and abs(self.size_motion.value-height)>=.001:self.size_motion.retarget(height)
-            else:self.layout_rows(self.size_motion.value)
+            self.layout_rows(self.size_motion.value)
         else:self.size_motion.snap(height);self.finish_detail()
 
     def finish_detail(self):
@@ -304,7 +333,7 @@ class PinnedPanel(QWidget):
             self.size_motion.snap(0);return
         target=len(active)*30+1 if active else 0
         if target!=self.size_motion.target:
-            if self.owner.motion_enabled:self.size_motion.retarget(target)
+            if self.owner.motion_enabled:self.size_motion.retarget(target);self.layout_rows(self.size_motion.value)
             else:self.size_motion.snap(target)
         else:self.layout_rows(self.size_motion.value)
         self.setAccessibleName(self.owner.label('Pinned tasks'))

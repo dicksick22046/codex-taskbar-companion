@@ -11,6 +11,8 @@ class Owner(QWidget):
     floating=False
     language='en'
     @property
+    def navigation_width(self):return self.width()
+    @property
     def selected_chart_unit(self):return self.chart_unit
     def __init__(self):
         super().__init__();self.forecast=Mock();self.forecast.get.return_value=None
