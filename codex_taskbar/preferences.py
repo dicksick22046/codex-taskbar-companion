@@ -63,6 +63,7 @@ def read_settings(path):
     result.pop('show_task_strip',None);result.pop('task_strip_position',None)
     result['show_task_statistics']=data.get('show_task_statistics') is True
     result['chart_unit'] = data.get('chart_unit') if data.get('chart_unit') in ('M', '100M') else 'M'
+    result['chart_metric'] = 'usd' if data.get('chart_metric') == 'usd' else 'tokens'
     result['hover_panels'] = data.get('hover_panels') is True
     result['rotate_quotas'] = data.get('rotate_quotas') is True
     result['show_metric_labels'] = data.get('show_metric_labels') is not False

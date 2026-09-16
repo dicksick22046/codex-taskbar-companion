@@ -181,10 +181,11 @@ class AttachedPanelTests(unittest.TestCase):
         self.data['usage_at']=self.data['quota_updated_at']=datetime.now().astimezone().isoformat()
         for mode in ('daily','session'):
             panel=self.open(mode)
-            self.assertEqual(self.host.width(),334)
+            width=self.host.width()
+            self.assertGreaterEqual(width,334);self.assertLess(width,360)
             self.data['tasks'][0]['title']='Long task title '*40
             panel.refresh(self.data)
-            self.assertEqual(self.host.width(),334)
+            self.assertEqual(self.host.width(),width)
 
     def test_narrow_weekly_chart_reserves_measured_date_and_amount_slots(self):
         from datetime import datetime

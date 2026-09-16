@@ -358,7 +358,7 @@ class InteractionTests(unittest.TestCase):
             with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
             labels=[call.args[3] for call in draw.call_args_list]
             self.assertEqual(panel.history_usage(self.data['reset_events'][0]),expected)
-            self.assertNotIn(self.bar.label('Tokens'),labels);self.assertIn(panel.history_heading(),labels)
+            self.assertNotIn(self.bar.label('Tokens'),labels);self.assertEqual(panel.history_choice.currentText(),panel.history_heading())
             self.assertNotIn('History · 100M',labels)
             category=next(call for call in draw.call_args_list if call.args[3]==panel.history_label(self.data['reset_events'][0]))
             self.assertEqual(panel.history_color('scheduled'),app.BLUE)
@@ -381,9 +381,8 @@ class InteractionTests(unittest.TestCase):
             panel=app.ResetPopup(self.bar);panel.refresh(self.data)
             with patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
             calls=draw.call_args_list
-            labels=[c for c in calls if c.args[3]==panel.history_heading()]
-            self.assertEqual(len(labels),1)
-            self.assertEqual(len({c.args[1] for c in labels}),1)
+            self.assertEqual(panel.history_choice.currentText(),panel.history_heading())
+            self.assertFalse(panel.history_choice.isHidden())
             for index,row in enumerate(panel.rows):
                 panel.history_scroll.setValue(round(panel.history_padding[0]+(index+.5)*panel.column_width-(panel.width()-36)/2))
                 with patch('codex_taskbar.app.text',wraps=app.text) as amount_draw:panel.grab()
@@ -504,7 +503,8 @@ class InteractionTests(unittest.TestCase):
                 if kind is app.SessionPopup:
                     reset=datetime.fromtimestamp(self.data['quota'][1]['resets_at']).strftime('%H:%M')
                     self.assertIn(self.bar.label(key,time=reset),labels)
-                else:self.assertIn(panel.history_heading() if kind is app.ResetPopup else self.bar.label(key),labels)
+                elif kind is app.ResetPopup:self.assertEqual(panel.history_choice.currentText(),panel.history_heading())
+                else:self.assertIn(self.bar.label(key),labels)
                 if kind is app.ResetPopup:
                     self.assertEqual(panel.button.text(),self.bar.label('Reset quota'))
                     self.assertGreaterEqual(panel.column_width,64)

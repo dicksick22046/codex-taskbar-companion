@@ -255,8 +255,9 @@ class ResetChartTests(unittest.TestCase):
             header=[call.args for call in draw.call_args_list if call.args[2]==64]
             expected={'en':'Period usage (100M)','zh-CN':'周期用量（亿）','ja':'期間別使用量（億）','es':'Uso por período (100M)'}
             self.assertEqual(panel.history_heading(),expected[language])
-            self.assertEqual([args[3] for args in header],[expected[language],*[label for _,label in panel.history_legend()]])
-            right=18
+            self.assertEqual(panel.history_choice.currentText(),expected[language])
+            self.assertEqual([args[3] for args in header],[label for _,label in panel.history_legend()])
+            right=panel.history_choice.geometry().right()
             for _,x,y,value,font,*_ in header:
                 self.assertGreaterEqual(x,right);right=x+app.QFontMetricsF(font).horizontalAdvance(value)
             self.assertLessEqual(right,panel.width()-18)

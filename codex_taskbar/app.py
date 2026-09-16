@@ -354,7 +354,7 @@ def chart_values(days, history, today):
 
 def chart_number(value,unit):
     if value is None:return "—"
-    factor,decimals={"M":(1_000_000,1),"100M":(100_000_000,2)}[unit]
+    factor,decimals={"M":(1_000_000,1),"100M":(100_000_000,2),"USD":(1,2)}[unit]
     scaled=value/factor
     if value>0 and round(scaled,decimals)==0:
         return f"<{10**-decimals:.{decimals}f}"
@@ -512,7 +512,7 @@ class StatusBar(QWidget):
         self.task_strip.sync_motion();self.update()
 
     def desktop_click(self,x,y,button="left"):
-        if self.confirming_reset:return False
+        if self.confirming_reset or QApplication.activePopupWidget():return False
         if not self.floating and button in ('left_up','right_up') and windows.taskbar_at_point(x,y):self.schedule_stack_repair()
         if self.floating:
             # Qt supplies normal press/move/release capture. Global interception
@@ -579,7 +579,7 @@ class StatusBar(QWidget):
 
     def update_hover_popup(self,point,now=None):
         if (not self.settings.get('hover_panels') or not self.isVisible() or self.pressed or self.drag_origin or self.confirming_reset
-                or self.menu.isVisible() or self.settings_dialog and self.settings_dialog.isVisible()):
+                or QApplication.activePopupWidget() or self.menu.isVisible() or self.settings_dialog and self.settings_dialog.isVisible()):
             self.hover_target=None;self.hover_leave_since=None;return
         now=time.monotonic() if now is None else now
         local=self.mapFromGlobal(point)
@@ -833,11 +833,16 @@ class StatusBar(QWidget):
         return bool(self.isVisible() and self.motion_enabled and self.settings['show_tasks'] and category_counts(self.data)['running'])
 
     def set_chart_unit(self,unit):
-        if unit not in ('M','100M') or unit==self.chart_unit:return
-        self.chart_unit=unit
+        if unit not in ('M','100M','USD') or unit==self.selected_chart_unit:return
+        self.settings['chart_metric']='usd' if unit=='USD' else 'tokens'
+        if unit!='USD':self.chart_unit=unit
         self.save_settings()
         if self.popup:self.popup.refresh(self.data)
         if self.task_finder:self.task_finder.refresh(self.data)
+
+    @property
+    def selected_chart_unit(self):
+        return 'USD' if self.settings.get('chart_metric')=='usd' else self.chart_unit
 
     def save_settings(self):
         self.settings['chart_unit']=self.chart_unit
@@ -1272,7 +1277,7 @@ class TaskPopup(QWidget):
     mode='usage'
     GAP=8
     TITLE_HEIGHT=26
-    UNIT_RECTS={'M':QRectF(277,9,28,24),'100M':QRectF(309,9,40,24)}
+    UNIT_RECTS={'M':QRectF(233,9,28,24),'100M':QRectF(265,9,40,24),'USD':QRectF(309,9,40,24)}
     def __init__(self,owner,parent=None):
         super().__init__(parent,Qt.WindowType.Widget if parent else FLAGS & ~Qt.WindowType.WindowDoesNotAcceptFocus)
         self.host=parent
@@ -1291,9 +1296,9 @@ class TaskPopup(QWidget):
             self.content_opacity.setOpacity(0.);self.setGraphicsEffect(self.content_opacity)
         self.unit_buttons={};self.unit_group=QButtonGroup(self);self.unit_group.setExclusive(True)
         if self.mode in ('usage','daily'):
-            for unit in ('M','100M'):
+            for unit in ('M','100M','USD'):
                 button=QPushButton(unit,self);button.setFont(face(8));button.setCheckable(True);button.setAutoDefault(False);button.setCursor(Qt.CursorShape.PointingHandCursor)
-                button.setAccessibleName(unit+' Tokens')
+                button.setAccessibleName(owner.label('Estimated cost (USD)') if unit=='USD' else unit+' Tokens')
                 button.clicked.connect(lambda checked=False,u=unit:self.owner.set_chart_unit(u));self.unit_group.addButton(button);self.unit_buttons[unit]=button
 
         self.sync_theme()
@@ -1325,7 +1330,22 @@ class TaskPopup(QWidget):
     def sync_units(self):
         for unit,button in self.unit_buttons.items():
             button.setVisible(self.mode in ('usage','daily'));button.setGeometry(self.unit_rects()[unit].toAlignedRect())
-            button.blockSignals(True);button.setChecked(unit==self.owner.chart_unit);button.blockSignals(False)
+            button.blockSignals(True);button.setChecked(unit==self.owner.selected_chart_unit);button.blockSignals(False)
+
+    @property
+    def usd(self):return self.owner.selected_chart_unit=='USD'
+
+    def usage_title(self):
+        return self.owner.label('Estimated cost (USD)' if self.usd else 'Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens')
+
+    def usage_values(self):
+        history=self.data.get('history_usd' if self.usd else 'history',{})
+        return chart_values(self.days,history,datetime.now().astimezone().date())
+
+    def usage_total(self,values):
+        if self.usd and any(value is None for day,value in zip(self.days,values) if day.isoformat() in self.data.get('history',{})):
+            return None
+        return chart_total(values)
 
     def keyPressEvent(self,event):
         if event.key()==Qt.Key.Key_Escape:self.owner.hide_popup();event.accept();return
@@ -1426,16 +1446,16 @@ class TaskPopup(QWidget):
         if not self.window_known:
             self.usage_header(p,'—',None);p.setFont(face(8));p.setPen(QColor(colors['muted']))
             p.drawText(QRectF(18,72,self.width()-36,max(20,self.height()-90)),Qt.AlignmentFlag.AlignCenter,self.owner.label('Connecting to Codex…' if self.data.get('loading') else 'No records yet'));p.end();return
-        history=self.data.get("history",{});today=datetime.now().astimezone().date()
-        values,extremes=chart_values(self.days,history,today)
-        self.usage_header(p,f"{self.start:%m.%d} — {self.end:%m.%d %H:%M}",chart_total(values))
+        today=datetime.now().astimezone().date()
+        values,extremes=self.usage_values()
+        self.usage_header(p,f"{self.start:%m.%d} — {self.end:%m.%d %H:%M}",self.usage_total(values))
         p.setClipRect(QRectF(0,32+self.TITLE_HEIGHT,self.width(),max(0,self.height()-32-self.TITLE_HEIGHT)))
         p.translate(0,-self.scroll)
-        maximum=max([v for v in values if v is not None]+[1]);step=(self.width()-36)/len(self.days)
+        maximum=max([v for v in values if v is not None]+[.01 if self.usd else 1]);step=(self.width()-36)/len(self.days)
         for i,(day,value) in enumerate(zip(self.days,values)):
             x=18+(i+.5)*step;bottom=usage_chart_baseline(32+self.TITLE_HEIGHT)
             color=colors['green'] if day==today else (colors['muted'] if value is None else (colors['lilac'] if day in extremes else colors['link']))
-            paint_usage_column(p,x,bottom,step,value,maximum,chart_number(value,self.owner.chart_unit),f'{day.month}/{day.day}',color,day>today)
+            paint_usage_column(p,x,bottom,step,value,maximum,chart_number(value,self.owner.selected_chart_unit),f'{day.month}/{day.day}',color,day>today)
         p.end()
 
     def unit_rects(self):
@@ -1452,24 +1472,24 @@ class TaskPopup(QWidget):
             reset=datetime.fromtimestamp(window['resets_at']).strftime('%H:%M') if window and window.get('resets_at') else '—'
             metadata=48+small.horizontalAdvance(quota_update_label(self.owner,self.data))+small.horizontalAdvance(self.owner.label('Reset {time}',time=reset))
             return math.ceil(max(self.owner.width(),first,metadata,66+2*small.horizontalAdvance('00:00')))
-        title=self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens')
-        width=max(self.owner.width() if self.host else 360,QFontMetricsF(face(9)).horizontalAdvance(title)+
-                  small.horizontalAdvance(usage_update_label(self.owner,self.data))+134)
+        titles=[self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens'),self.owner.label('Estimated cost (USD)')]
+        width=max(self.owner.width() if self.host else 360,max(QFontMetricsF(face(9)).horizontalAdvance(title) for title in titles)+
+                  small.horizontalAdvance(usage_update_label(self.owner,self.data))+178)
         if self.host and self.mode=='usage' and self.days:
-            values,_=chart_values(self.days,self.data.get('history',{}),datetime.now().astimezone().date())
-            labels=[f'{day.month}/{day.day}' for day in self.days]+[chart_number(value,self.owner.chart_unit) for value in values]
+            values,_=self.usage_values()
+            labels=[f'{day.month}/{day.day}' for day in self.days]+[chart_number(value,self.owner.selected_chart_unit) for value in values]
             width=max(width,36+len(self.days)*(max(small.horizontalAdvance(label) for label in labels)+8))
         return math.ceil(width)
 
     def usage_header(self,p,period,total):
         colors=popup_palette(self.owner)
-        width=text(p,18,21,self.owner.label('Today · Tokens' if self.mode=='daily' else 'Cycle · Tokens'),face(9),colors['title'])
+        width=text(p,18,21,self.usage_title(),face(9),colors['title'])
         text(p,18+width+12,21,usage_update_label(self.owner,self.data),face(7),colors['muted'])
-        boxes=list(self.unit_rects().values());unit_box=boxes[0].united(boxes[1]).adjusted(-2,-2,2,2)
+        boxes=list(self.unit_rects().values());unit_box=boxes[0].united(boxes[-1]).adjusted(-2,-2,2,2)
         p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(colors['well']));p.drawRoundedRect(unit_box,7,7)
         y=21+self.TITLE_HEIGHT
         icon(p,'chart',23,y,colors['lilac'])
-        total_label='Σ '+chart_number(total,self.owner.chart_unit);metrics=QFontMetricsF(face(8))
+        total_label='Σ '+chart_number(total,self.owner.selected_chart_unit);metrics=QFontMetricsF(face(8))
         shown=metrics.elidedText(period,Qt.TextElideMode.ElideRight,max(0,self.width()-39-18-14-metrics.horizontalAdvance(total_label)))
         total_x=39+metrics.horizontalAdvance(shown)+14
         text(p,39,y,shown,face(8),colors['link'])
@@ -1535,6 +1555,11 @@ class ResetPopup(TaskPopup):
 
     def __init__(self,owner,parent=None):
         super().__init__(owner,parent)
+        from .settings_ui import Choice
+        self.history_choice=Choice(self);self.history_choice.setFont(face(8))
+        self.history_choice.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.history_choice.addItem('', 'tokens');self.history_choice.addItem('', 'usd')
+        self.history_choice.activated.connect(self.choose_history_metric)
         self.button=QPushButton(owner.label('Reset quota'),self);self.button.setFont(face(8))
         self.button.clicked.connect(owner.confirm_reset)
         self.history_scroll=QScrollBar(Qt.Orientation.Horizontal,self)
@@ -1542,6 +1567,24 @@ class ResetPopup(TaskPopup):
         self.history_press=None;self.history_initialized=False
         self.history_scroll.valueChanged.connect(self.history_scrolled)
         self.sync_theme()
+
+    def choose_history_metric(self,index):
+        self.owner.set_chart_unit('USD' if self.history_choice.itemData(index)=='usd' else '100M')
+
+    def sync_theme(self):
+        super().sync_theme()
+        if not hasattr(self,'history_choice'):return
+        colors=popup_palette(self.owner)
+        arrow=(BASE/'assets/icons/chevron-down.svg').as_posix()
+        self.history_choice.setStyleSheet((
+            'QComboBox{color:%(muted)s;background:transparent;border:1px solid transparent;border-radius:5px;padding:0 0 0 5px;}'
+            'QComboBox:hover{background:%(hover)s;color:%(title)s;}'
+            'QComboBox:focus{border-color:%(link)s;}'
+            'QComboBox::drop-down{border:0;width:18px;}'
+            'QComboBox::down-arrow{image:url("'+arrow+'");width:10px;height:10px;}'
+            'QComboBox QAbstractItemView{background:%(surface)s;color:%(text)s;border:1px solid %(divider)s;'
+            'selection-background-color:%(selected)s;selection-color:%(title)s;padding:4px;outline:0;}'
+        )%dict(colors,surface=colors['well']))
 
     def refresh(self,data):
         self.data=data;self.rows=data.get('reset_events',[])
@@ -1567,7 +1610,7 @@ class ResetPopup(TaskPopup):
         self.place_panel(width,math.ceil(height))
         self.scroll_body=self.height()<height
         self.button.setGeometry(18,self.height()-48,self.width()-36,32)
-        self.history_max=max([self.history_tokens(row) or 0 for row in self.rows]+[0])
+        self.history_max=max([self.history_value(row) or 0 for row in self.rows]+[0])
         self.history_scroll.blockSignals(True)
         self.history_scroll.setRange(0,max(0,self.history_width-(self.width()-36)))
         self.history_scroll.blockSignals(False)
@@ -1582,6 +1625,10 @@ class ResetPopup(TaskPopup):
         label='Resetting…' if data.get('reset_busy') else 'Retry reset' if data.get('reset_retry') or data.get('reset_state')=='unavailable' else 'Nothing to reset' if data.get('reset_state')=='nothingToReset' else 'Reset quota'
         self.button.setText(self.owner.label(label))
         self.scroll=min(self.scroll,self.scroll_limit())
+        self.history_choice.setItemText(0,self.owner.label('Period usage ({unit})',unit={'zh-CN':'亿','ja':'億'}.get(self.owner.language,'100M')))
+        self.history_choice.setItemText(1,self.owner.label('Estimated cost (USD)'))
+        self.history_choice.setCurrentIndex(1 if self.usd else 0)
+        self.history_choice.setAccessibleName(self.history_heading())
         self.layout_history_scroll()
         self.setAccessibleDescription(self.history_heading()+'\n'+'\n'.join(
             self.history_interval(row)+' · '+self.history_usage(row)+' · '+self.history_label(row) for row in self.rows))
@@ -1620,16 +1667,21 @@ class ResetPopup(TaskPopup):
         tokens=row.get('tokens')
         return tokens if type(tokens) in (int,float) and math.isfinite(tokens) and tokens>=0 else None
 
+    def history_value(self,row):
+        if not self.usd:return self.history_tokens(row)
+        value=row.get('usd')
+        return value if type(value) in (int,float) and math.isfinite(value) and value>=0 else None
+
     def history_key(self,row):return row.get('id') or (row['at'],row['kind'])
 
-    def history_unit(self):return {'zh-CN':'亿','ja':'億'}.get(self.owner.language,'100M')
+    def history_unit(self):return 'USD' if self.usd else {'zh-CN':'亿','ja':'億'}.get(self.owner.language,'100M')
 
-    def history_heading(self):return self.owner.label('Period usage ({unit})',unit=self.history_unit())
+    def history_heading(self):return self.owner.label('Estimated cost (USD)') if self.usd else self.owner.label('Period usage ({unit})',unit=self.history_unit())
 
-    def history_amount(self,row):return chart_number(self.history_tokens(row),'100M')
+    def history_amount(self,row):return chart_number(self.history_value(row),'USD' if self.usd else '100M')
 
     def history_usage(self,row):
-        return self.history_amount(row)+(' '+self.history_unit() if self.history_tokens(row) is not None else '')
+        return self.history_amount(row)+(' '+self.history_unit() if self.history_value(row) is not None else '')
 
     def history_color(self,kind):
         colors=popup_palette(self.owner)
@@ -1640,13 +1692,17 @@ class ResetPopup(TaskPopup):
 
     def history_header_width(self):
         metrics=QFontMetricsF(face(7))
-        title=QFontMetricsF(face(8)).horizontalAdvance(self.history_heading())
+        title=self.history_choice_width()
         return math.ceil(36+title+18+sum(10+metrics.horizontalAdvance(label) for _,label in self.history_legend())+24)
+
+    def history_choice_width(self):
+        titles=(self.owner.label('Period usage ({unit})',unit={'zh-CN':'亿','ja':'億'}.get(self.owner.language,'100M')),
+                self.owner.label('Estimated cost (USD)'))
+        return math.ceil(max(QFontMetricsF(face(8)).horizontalAdvance(title) for title in titles)+26)
 
     def draw_history_heading(self,p):
         colors=popup_palette(self.owner);font=face(7);metrics=QFontMetricsF(font)
-        width=text(p,18,64,self.history_heading(),face(8),colors['muted'])
-        left=18+width+18
+        left=18+self.history_choice_width()+18
         legend=self.history_legend();widths=[metrics.horizontalAdvance(label) for _,label in legend]
         available=max(0,self.width()-18-left-54);scale=min(1,available/max(1,sum(widths)))
         x=self.width()-18-(sum(widths)*scale+54)
@@ -1660,12 +1716,15 @@ class ResetPopup(TaskPopup):
         return self.owner.label(label) if label else ''
 
     def history_bar_rect(self,row,index):
-        value=self.history_tokens(row)
+        value=self.history_value(row)
         center=18+self.history_padding[0]+(index+.5)*self.column_width-self.history_scroll.value()
-        height=USAGE_COLUMN_HEIGHT*max(0,value)/max(self.history_max,1) if value is not None else 0
+        height=USAGE_COLUMN_HEIGHT*max(0,value)/max(self.history_max,.01 if self.usd else 1) if value is not None else 0
         return QRectF(center-12,self.BASELINE-height,24,height)
 
     def layout_history_scroll(self):
+        heading_y=64+self.forecast_height-self.scroll
+        self.history_choice.setGeometry(12,round(heading_y-13),self.history_choice_width(),26)
+        self.history_choice.setVisible(heading_y-13>=48+self.forecast_height and heading_y+13<=self.height()-56)
         y=usage_date_rect(0,self.BASELINE,self.column_width).bottom()+4+self.forecast_height-self.scroll
         self.history_scroll.setGeometry(18,round(y),self.width()-36,12)
         self.history_scroll.setVisible(bool(self.history_scroll.maximum() and y>=48+self.forecast_height and y+12<=self.height()-56))
@@ -1675,7 +1734,7 @@ class ResetPopup(TaskPopup):
         for index,row in enumerate(self.rows):
             box=self.history_bar_rect(row,index);center=box.center().x()
             if box.right()<18 or box.left()>self.width()-18:continue
-            value=self.history_tokens(row)
+            value=self.history_value(row)
             color=QColor(self.history_color(row['kind']))
             if value:
                 p.setPen(Qt.PenStyle.NoPen);p.setBrush(color);p.drawRoundedRect(box,2,2)
@@ -1829,7 +1888,7 @@ class TaskListPopup(TaskPopup):
         self.TITLE_X=33+self.project_width+10
         title_metrics=QFontMetricsF(face())
         longest=max([title_metrics.horizontalAdvance(task_title(task,self.owner.language))+(side_tag_width(self.owner.language,task_role_label(task))+7 if task_role_label(task) else 0) for task in self.rows]+[0])
-        self.values={t['id']:chart_number(t.get('tokens'),self.owner.chart_unit) if self.mode=='daily' else duration_text(t.get('round_seconds')) for t in self.rows}
+        self.values={t['id']:chart_number(t.get('usd' if self.usd else 'tokens'),self.owner.selected_chart_unit) if self.mode=='daily' else duration_text(t.get('round_seconds')) for t in self.rows}
         info_width=max([metrics.horizontalAdvance(value) for value in self.values.values()]+[24])
         width_limit=getattr(self.owner,'content_limit',None) or self.owner.width()
         if self.host:width_limit=max(260,width_limit)
@@ -1922,7 +1981,7 @@ class TaskListPopup(TaskPopup):
             right_label(self.values[task['id']],self.value_right,y,face(8),colors['link'] if self.mode=='daily' else colors['lilac'])
         p.restore()
         if self.mode=='daily':
-            total=(self.data.get('totals') or {}).get('total_tokens')
+            total=self.data.get('daily_usd') if self.usd else (self.data.get('totals') or {}).get('total_tokens')
             self.usage_header(p,f'{datetime.now():%m.%d} 00:00–24:00',total)
         p.end()
 
