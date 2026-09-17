@@ -8,6 +8,29 @@ from tests import test_interactions as fixtures
 
 
 class QuotaPresentationTests(unittest.TestCase):
+    def test_weekly_legend_matches_colors_and_stays_clear_of_chart_in_all_languages(self):
+        self.bar.setGeometry(20,700,300,30);self.bar.settings['placement']='taskbar';self.bar.motion_enabled=False
+        with patch.object(self.bar,'isVisible',return_value=True):
+            for language in app.LANGUAGES:
+                self.bar.settings['language']=language
+                for theme in ('dark','light'):
+                    self.bar.settings['capsule_theme']=theme
+                    for width in (220,360):
+                        self.bar.content_limit=width;self.bar.toggle_popup('usage',activate=False);panel=self.bar.popup
+                        try:
+                            panel.refresh(self.data);panel.grab();legend=panel.usage_legend_layout(panel.width())
+                            colors=app.popup_palette(self.bar)
+                            self.assertEqual([entry[3] for entry in legend],[colors['green'],colors['lilac'],colors['link'],colors['muted']])
+                            self.assertEqual([entry[2] for entry in legend],[self.bar.label(key) for key in ('Today','High / low','Other days','No data')])
+                            previous={}
+                            for x,y,label,_ in legend:
+                                self.assertGreaterEqual(x,previous.get(y,18))
+                                right=x+10+app.QFontMetricsF(app.face(7)).horizontalAdvance(label)
+                                self.assertLessEqual(right,panel.width()-18);previous[y]=right+14
+                            labels_top=app.usage_chart_baseline(32+panel.TITLE_HEIGHT+panel.legend_height)-app.USAGE_COLUMN_HEIGHT-20
+                            self.assertLess(legend[-1][1]+8,labels_top)
+                        finally:self.bar.hide_popup(immediate=True)
+
     @classmethod
     def setUpClass(cls):cls.application=app.QApplication.instance() or app.QApplication([])
     def setUp(self):fixtures.InteractionTests.setUp(self)

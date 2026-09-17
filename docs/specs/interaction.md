@@ -12,6 +12,8 @@ Verify all five panel kinds stay on the same left baseline through button change
 
 ## Calendar-day coverage and reset-history spacing
 
+The weekly plot includes a compact dot legend using the existing reset-history visual style: green Today, purple High / low among completed recorded dates, blue Other days, and gray No data (including future dates). Keep the existing color-selection rules and localized labels; wrap the legend only when the actual bounded viewport cannot hold one line, preserving the chart's plotting height and avoiding label overlap.
+
 The weekly usage plot covers the exact half-open quota interval `[starts_at, resets_at)`. Calendar-day slots occupy horizontal space proportional to their actual intersection with that interval, so partial first/last dates do not occupy full-day slots. Exclude a reset date with zero coverage at midnight. Preserve each day's recorded total and the total period length; do not redistribute values into invented 24-hour buckets. Show the start and end times together in the existing period row. Keep thin columns, draw subtle calendar-boundary ticks, and fit labels without overlap; edge labels may align inward without shifting their columns.
 
 Reset history remains an equal-slot comparison of period totals, with a shared vertical maximum for the full history. Reduce the slot minimum from 64 to 40 DIP, measured upward when boundary dates or numeric values need more room. Preserve 24-DIP columns, the three reset colors, actual interval boundaries and existing horizontal browsing. Do not stretch sparse slots to fill the panel or rescale column heights while scrolling.

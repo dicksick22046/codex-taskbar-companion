@@ -1491,9 +1491,13 @@ class TaskPopup(QWidget):
         self.end=datetime.fromtimestamp(week["resets_at"]).astimezone() if week and week.get("resets_at") else self.start+timedelta(days=7)
         self.day_spans=calendar_day_spans(self.start,self.end)
         self.days=[day for day,_,_ in self.day_spans]
-        self.full_height=158+self.TITLE_HEIGHT
+        width=self.usage_width()
+        viewport=self.host.detail_width_for(width) if self.host else min(width,self.owner.screen().availableGeometry().width())
+        legend=self.usage_legend_layout(viewport)
+        self.legend_height=legend[-1][1]-(32+self.TITLE_HEIGHT)+11
+        self.full_height=158+self.TITLE_HEIGHT+self.legend_height
         shown=round(self.full_height) if self.owner.floating else min(round(self.full_height),max(180,self.owner.y()-16))
-        self.place_panel(self.usage_width(),shown)
+        self.place_panel(width,shown)
         self.scroll=min(self.scroll,max(0,self.full_height-self.height()));self.sync_units();self.update()
 
     def paintEvent(self,event):
@@ -1507,8 +1511,12 @@ class TaskPopup(QWidget):
         self.usage_header(p,f"{self.start:%m.%d %H:%M} — {self.end:%m.%d %H:%M}",self.usage_total(values))
         p.setClipRect(QRectF(0,32+self.TITLE_HEIGHT,self.width(),max(0,self.height()-32-self.TITLE_HEIGHT)))
         p.translate(0,-self.scroll)
+        for x,y,label,color in self.usage_legend_layout(self.width()):
+            p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor(color));p.drawEllipse(QPointF(x+2,y),2,2)
+            shown=QFontMetricsF(face(7)).elidedText(label,Qt.TextElideMode.ElideRight,max(0,self.width()-18-x-10))
+            text(p,x+10,y,shown,face(7),colors['muted'])
         maximum=max([v for v in values if v is not None]+[.01 if self.usd else 1])
-        slots=self.usage_slots(values);bottom=usage_chart_baseline(32+self.TITLE_HEIGHT)
+        slots=self.usage_slots(values);bottom=usage_chart_baseline(32+self.TITLE_HEIGHT+self.legend_height)
         pen(p,colors['divider'],.6)
         for boundary in [slots[0][0]]+[right for _,right in slots]:
             p.drawLine(QPointF(boundary,bottom+2),QPointF(boundary,bottom+6))
@@ -1525,6 +1533,14 @@ class TaskPopup(QWidget):
             paint_usage_column(p,x,bottom,max(step,amount_widths[i]+2,date_widths[i]+2),value,maximum,amount,date,color,day>today,
                                amount_x=amount_centers[i],date_x=date_centers[i])
         p.end()
+
+    def usage_legend_layout(self,width):
+        colors=popup_palette(self.owner);metrics=QFontMetricsF(face(7));x=18;y=43+self.TITLE_HEIGHT;result=[]
+        for key,color in (('Today',colors['green']),('High / low',colors['lilac']),('Other days',colors['link']),('No data',colors['muted'])):
+            label=self.owner.label(key);size=10+metrics.horizontalAdvance(label)
+            if x>18 and x+size>width-18:x=18;y+=18
+            result.append((x,y,label,color));x+=size+14
+        return result
 
     def usage_slots(self,values):
         metrics=QFontMetricsF(face(7))
