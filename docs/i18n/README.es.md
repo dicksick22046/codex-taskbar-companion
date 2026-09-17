@@ -39,7 +39,7 @@ La ubicación de la barra de estado controla la cuota y los recuentos. Las filas
 | Punto de estado y cantidad | Abre directamente la tarea si solo hay una; en caso contrario, abre la lista |
 | Nombre de una tarea | Esa tarea en Codex |
 
-Abre una lista de estado y pulsa su chincheta para fijar una fila encima de la barra. Varios estados forman un solo panel: cada fila contiene un punto de color, el proyecto, el título y un botón para desfijar. La rotación es independiente; al pasar el cursor, la fila se resalta, se detiene el cambio de tarea y se puede leer el título largo. Las filas vacías se ocultan sin perder su preferencia. Las antiguas barras activas migran a una fila fijada. Los detalles Main/Side permanecen en la lista completa y las ayudas.
+Los resúmenes de tareas en curso, pendientes de respuesta, no leídas y fallidas aparecen automáticamente encima de la barra. Cada estado ocupa una fila que alterna sus tareas. Al pasar el cursor o enfocar con el teclado aparece el botón de cierre: oculta el grupo actual hasta que entre una tarea, ejecución o estado nuevo. Las actualizaciones normales y los reinicios no lo vuelven a abrir. El resto de la fila abre la tarea; al cerrar los detalles se restauran los resúmenes.
 
 Los paneles de detalles se abren en esa misma zona conectada y sustituyen temporalmente las filas fijadas. Al cerrarlos, las filas vuelven sin cambiar la configuración de fijación.
 

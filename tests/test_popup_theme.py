@@ -54,7 +54,6 @@ class PopupThemeTests(unittest.TestCase):
                     self.assertEqual(panel.rows[0]['id'],'one');self.assertEqual(panel.rows[0]['before']['10080']['remaining'],9)
                     self.assertIn(app.popup_palette(self.bar)['button'],panel.button.styleSheet())
                     self.assertIn(app.popup_palette(self.bar)['link'],panel.history_scroll.styleSheet())
-                if getattr(panel,'pin_button',None):self.assertTrue(panel.pin_button.light_surface)
                 self.bar.settings['capsule_theme']='dark';panel.sync_theme()
         self.provider.request_reset.assert_not_called()
 

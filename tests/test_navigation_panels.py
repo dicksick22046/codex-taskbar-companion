@@ -13,7 +13,7 @@ class NavigationPanelTests(unittest.TestCase):
     def tearDown(self):fixtures.InteractionTests.tearDown(self)
 
     def test_every_panel_keeps_left_anchor_and_pinned_rows_during_switch_and_refresh(self):
-        group=self.bar.task_strip;pins=list(self.bar.settings['pinned_statuses'])
+        group=self.bar.task_strip;closed=dict(self.bar.summaries.dismissed)
         with patch.object(self.bar,'isVisible',return_value=True),patch.object(group,'isVisible',return_value=True):
             group.refresh(self.data);active=list(group.active)
             for mode,kind in [('usage',app.TaskPopup),('daily',app.TaskListPopup),('session',app.SessionPopup),('resets',app.ResetPopup),('running',app.TaskListPopup)]:
@@ -24,7 +24,7 @@ class NavigationPanelTests(unittest.TestCase):
                     self.assertEqual(panel.x(),self.bar.x())
                     self.assertLessEqual(panel.geometry().bottom()+panel.GAP,group.geometry().top())
                     group.refresh(self.data);panel.refresh(self.data)
-                    self.assertEqual(group.active,active);self.assertEqual(self.bar.settings['pinned_statuses'],pins)
+                    self.assertEqual(group.active,active);self.assertEqual(self.bar.summaries.dismissed,closed)
                     self.assertEqual(panel.geometry(),before)
                     for progress in (0.,.5,1.):panel.set_reveal(progress);self.assertEqual(panel.geometry(),before)
                 finally:self.bar.popup=None;panel.close();panel.deleteLater()

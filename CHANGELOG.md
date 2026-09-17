@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Replace persistent status pins with automatic running, input-needed, unread and failed summaries. A small close control appears on row hover or keyboard focus; dismissals persist for the current executions and reopen on new tasks, turns or state entries.
+
 - Explain weekly chart colors with a compact localized legend for today, completed-day highs/lows, other days and unavailable data.
 
 - Plot calendar days proportionally to the quota interval, including partial first/last days and no empty midnight-end day. Show both endpoint times and compact reset-history spacing so ordinary five-period histories fit without scrolling.

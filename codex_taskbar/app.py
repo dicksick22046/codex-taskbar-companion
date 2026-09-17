@@ -292,10 +292,10 @@ def expanded_surface(p,widget,host,transparency=0):
     return path
 
 
-class PinButton(QPushButton):
+class SummaryCloseButton(QPushButton):
     ICON_SIZE=12
-    def __init__(self,owner,parent,dark_panel=True):
-        super().__init__(parent);self.owner=owner;self.dark_panel=dark_panel;self.setCheckable(True);self.setAutoDefault(False)
+    def __init__(self,owner,parent):
+        super().__init__(parent);self.owner=owner;self.setAutoDefault(False);self.row_hover=False
         self.setCursor(Qt.CursorShape.PointingHandCursor);self.setFixedSize(26,26)
         self.keyboard_focus=False;self.hover_value=0.;self.visual_key=None
         self.hover_tween=QVariantAnimation(self);self.hover_tween.setDuration(140);self.hover_tween.setEasingCurve(QEasingCurve.Type.InOutCubic)
@@ -309,38 +309,41 @@ class PinButton(QPushButton):
         if not self.owner.motion_enabled:self.set_hover_value(target);return
         self.hover_tween.setStartValue(self.hover_value);self.hover_tween.setEndValue(target);self.hover_tween.start()
     def enterEvent(self,event):self.hover_to(1.);super().enterEvent(event)
-    def leaveEvent(self,event):self.hover_to(0.);super().leaveEvent(event)
-    def hideEvent(self,event):self.hover_tween.stop();self.hover_value=0.;super().hideEvent(event)
+    def leaveEvent(self,event):self.hover_to(float(self.row_hover));super().leaveEvent(event)
+    def hideEvent(self,event):self.hover_tween.stop();self.hover_value=0.;self.row_hover=False;self.keyboard_focus=False;super().hideEvent(event)
     def focusInEvent(self,event):
         self.keyboard_focus=event.reason() in (Qt.FocusReason.TabFocusReason,Qt.FocusReason.BacktabFocusReason,Qt.FocusReason.ShortcutFocusReason)
         super().focusInEvent(event);self.update()
     def focusOutEvent(self,event):self.keyboard_focus=False;super().focusOutEvent(event);self.update()
-    def sync(self,checked):
-        label=self.owner.label('Unpin status' if checked else 'Pin status');key=(checked,label,self.light_surface)
+    def set_revealed(self,visible):
+        if visible!=self.row_hover:self.row_hover=visible;self.hover_to(float(visible))
+    def sync(self):
+        label=self.owner.label('Dismiss {status} for now',status=self.owner.label(CATEGORY_LABELS[self.parentWidget().category]))
+        key=(label,self.light_surface)
         if not self.owner.motion_enabled and self.hover_tween.state()!=QAbstractAnimation.State.Stopped:
             target=self.hover_tween.endValue();self.hover_tween.stop();self.set_hover_value(target)
-        if key==self.visual_key and self.isChecked()==checked:return
-        self.visual_key=key;self.setChecked(checked)
+        if key==self.visual_key:return
+        self.visual_key=key
         self.setAccessibleName(label);self.setToolTip(label);self.update()
     def paintEvent(self,event):
+        opacity=1. if self.keyboard_focus or self.underMouse() or self.isDown() else self.hover_value
+        if opacity<=0:return
         p=QPainter(self);p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setOpacity(opacity)
         light=self.light_surface;accent='#2169ad' if light else BLUE
-        color=accent if self.isChecked() else '#526174' if light else '#99a6b5'
-        if not self.dark_panel:color='#667588' if light else '#8795a5'
-        strength=1. if self.isDown() or self.keyboard_focus else self.hover_value
+        color=accent if self.underMouse() or self.keyboard_focus else '#667588' if light else '#8795a5'
+        strength=float(self.isDown() or self.keyboard_focus or self.underMouse())
         if strength:
             fill=QColor('#c8d3df' if light else '#465364' if self.isDown() else '#35414f');fill.setAlphaF(strength)
             p.setPen(Qt.PenStyle.NoPen);p.setBrush(fill);p.drawRoundedRect(QRectF(3,3,20,20),5,5)
         if self.keyboard_focus:pen(p,'#2169ad' if light else BLUE,.8);p.drawRoundedRect(QRectF(3,3,20,20),5,5)
-        pin_renderer(color).render(p,self.glyph_rect())
-        if not self.dark_panel and strength:
-            p.setOpacity(strength);pin_renderer(accent).render(p,self.glyph_rect())
+        close_renderer(color).render(p,self.glyph_rect())
         p.end()
 
 
 @lru_cache(maxsize=6)
-def pin_renderer(color):
-    source=(BASE/'assets/icons/pin.svg').read_bytes().replace(b'currentColor',color.encode('ascii'))
+def close_renderer(color):
+    source=(BASE/'assets/icons/x.svg').read_bytes().replace(b'currentColor',color.encode('ascii'))
     return QSvgRenderer(source)
 
 
@@ -465,6 +468,8 @@ class StatusBar(QWidget):
         self.provider=provider
         self.popup=None
         self.data=provider.get();self.position=None;self.font=face()
+        from .status_summaries import StatusSummaries
+        self.summaries=StatusSummaries(RUNTIME/'status_dismissals.json');self.summaries.update(self.data)
         self.quota_kind=None;self.quota_rotated_at=time.monotonic();self.quota_paused_at=None;self.quota_hover=False
         self.quota_progress=1.;self.quota_previous=None;self.quota_target=1.
         self.quota_tween=QVariantAnimation(self)
@@ -813,7 +818,7 @@ class StatusBar(QWidget):
         font_metrics=QFontMetricsF(face(8));badge_x=x-6
         for kind in statuses:badge_x+=font_metrics.horizontalAdvance(self.count_label(kind,counts[kind]))+30
         if statuses:right=badge_x-6
-        pinned=[task for kind in self.settings.get('pinned_statuses',[]) if kind in counts for task in panel_rows(self.data,kind)]
+        pinned=[task for kind in self.summaries.active for task in panel_rows(self.data,kind)]
         minimum=min(240,78+max(min(90,font_metrics.horizontalAdvance(project_label(task.get('project'),self.language))+12)+QFontMetricsF(self.font).horizontalAdvance(task_title(task,self.language)) for task in pinned)) if pinned else 0
         return min(limit,math.ceil(max(minimum,right+12)))
 
@@ -915,20 +920,15 @@ class StatusBar(QWidget):
         self.status_menu.setTitle(self.label('Task status'));self.status_menu.clear()
         counts=category_counts(self.provider.get())
         for category in CATEGORY_LABELS:
-            if counts[category] or category in self.settings.get('pinned_statuses',[]):
+            if counts[category]:
                 action=self.status_menu.addAction(self.label(CATEGORY_LABELS[category])+' · '+str(counts[category]))
                 action.setData(category)
                 action.triggered.connect(lambda checked=False,mode=category:QTimer.singleShot(0,lambda:self.toggle_popup(mode)))
         if not self.status_menu.actions():self.status_menu.addAction(self.label('No tasks')).setEnabled(False)
 
-    def set_status_pinned(self,category,pinned):
-        if category not in STATUS_CATEGORIES:return
-        selected=set(self.settings.get('pinned_statuses',[]))
-        if pinned:selected.add(category);self.settings['show_tasks']=True
-        else:selected.discard(category)
-        self.settings['pinned_statuses']=[kind for kind in STATUS_CATEGORIES if kind in selected]
-        self.save_settings();self.hide_popup(immediate=True);self.tick(resize=True)
-        if self.settings_dialog:self.settings_dialog.refresh()
+    def dismiss_status(self,category):
+        self.summaries.update(self.data);self.summaries.dismiss(category)
+        self.task_strip.refresh(self.data,resize=True);self.tick(resize=True)
 
     def refresh_accessibility(self):
         full={kind:value for kind,value,fraction in self.quota_choices()}
@@ -1146,6 +1146,7 @@ class StatusBar(QWidget):
 
     def tick_status(self,resize,fullscreen):
         self.data=self.provider.get()
+        self.summaries.update(self.data)
         self.refresh_accessibility()
         self.check_attention()
         if self.settings_dialog and self.settings_dialog.isVisible():self.settings_dialog.refresh_status()
@@ -1379,7 +1380,6 @@ class TaskPopup(QWidget):
                 'QScrollBar:horizontal:focus{background:%(hover)s;border-radius:4px;}'
                 'QScrollBar::add-line:horizontal,QScrollBar::sub-line:horizontal{width:0;}'
                 'QScrollBar::add-page:horizontal,QScrollBar::sub-page:horizontal{background:none;}')%colors)
-        if getattr(self,'pin_button',None):self.pin_button.update()
         if self.host:self.host.update()
         self.update()
 
@@ -1958,10 +1958,6 @@ class TaskListPopup(TaskPopup):
         self.setWindowTitle('Codex · '+owner.label('Tasks'))
         self.hovered=None;self.rows=[];self.hover_started=time.monotonic()
         self.keyboard_task=None;self.keyboard_navigation=False;self.animation=QTimer(self);self.animation.timeout.connect(self.animate)
-        self.pin_button=None
-        if mode in STATUS_CATEGORIES:
-            self.pin_button=PinButton(owner,self)
-            self.pin_button.clicked.connect(lambda checked:owner.set_status_pinned(self.mode,checked))
 
     def showEvent(self,event):super().showEvent(event);self.sync_animation()
     def hideEvent(self,event):self.animation.stop();super().hideEvent(event)
@@ -2019,8 +2015,6 @@ class TaskListPopup(TaskPopup):
         self.TITLE_X=33+self.project_width+10
         self.TITLE_WIDTH=max(0,self.info_divider-12-self.TITLE_X)
         self.scroll=min(self.scroll,max(0,self.full_height-(height-16)))
-        if self.pin_button:
-            self.pin_button.move(self.width()-34,5);self.pin_button.sync(self.mode in self.owner.settings.get('pinned_statuses',[]))
         self.sync_units();self.track_hover(self.mapFromGlobal(QCursor.pos()));self.sync_animation()
         if self.keyboard_task not in {t['id'] for t in self.rows}:self.keyboard_task=self.rows[0]['id'] if self.rows else None
         self.update()

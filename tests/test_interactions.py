@@ -11,6 +11,13 @@ from codex_taskbar.tasks import panel_rows,category_counts
 from tests.test_resets import credit
 
 
+def set_summary_rows(bar,categories):
+    """Arrange a scene by dismissing its currently unwanted automatic groups."""
+    bar.summaries.update(bar.data);bar.summaries.dismissed.clear()
+    for category in bar.summaries.rows:
+        if category not in categories:bar.summaries.dismiss(category)
+
+
 class InteractionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.application=app.QApplication.instance() or app.QApplication([])
@@ -29,12 +36,12 @@ class InteractionTests(unittest.TestCase):
                      {'minutes':300,'remaining':60,'starts_at':now-3600,'resets_at':now+4*3600}],
             'daily_quota':'12%','reset_account':'fixture-account','reset_selected':credit(),'reset_available':3}
         self.provider=Mock();self.provider.get.side_effect=lambda:self.data
-        with patch('codex_taskbar.app.read_settings',return_value={**app.DISPLAY_DEFAULTS,'pinned_statuses':['running'],'chart_unit':'M'}),patch('codex_taskbar.app.windows.animations_enabled',return_value=True), \
+        with patch('codex_taskbar.app.read_settings',return_value={**app.DISPLAY_DEFAULTS,'chart_unit':'M'}),patch('codex_taskbar.app.windows.animations_enabled',return_value=True), \
              patch('codex_taskbar.app.windows.ClickHook'),patch('codex_taskbar.app.windows.placement',return_value=None),patch('codex_taskbar.app.RELEASE_REPOSITORY',''),patch('codex_taskbar.app.QSystemTrayIcon'):
             self.bar=app.StatusBar(self.provider)
         self.bar.timer.stop();self.bar.animation.stop();self.bar.update_timer.stop();self.bar.tray.hide()
         self.bar.resize(1200,30);self.bar.data=self.data
-        self.bar.settings=dict(app.DISPLAY_DEFAULTS,pinned_statuses=['running']);self.bar.chart_unit='M';self.bar.grab()
+        self.bar.settings=dict(app.DISPLAY_DEFAULTS);self.bar.chart_unit='M';set_summary_rows(self.bar,['running']);self.bar.grab()
         self.strip=self.bar.task_strip.rows['running'];self.strip.refresh(self.data);self.strip.grab()
         pointer=patch('codex_taskbar.app.windows.pointer_over',return_value=True);pointer.start();self.addCleanup(pointer.stop)
 
@@ -105,7 +112,7 @@ class InteractionTests(unittest.TestCase):
         self.assertEqual([m for m,r,t in self.bar.hit_regions],['usage','session','daily','resets','running','unread','failed','stopped'])
 
     def test_hidden_metric_names_keep_numbers_accessibility_and_compact_spacing(self):
-        self.bar.motion_enabled=False;self.bar.settings.update(pinned_statuses=[],show_tasks=False)
+        self.bar.motion_enabled=False;self.bar.settings.update(show_tasks=False)
         for language in ('en','zh-CN','ja','es'):
             self.bar.settings['language']=language
             for rotate in (False,True):

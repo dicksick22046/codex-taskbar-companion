@@ -37,9 +37,9 @@ Choose **Status bar placement → Floating** to move the quota/status strip. Pin
 | 5h quota, when available | Remaining quota, reset time, and recorded balance history |
 | Reset countdown | Reset history and available reset credits |
 | Status dot and count | Opens the task directly when the count is 1; otherwise opens the status list |
-| Pinned task row (except its unpin button) | That task in Codex |
+| Task summary row (except its close button) | That task in Codex |
 
-Open a status list and click its pin to keep one lightweight row above the status bar. Multiple pinned states share one connected panel, with a colored dot, project tag, task title and unpin button per row. Each row rotates independently; hovering highlights it, pauses rotation and reveals long titles. Empty rows hide while keeping the pin preference. Existing enabled Running strips migrate to a pinned Running row. Main/Side details remain in the full status list and tooltips; Side opens its parent task.
+Running, input-needed, unread and failed task summaries appear automatically above the bar. Each nonempty state has one rotating row. Hover the row or focus its close button with the keyboard to dismiss the current group; ordinary refreshes and restarts do not reopen it, while a new task, execution or state entry does. Other parts of the row open the task. Details temporarily replace the summaries and restore them on close. Side chats open their parent task.
 
 Detail panels open in that same attached area and temporarily replace the scrolling rows. Closing a panel restores your pinned rows without changing their settings.
 

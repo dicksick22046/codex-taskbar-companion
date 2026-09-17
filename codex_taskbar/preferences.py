@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 import math
 from .i18n import LANGUAGES
-from .tasks import STATUS_CATEGORIES
 
 DISPLAY_DEFAULTS = {
     'show_week': True, 'show_session': True, 'show_countdown': True,
@@ -58,8 +57,7 @@ def read_settings(path):
     result = dict(data)
     for key, default in DISPLAY_DEFAULTS.items():
         result[key] = data[key] if isinstance(data.get(key), bool) else default
-    pinned=data.get('pinned_statuses') if 'pinned_statuses' in data else (['running'] if data.get('show_task_strip',data.get('show_tasks',False)) is True else [])
-    result['pinned_statuses']=[kind for kind in STATUS_CATEGORIES if isinstance(pinned,list) and kind in pinned]
+    result.pop('pinned_statuses',None)
     result.pop('show_task_strip',None);result.pop('task_strip_position',None)
     result['show_task_statistics']=data.get('show_task_statistics') is True
     result['chart_unit'] = data.get('chart_unit') if data.get('chart_unit') in ('M', '100M') else 'M'

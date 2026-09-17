@@ -22,12 +22,12 @@ class AttachedPanelTests(unittest.TestCase):
         return self.bar.popup
 
     def test_detail_is_child_and_replaces_all_pins_without_changing_settings(self):
-        self.bar.settings['pinned_statuses']=['running','unread'];self.host.refresh(self.data)
+        fixtures.set_summary_rows(self.bar,['running','unread']);self.host.refresh(self.data)
         panel=self.open('unread')
         self.assertIs(panel.parentWidget(),self.host);self.assertFalse(panel.isWindow())
         self.assertEqual(self.host.active,[])
         self.assertTrue(all(row.isHidden() for row in self.host.rows.values()))
-        self.assertEqual(self.bar.settings['pinned_statuses'],['running','unread'])
+        self.assertNotIn('pinned_statuses',self.bar.settings)
         self.bar.hide_popup()
         self.assertIsNone(self.bar.popup);self.assertIsNone(self.host.detail)
         self.assertEqual(self.host.active,['running','unread']);self.assertEqual(self.host.size_motion.target,61)

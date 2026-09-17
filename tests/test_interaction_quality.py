@@ -160,8 +160,8 @@ class InteractionQualityTests(unittest.TestCase):
             self.data['tasks'][0]['title']=title;self.strip.task=self.data['tasks'][0];self.strip.grab()
             text_box=self.strip.task_rect
             self.assertGreater(text_box.left(),30)
-            self.assertGreaterEqual(self.strip.pin_button.x()-text_box.right(),8)
+            self.assertGreaterEqual(self.strip.close_button.x()-text_box.right(),8)
             self.assertTrue(self.strip.task_at_point(app.QPointF(2,15)))
-            self.assertTrue(self.strip.task_at_point(app.QPointF(self.strip.pin_button.x()-3,15)))
-            self.assertFalse(self.strip.task_at_point(app.QPointF(self.strip.pin_button.geometry().center())))
+            self.assertTrue(self.strip.task_at_point(app.QPointF(self.strip.close_button.x()-3,15)))
+            self.assertFalse(self.strip.task_at_point(app.QPointF(self.strip.close_button.geometry().center())))
             self.assertFalse(self.strip.task_at_point(app.QPointF(0,0)))

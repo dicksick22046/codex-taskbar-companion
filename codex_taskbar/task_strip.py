@@ -1,4 +1,4 @@
-"""Attached pinned task rows, driven by the owner's existing clocks."""
+"""Automatic task summaries, driven by the owner's existing clocks."""
 import time
 from html import escape
 
@@ -12,6 +12,7 @@ from .i18n import project_label,task_title,translate
 from .presentation import panel_rect
 from .motion import Spring
 from .tasks import panel_rows,task_role_label,STATUS_CATEGORIES,CATEGORY_LABELS
+from .status_summaries import SUMMARY_CATEGORIES
 
 
 class TaskStrip(QWidget):
@@ -36,8 +37,8 @@ class TaskStrip(QWidget):
         self.task_tween.setDuration(450);self.task_tween.setEasingCurve(QEasingCurve.Type.InOutCubic)
         self.task_tween.valueChanged.connect(self.set_task_blend)
         self.task_tween.finished.connect(self.finish_transition)
-        self.pin_button=visuals.PinButton(owner,self,dark_panel=False);self.pin_button.sync(True)
-        self.pin_button.clicked.connect(lambda checked:owner.set_status_pinned(self.category,False))
+        self.close_button=visuals.SummaryCloseButton(owner,self);self.close_button.sync()
+        self.close_button.clicked.connect(lambda checked=False:owner.dismiss_status(self.category))
 
     @property
     def language(self):return self.owner.language
@@ -98,7 +99,7 @@ class TaskStrip(QWidget):
     def refresh(self,data,resize=False,hidden=False):
         if self.stopped:return
         self.data=data;self.candidates=[dict(task) for task in panel_rows(data,self.category)]
-        self.hidden=bool(hidden);self.pin_button.move(self.width()-32,2);self.pin_button.sync(True)
+        self.hidden=bool(hidden);self.close_button.move(self.width()-32,2);self.close_button.sync()
         self.setAccessibleName(translate(self.language,CATEGORY_LABELS[self.category]))
         self._sync_pause(time.monotonic())
         if not self.candidates or self.hidden:
@@ -133,7 +134,7 @@ class TaskStrip(QWidget):
         else:box=QRectF(self.rect()).adjusted(1,1,-1,-1)
         path=visuals.connected_surface(box)
         row=QPainterPath();row.addRect(QRectF(self.rect()))
-        pin=QPainterPath();pin.addRect(QRectF(self.pin_button.geometry()))
+        pin=QPainterPath();pin.addRect(QRectF(self.close_button.geometry()))
         return path.intersected(row).subtracted(pin)
 
     def task_at_point(self,point):return bool(self.task and self.row_hit_path().contains(point))
@@ -144,6 +145,7 @@ class TaskStrip(QWidget):
         hovering=QRectF(self.rect()).contains(point)
         if hovering!=self.task_hover:
             self.task_hover=hovering;self.title_hover_started=time.monotonic();self._sync_pause(self.title_hover_started);self.update()
+        self.close_button.set_revealed(hovering)
         self.setCursor(Qt.CursorShape.PointingHandCursor if self.task_at_point(point) else Qt.CursorShape.ArrowCursor)
         task=self.displayed_task();tip=''
         if hovering and task:
@@ -229,9 +231,9 @@ class PinnedPanel(QWidget):
     def __init__(self,owner):
         super().__init__(None,visuals.FLAGS & ~Qt.WindowType.WindowDoesNotAcceptFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground);self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.owner=owner;self.setWindowTitle('Codex · Pinned tasks');self.joined_edge=None;self.active=[];self.stopped=False;self.detail=None;self.detail_box=None;self.detail_hidden=False
+        self.owner=owner;self.setWindowTitle('Codex · Task activity');self.joined_edge=None;self.active=[];self.stopped=False;self.detail=None;self.detail_box=None;self.detail_hidden=False
         self.compact_geometry=None
-        self.rows={kind:TaskStrip(owner,kind,self) for kind in STATUS_CATEGORIES}
+        self.rows={kind:TaskStrip(owner,kind,self) for kind in SUMMARY_CATEGORIES}
         self.size_motion=Spring(self,response=.18);self.size_motion.changed.connect(self.layout_rows);self.size_motion.finished.connect(self.finish_detail)
         self.host_key=None;self.surface_loss_since=None;self.surface_repaired=False;self.frame_key=None
 
@@ -281,7 +283,7 @@ class PinnedPanel(QWidget):
 
     def reveal_detail(self,target):
         if not self.detail or self.detail_box is None or self.detail_hidden:return
-        summaries=[kind for kind in self.owner.settings.get('pinned_statuses',[]) if panel_rows(self.owner.data,kind)] if self.owner.settings.get('show_tasks',True) else []
+        summaries=self.owner.summaries.active if self.owner.settings.get('show_tasks',True) else []
         height=self.detail_box.height() if target else len(summaries)*30+1 if summaries else 0
         if self.owner.motion_enabled:
             if height!=self.size_motion.target or not self.size_motion.timer.isActive() and abs(self.size_motion.value-height)>=.001:self.size_motion.retarget(height)
@@ -319,14 +321,19 @@ class PinnedPanel(QWidget):
             if popup.size()!=size:popup.refresh(popup.data)
     def refresh(self,data,resize=False,hidden=False):
         if self.stopped:return
+        self.owner.summaries.update(data)
         if self.detail:
             self.detail_hidden=hidden or not self.owner.isVisible()
             if self.detail_hidden:self.size_motion.timer.stop();self.hide();return
             self.place_detail(*self.detail.requested_size);return
         visible=not hidden and self.owner.isVisible() and self.owner.settings.get('show_tasks',True)
-        selected=self.owner.settings.get('pinned_statuses',[])
-        active=[kind for kind in STATUS_CATEGORIES if kind in selected and panel_rows(data,kind)] if visible else []
+        active=self.owner.summaries.active if visible else []
         for kind,row in self.rows.items():
+            preferred=self.owner.summaries.preferred.pop(kind,None) if kind in active else None
+            if preferred:
+                row.task_tween.stop();row.task=None;row.previous_task=None;row.task_blend=1.
+                row.current_id=preferred;row.rotated_at=time.monotonic()
+                if row.paused_at is not None:row.paused_at=row.rotated_at
             row.resize(self.owner.width(),30);row.refresh(data,resize,hidden=kind not in active)
         self.active=active
         if not visible:
@@ -336,7 +343,7 @@ class PinnedPanel(QWidget):
             if self.owner.motion_enabled:self.size_motion.retarget(target);self.layout_rows(self.size_motion.value)
             else:self.size_motion.snap(target)
         else:self.layout_rows(self.size_motion.value)
-        self.setAccessibleName(self.owner.label('Pinned tasks'))
+        self.setAccessibleName(self.owner.label('Task activity'))
         key=(self.owner.settings.get('capsule_theme'),self.owner.settings.get('capsule_transparency'),self.geometry().getRect(),tuple(active))
         if key!=self.frame_key:self.frame_key=key;self.update()
 

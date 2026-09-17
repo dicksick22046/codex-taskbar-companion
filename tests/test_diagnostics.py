@@ -12,6 +12,6 @@ class DiagnosticsTests(unittest.TestCase):
         self.assertNotIn(secret,report);data=json.loads(report)
         self.assertTrue(data['data']['data_error']);self.assertTrue(data['data']['quota_available'])
         self.assertEqual(data['window']['width'],180);self.assertEqual(data['presentation']['placement'],'floating')
-        self.assertEqual(data['presentation']['pinned_statuses'],['running'])
+        self.assertNotIn('pinned_statuses',data['presentation'])
         self.assertTrue(data['window']['visible']);self.assertFalse(data['window']['native_visible']);self.assertFalse(data['window']['exposed'])
         self.assertNotIn('catalog',report);self.assertNotIn('account',report)

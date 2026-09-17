@@ -7,7 +7,7 @@ from tests import test_interactions as fixtures
 
 
 class PinnedPreferenceTests(unittest.TestCase):
-    def test_migration_preserves_choice_and_drops_independent_position(self):
+    def test_migration_retires_pin_choices_and_keeps_other_settings(self):
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'settings.json'
             for data,expected in [({},[]),({'show_task_strip':True},['running']),({'show_tasks':True},['running']),
@@ -15,10 +15,10 @@ class PinnedPreferenceTests(unittest.TestCase):
                 ({'pinned_statuses':['unread','running','unread','invalid']},['running','unread'])]:
                 with self.subTest(data=data):
                     write_settings(path,{**data,'task_strip_position':{'screen':'old','x':.4,'y':.4},'chart_unit':'100M'})
-                    result=read_settings(path);self.assertEqual(result['pinned_statuses'],expected)
+                    result=read_settings(path);self.assertNotIn('pinned_statuses',result)
                     self.assertNotIn('show_task_strip',result);self.assertNotIn('task_strip_position',result)
                     self.assertEqual(result['chart_unit'],'100M')
-                    write_settings(path,result);self.assertEqual(read_settings(path)['pinned_statuses'],expected)
+                    write_settings(path,result);self.assertEqual(read_settings(path),result)
 
 
 class PinnedPanelTests(unittest.TestCase):
@@ -26,7 +26,7 @@ class PinnedPanelTests(unittest.TestCase):
     def setUpClass(cls):cls.application=app.QApplication.instance() or app.QApplication([])
     def setUp(self):
         fixtures.InteractionTests.setUp(self);self.group=self.bar.task_strip
-        self.bar.settings.update(pinned_statuses=['running','unread']);self.bar.motion_enabled=False
+        fixtures.set_summary_rows(self.bar,['running','unread']);self.bar.motion_enabled=False
         self.bar.setGeometry(100,500,300,30)
         self.visible=patch.object(self.bar,'isVisible',return_value=True);self.visible.start();self.addCleanup(self.visible.stop)
     def tearDown(self):fixtures.InteractionTests.tearDown(self)
@@ -36,7 +36,7 @@ class PinnedPanelTests(unittest.TestCase):
         self.assertEqual(self.group.width(),self.bar.width());self.assertEqual(self.group.geometry().bottom(),self.bar.y())
         self.assertEqual(self.group.joined_edge,'top');self.assertEqual(self.group.rows['unread'].y(),30)
         self.data['recent_tasks']=[];self.group.refresh(self.data)
-        self.assertEqual(self.group.active,['running']);self.assertEqual(self.bar.settings['pinned_statuses'],['running','unread'])
+        self.assertEqual(self.group.active,['running']);self.assertNotIn('pinned_statuses',self.bar.settings)
         self.group.refresh(self.data,hidden=True);self.assertIsNone(self.group.joined_edge)
         self.assertFalse(self.group.needs_animation)
         self.bar.move(100,0);self.group.refresh(self.data)
@@ -48,13 +48,27 @@ class PinnedPanelTests(unittest.TestCase):
         with patch.object(self.bar,'screen',return_value=screen):self.group.refresh(self.data)
         self.assertEqual(self.group.geometry().bottom(),808)
 
-    def test_pin_from_popover_and_unpin_row_do_not_open_task(self):
-        self.bar.settings['pinned_statuses']=[]
+    def test_close_summary_does_not_open_task_or_restore_pin_controls(self):
         panel=app.TaskListPopup(self.bar,'running');panel.refresh(self.data)
         with patch.object(self.bar,'tick'),patch.object(self.bar,'save_settings') as saved,patch.object(self.bar,'open_task') as opened:
-            panel.pin_button.click();self.assertEqual(self.bar.settings['pinned_statuses'],['running']);saved.assert_called_once()
-            self.group.rows['running'].pin_button.click();self.assertEqual(self.bar.settings['pinned_statuses'],[]);opened.assert_not_called()
+            self.assertFalse(hasattr(panel,'pin_button'))
+            self.group.rows['running'].close_button.click()
+            self.assertNotIn('running',self.bar.summaries.active);opened.assert_not_called();saved.assert_not_called()
         panel.close();panel.deleteLater()
+
+    def test_dismissed_group_reopens_on_new_task_and_details_restore_current_states(self):
+        self.group.refresh(self.data);self.group.rows['running'].close_button.click()
+        self.assertNotIn('running',self.group.active)
+        self.group.refresh(self.data);self.assertNotIn('running',self.group.active)
+        new=dict(self.data['tasks'][0],id='new-arrival',title='New task',turn_id='new-turn')
+        self.data['tasks'].append(new);self.group.refresh(self.data)
+        self.assertEqual(self.group.rows['running'].task['id'],'new-arrival')
+        self.assertIsNone(self.group.rows['running'].previous_task)
+        self.bar.toggle_popup('usage',activate=False)
+        self.data['tasks'].remove(new);self.data['recent_tasks'].append(dict(new,running=False,unread=True,status='idle'))
+        self.group.refresh(self.data);self.bar.hide_popup(immediate=True)
+        self.assertIn('unread',self.group.active)
+        self.assertFalse(self.group.rows['unread'].isHidden())
 
     def test_hover_and_rotation_are_independent_and_small_bar_has_room(self):
         self.data['tasks'].append(dict(self.data['tasks'][0],id='run2',title='Another running task'))
@@ -72,7 +86,7 @@ class PinnedPanelTests(unittest.TestCase):
         self.bar.motion_enabled=True;self.group.refresh(self.data)
         self.group.size_motion.advance(.02);height=self.group.size_motion.value
         self.assertGreater(height,0);self.assertLess(height,61)
-        self.bar.settings['pinned_statuses']=[];self.group.refresh(self.data)
+        fixtures.set_summary_rows(self.bar,[]);self.group.refresh(self.data)
         self.assertEqual(self.group.size_motion.value,height);self.assertEqual(self.group.size_motion.target,0)
         self.group.refresh(self.data,hidden=True);self.assertFalse(self.group.size_motion.timer.isActive())
 
@@ -115,7 +129,7 @@ class PinnedPanelTests(unittest.TestCase):
         with patch.object(self.group,'isVisible',return_value=True):
             self.group.refresh(self.data);panel=app.TaskListPopup(self.bar,'unread');self.bar.popup=panel;panel.refresh(self.data)
             try:
-                self.bar.motion_enabled=True;self.bar.settings['pinned_statuses'].append('failed');self.group.refresh(self.data)
+                self.bar.motion_enabled=True;fixtures.set_summary_rows(self.bar,['running','unread','failed']);self.group.refresh(self.data)
                 self.group.size_motion.advance(.02)
                 self.assertLessEqual(panel.geometry().bottom()+panel.GAP,self.group.occupied_geometry().top())
                 self.assertFalse(panel.geometry().intersects(self.group.geometry()))
@@ -146,7 +160,7 @@ class PinnedPanelTests(unittest.TestCase):
             for pins in ([],['running'],['running','unread']):
                 for closing in (False,True):
                     with self.subTest(pins=pins,closing=closing):
-                        self.bar.motion_enabled=False;self.bar.settings['pinned_statuses']=pins
+                        self.bar.motion_enabled=False;fixtures.set_summary_rows(self.bar,pins)
                         self.group.refresh(self.data);self.bar.toggle_popup('usage',activate=False)
                         detail_height=self.group.height();self.bar.motion_enabled=True
                         if closing:
@@ -157,12 +171,12 @@ class PinnedPanelTests(unittest.TestCase):
                         self.assertEqual(self.group.size_motion.value,target)
                         self.assertFalse(self.group.size_motion.timer.isActive())
                         self.assertIsNone(self.bar.popup);self.assertIsNone(self.group.detail)
-                        self.assertEqual(self.bar.settings['pinned_statuses'],pins)
+                        self.assertNotIn('pinned_statuses',self.bar.settings)
                         top=self.bar.y()-target+1 if target else self.bar.y()
                         self.assertEqual(opened.call_args.args[0].y(),top-app.TaskPopup.GAP-self.bar.menu.sizeHint().height())
 
     def test_short_titles_do_not_leave_the_old_fixed_minimum(self):
-        self.bar.settings.update(rotate_quotas=True,pinned_statuses=['running']);self.data['recent_tasks']=[]
+        self.bar.settings.update(rotate_quotas=True);fixtures.set_summary_rows(self.bar,['running']);self.data['recent_tasks']=[]
         self.data['tasks'][0]['title']='Review'
         widths=[]
         for kind,value,fraction in self.bar.quota_choices():

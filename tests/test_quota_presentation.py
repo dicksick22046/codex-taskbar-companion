@@ -165,8 +165,8 @@ class QuotaPresentationTests(unittest.TestCase):
                 action.trigger();self.assertEqual(opened.call_args.args,(action.data(),))
         self.data.update(tasks=[],recent_tasks=[]);self.bar.refresh_status_menu()
         self.assertEqual(len(self.bar.status_menu.actions()),1)
-        self.assertTrue(self.bar.status_menu.actions()[0].isEnabled())
-        self.assertEqual(self.bar.status_menu.actions()[0].data(),'running')
+        self.assertFalse(self.bar.status_menu.actions()[0].isEnabled())
+        self.assertEqual(self.bar.status_menu.actions()[0].text(),self.bar.label('No tasks'))
 
     def test_running_list_animates_visible_dots_and_stops_outside_viewport(self):
         panel=app.TaskListPopup(self.bar,'running');panel.refresh(self.data)

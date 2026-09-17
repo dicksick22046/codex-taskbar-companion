@@ -23,14 +23,14 @@ class TaskStripTests(unittest.TestCase):
         self.stack=ExitStack();self.addCleanup(self.stack.close)
         self.visible=Mock(return_value=False);self.show=Mock()
         self.stack.enter_context(patch.object(TaskStrip,'show',new=lambda strip:self.show()))
-        self.owner=QWidget();self.owner.settings={'show_tasks':True,'pinned_statuses':['running'],'language':'en','floating_position':{'screen':'unchanged','x':.2,'y':.8,'width':300}}
+        self.owner=QWidget();self.owner.settings={'show_tasks':True,'language':'en','floating_position':{'screen':'unchanged','x':.2,'y':.8,'width':300}}
         self.owner.language='en';self.owner.font=app.face();self.owner.motion_enabled=False
         self.owner.label=lambda key,**values:app.translate(self.owner.language,key,**values)
         self.owner.menu=Mock();self.owner.menu.isVisible.return_value=False
         self.owner.settings_dialog=None;self.owner.confirming_reset=False
         self.owner.open_task=Mock();self.owner.save_settings=Mock();self.owner.hide_popup=Mock()
         self.parent=QWidget();self.addCleanup(self.parent.deleteLater)
-        self.owner.set_status_pinned=Mock()
+        self.owner.dismiss_status=Mock()
         self.strip=TaskStrip(self.owner,parent=self.parent)
         self.addCleanup(self.strip.deleteLater);self.addCleanup(self.owner.deleteLater);self.addCleanup(self.strip.shutdown)
 
@@ -103,16 +103,16 @@ class TaskStripTests(unittest.TestCase):
 
     def test_visible_row_padding_opens_task_but_corners_and_pin_do_not(self):
         item=task('a','Short',project='Demo');self.refresh([item])
-        points=(QPointF(2,15),QPointF(self.strip.pin_button.x()-3,15),QPointF(self.strip.width()-3,15))
+        points=(QPointF(2,15),QPointF(self.strip.close_button.x()-3,15),QPointF(self.strip.width()-3,15))
         for point in points:
             with self.subTest(point=point):
                 self.owner.open_task.reset_mock();self.assertTrue(self.strip.task_at_point(point))
                 self.press(point);self.release(point);self.owner.open_task.assert_called_once_with(item)
         self.owner.open_task.reset_mock()
-        for point in (QPointF(1,1),QPointF(self.strip.width()-1,1),QPointF(self.strip.pin_button.geometry().center())):
+        for point in (QPointF(1,1),QPointF(self.strip.width()-1,1),QPointF(self.strip.close_button.geometry().center())):
             self.assertFalse(self.strip.task_at_point(point));self.press(point);self.release(point)
-        self.strip.pin_button.click()
-        self.owner.open_task.assert_not_called();self.owner.set_status_pinned.assert_called_once_with('running',False)
+        self.strip.close_button.click()
+        self.owner.open_task.assert_not_called();self.owner.dismiss_status.assert_called_once_with('running')
 
     def test_project_tag_and_title_share_handoff_and_keep_marquee_out_of_tag_and_pin(self):
         self.owner.motion_enabled=True;items=[task('a','First title '*30,project='Alpha'),task('b','Second title '*30,project='Beta')]
@@ -123,7 +123,7 @@ class TaskStripTests(unittest.TestCase):
         for tag,title in zip(tags.call_args_list,titles.call_args_list):
             self.assertEqual(tag.args[2],title.args[2])
             self.assertGreater(title.args[1],tag.args[1]);self.assertEqual(title.args[1],title.args[5])
-            self.assertLessEqual(title.args[5]+title.args[6],self.strip.pin_button.x()-8)
+            self.assertLessEqual(title.args[5]+title.args[6],self.strip.close_button.x()-8)
         self.strip.task_tween.setCurrentTime(450);self.strip.task_hover=True
         with patch('codex_taskbar.app.marquee_offset',wraps=app.marquee_offset) as marquee,patch('codex_taskbar.app.project_tag',wraps=app.project_tag) as tags:
             self.strip.grab()

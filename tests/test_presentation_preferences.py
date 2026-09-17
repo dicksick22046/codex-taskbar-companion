@@ -15,7 +15,7 @@ class PresentationPreferenceTests(unittest.TestCase):
     def test_fresh_settings_keep_counts_and_make_running_strip_optional(self):
         with tempfile.TemporaryDirectory() as folder:
             data=read_settings(Path(folder)/'settings.json')
-            self.assertTrue(data['show_tasks']);self.assertEqual(data['pinned_statuses'],[])
+            self.assertTrue(data['show_tasks']);self.assertNotIn('pinned_statuses',data)
             self.assertFalse(data['show_task_statistics'])
             self.assertEqual(data['placement'],'auto')
             self.assertTrue(data['show_metric_labels'])
@@ -35,7 +35,7 @@ class PresentationPreferenceTests(unittest.TestCase):
             for shown in (False,True):
                 path.write_text(json.dumps({'show_tasks':shown,'task_strip_position':position}),encoding='utf-8')
                 data=read_settings(path)
-                self.assertEqual(data['pinned_statuses'],['running'] if shown else []);self.assertNotIn('task_strip_position',data)
+                self.assertEqual(data['show_tasks'],shown);self.assertNotIn('task_strip_position',data)
                 data.update(show_tasks=not shown,show_task_statistics=True,placement='taskbar')
                 write_settings(path,data);self.assertEqual(read_settings(path),data)
 
@@ -44,9 +44,9 @@ class PresentationPreferenceTests(unittest.TestCase):
             path=Path(folder)/'settings.json'
             for counts,strip in ((True,False),(False,True)):
                 path.write_text(json.dumps({'show_tasks':counts,'show_task_strip':strip}),encoding='utf-8')
-                data=read_settings(path);self.assertEqual(data['show_tasks'],counts);self.assertEqual(data['pinned_statuses'],['running'] if strip else [])
+                data=read_settings(path);self.assertEqual(data['show_tasks'],counts);self.assertNotIn('pinned_statuses',data)
             path.write_text(json.dumps({'show_tasks':True,'show_task_strip':'yes','show_task_statistics':1}),encoding='utf-8')
-            data=read_settings(path);self.assertEqual(data['pinned_statuses'],[]);self.assertFalse(data['show_task_statistics'])
+            data=read_settings(path);self.assertNotIn('pinned_statuses',data);self.assertFalse(data['show_task_statistics'])
 
     def test_wide_labelled_content_restores_its_anchor_and_clamps_on_smaller_screen(self):
         bounds=QRect(-1600,0,1600,900);box=floating_rect(bounds,width=891)
@@ -67,9 +67,9 @@ class IndependentControlTests(unittest.TestCase):
     def test_unpin_keeps_status_counts_and_hiding_bar_hides_attached_rows(self):
         before=category_counts(self.data)
         with patch.object(self.bar,'save_settings'):
-            self.bar.set_status_pinned('running',False);self.bar.grab()
+            self.bar.dismiss_status('running');self.bar.grab()
             self.assertTrue(self.strip.hidden);self.assertIn('running',[mode for mode,rect,task in self.bar.hit_regions])
-            self.bar.set_status_pinned('running',True);self.bar.set_display('show_tasks',False);self.bar.grab()
+            self.bar.set_display('show_tasks',False);self.bar.grab()
             self.assertTrue(self.strip.hidden);self.assertNotIn('running',[mode for mode,rect,task in self.bar.hit_regions])
             self.assertEqual(self.strip.task['id'],'running');self.assertEqual(category_counts(self.data),before)
 
