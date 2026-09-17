@@ -133,10 +133,12 @@ class Provider:
             task = {"id": thread["id"], "title": thread.get("name") or "",
                               "project": names[thread['id']] if thread['id'] in names else project_name(thread, projects), "tokens": cursor.daily["total_tokens"],
                               "usd": getattr(cursor, 'daily_usd', None),
+                              "turn_id": cursor.turn,
                               "started_at": cursor.started_at, "usage_at": cursor.usage_at,
                               "ended_at": ended_at, "activity_at": cursor.activity_at,
                               "run_tokens": cursor.run_tokens, "running": running, "status": status,
                               "needs_input":bool(cursor.pending_input and running),
+                              "input_ids":sorted(cursor.pending_input) if running else [],
                               "daily_seconds": daily_seconds, "round_seconds": round_seconds,
                               "unread": (cursor.completion_kind == 'task_complete' and not running and not failed
                                          and thread['id'] in unread_ids) if unread_ids is not None else None}
@@ -164,6 +166,7 @@ class Provider:
         week = next((w for w in quota if w["label"] == "周"), None)
         observed_now = datetime.now().astimezone()
         snapshot = {"tasks": tasks, "recent_tasks": recent, "quota": quota, "quota_updated_at": quota_at,
+                    "task_account":self.unread_state.identity if isinstance(self.unread_state.identity,str) else None,
                     "catalog":getattr(self,'catalog_rows',None),
                     "task_statistics":self.statistics.view(native_running) if hasattr(self,'statistics') else {},
                     "unread_count": sum(task['unread'] is True for task in recent) if unread_ids is not None else None,
