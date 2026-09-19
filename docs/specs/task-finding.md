@@ -8,7 +8,7 @@ Add **Find task…** to the strip/tray context menu, above Settings and Quit. Ke
 
 Search task titles and project names locally, case-insensitively, requiring every whitespace-separated search term to match. Project selection filters only this browser; quota numbers and strip counts remain account-wide. Keep the query/filter while the window is hidden in this session, without storing search history. List tasks by most recent stored activity, with deterministic ID tie-breaking.
 
-Each row has a project tag, task title, known status if available and a compact activity timestamp. Keep titles elided with a full tooltip and use existing colors. Show no inferred status for catalog-only tasks. Keyboard arrows select and Enter opens; a pointer press/release must retain the same task ID when data changes. Preserve selection and scroll position on refresh when possible. No results should be a readable empty state.
+Each row has a project tag, task title, known status if available and a compact activity timestamp. Keep titles elided within the existing columns and preserve their full text in accessibility data, without visible hover popups. Use existing colors. Show no inferred status for catalog-only tasks. Keyboard arrows select and Enter opens without a permanent keyboard-instruction label; a pointer press/release must retain the same task ID when data changes. Preserve selection and scroll position on refresh when possible. No results should be a readable empty state. Do not repeat the view's scope as a visible subtitle; keep result counts and actual indexing progress.
 
 ## Data contract
 

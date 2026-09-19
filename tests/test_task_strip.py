@@ -62,6 +62,18 @@ class TaskStripTests(unittest.TestCase):
         self.assertEqual(len(self.strip.candidates),category_counts({'tasks':items})['running'])
         self.assertEqual(self.strip.task['task_role'],'main')
 
+    def test_summary_and_close_button_have_no_hover_text_but_keep_accessible_identity(self):
+        title='请继续任务 https://example.invalid/<task> '+('Long task '*20)
+        for language in app.LANGUAGES:
+            self.owner.language=language
+            self.refresh([task('side',title,side_chat=True,parent_id='main')])
+            self.strip.track_pointer(self.strip.task_area.center())
+            self.assertEqual(self.strip.toolTip(),'');self.assertEqual(self.strip.close_button.toolTip(),'')
+            self.assertEqual(self.strip.task['title'],title)
+            self.assertIn(title,self.strip.accessibleDescription())
+            self.assertIn(self.owner.label('Side'),self.strip.accessibleDescription())
+            self.assertEqual(self.strip.close_button.accessibleName(),self.owner.label('Dismiss {status} for now',status=self.owner.label('Running')))
+
     def test_zero_one_many_rotation_and_stable_width(self):
         self.refresh([]);self.visible.assert_not_called();self.assertIsNone(self.strip.task)
         self.refresh([task('a')]);width=self.strip.width()

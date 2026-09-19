@@ -73,20 +73,37 @@ class QuotaPresentationTests(unittest.TestCase):
         finally:
             chart.close();chart.deleteLater();resets.close();resets.deleteLater()
 
-    def test_cache_marker_remains_and_entry_tooltips_stay_brief(self):
+    def test_cached_quota_has_no_visible_marker_or_extra_space(self):
+        panel=app.SessionPopup(self.bar)
+        try:
+            for language in app.LANGUAGES:
+                self.bar.settings['language']=language
+                for rotated in (False,True):
+                    self.bar.settings['rotate_quotas']=rotated
+                    self.data['quota_error']=None
+                    width=self.bar.content_width(2000);values=[(kind,value) for kind,value,fraction in self.bar.quota_choices()]
+                    panel.refresh(self.data);panel_width=panel.width()
+                    self.data['quota_error']='read failed'
+                    self.assertEqual(self.bar.content_width(2000),width)
+                    self.assertEqual([(kind,value) for kind,value,fraction in self.bar.quota_choices()],values)
+                    self.assertNotIn(self.bar.label('Cached'),self.rendered_labels(self.bar))
+                    panel.refresh(self.data)
+                    self.assertEqual(panel.width(),panel_width)
+                    self.assertNotIn(self.bar.label('Cached'),self.rendered_labels(panel))
+        finally:panel.close();panel.deleteLater()
+
+    def test_quota_and_status_entries_have_no_hover_text(self):
         stamp=datetime.now().astimezone().replace(hour=9,minute=12).isoformat()
         self.data.update(quota_updated_at=stamp,error='catalog failed',daily_observed_at=stamp)
-        self.assertEqual(self.bar.cached_width(),0)
         self.data['quota_error']='read failed'
-        self.assertGreater(self.bar.cached_width(),0)
-        labels=self.rendered_labels(self.bar);self.assertIn('Cached',labels)
-        quota=next(rect for mode,rect,target in self.bar.hit_regions if mode=='usage')
-        self.bar.track_pointer(quota.center())
-        self.assertEqual(self.bar.toolTip(),'Weekly quota remaining')
-        daily=next(rect for mode,rect,target in self.bar.hit_regions if mode=='daily')
-        self.bar.track_pointer(daily.center());self.assertEqual(self.bar.toolTip(),"Today's quota consumption")
-        self.data.pop('quota_updated_at');self.bar.track_pointer(quota.center())
-        self.assertEqual(self.bar.toolTip(),'Weekly quota remaining')
+        self.bar.grab()
+        for language in app.LANGUAGES:
+            self.bar.settings['language']=language
+            self.bar.grab();self.bar.refresh_accessibility()
+            for mode,rect,target in self.bar.hit_regions:
+                self.bar.track_pointer(rect.center());self.assertEqual(self.bar.toolTip(),'',(language,mode))
+            self.assertIn(self.bar.label('Status bar'),self.bar.accessibleName())
+            self.assertIn('09:12',self.bar.accessibleDescription())
 
     def test_local_panel_headers_fit_all_languages_and_large_totals(self):
         stamp=datetime.now().astimezone().replace(hour=9,minute=12).isoformat()

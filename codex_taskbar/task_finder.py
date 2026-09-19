@@ -1,6 +1,5 @@
 """Local task finding over the Provider catalog; no API calls or stored search history."""
 from datetime import datetime
-from html import escape
 from pathlib import Path
 import math
 from PySide6.QtCore import Qt,QAbstractTableModel,QModelIndex,QSize,QRectF,QEvent
@@ -88,7 +87,6 @@ class TaskModel(QAbstractTableModel):
             browser=self.parent();arrow=(' ↓' if browser.sort_descending else ' ↑') if section==browser.sort_column else ''
             return browser.bar.label(COLUMNS[section][0])+arrow
         if role==Qt.ItemDataRole.TextAlignmentRole:return Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter if section>=3 else Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter
-        if role==Qt.ItemDataRole.ToolTipRole and section in (3,4,5):return self.parent().bar.label('Local recorded totals; run time excludes gaps, and turns count execution starts.')
     def data(self,index,role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or not 0<=index.row()<len(self.rows):return None
         row=self.rows[index.row()]
@@ -97,12 +95,6 @@ class TaskModel(QAbstractTableModel):
         if role==Qt.ItemDataRole.AccessibleTextRole:
             if index.column():return self.parent().bar.label(COLUMNS[index.column()][0])+': '+cell_text(row,index.column(),self.parent().bar.chart_unit)
             return ', '.join(row[k] for k in ('project_label','title','status_label','stamp') if row[k])
-        if role==Qt.ItemDataRole.ToolTipRole:
-            lines=[row[k] for k in ('project_label','title','stamp')]
-            if index.column() in (3,4,5):
-                lines.append(self.parent().bar.label('Local recorded totals; run time excludes gaps, and turns count execution starts.'))
-                if row['total_tokens'] is not None:lines.append(('≥ ' if row.get('tokens_partial') else '')+f"{row['total_tokens']:,} Tokens")
-            return '<qt>'+'<br>'.join(escape(line) for line in lines)+'</qt>'
 
     def replace(self,rows):
         if rows==self.rows:return False
@@ -164,7 +156,7 @@ class TaskFinder(QDialog):
             ''' ).replace('__CHEVRON__',(Path(__file__).resolve().parents[1]/'assets/icons/chevron-down.svg').as_posix()))
         layout=QVBoxLayout(self);layout.setContentsMargins(20,20,20,14);layout.setSpacing(14)
         heading=QHBoxLayout();self.heading=QLabel();self.heading.setFont(typeface(bar.font,18));heading.addWidget(self.heading);heading.addStretch()
-        self.scope=QLabel();self.scope.setFont(typeface(bar.font,8));self.scope.setStyleSheet('color:#a0a7b4;');heading.addWidget(self.scope);layout.addLayout(heading)
+        layout.addLayout(heading)
         controls=QHBoxLayout();self.search=QLineEdit();self.search.setClearButtonEnabled(True)
         self.search.installEventFilter(self)
         self.projects=Choice();self.projects.setMaximumWidth(200);self.projects.setView(QListView());self.projects.addItem('',None)
@@ -187,7 +179,7 @@ class TaskFinder(QDialog):
         for column,width in ((0,106),(2,90),(3,100),(4,112),(5,72),(6,112)):self.view.setColumnWidth(column,width)
         self.empty=QLabel();self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter);layout.addWidget(self.empty,1)
         self.failure=QLabel();self.failure.setWordWrap(True);self.failure.setStyleSheet('color:#ebb45f;');self.failure.hide();layout.addWidget(self.failure)
-        footer=QHBoxLayout();self.count=QLabel();self.count.setFont(typeface(bar.font,8));self.count.setStyleSheet('color:#a0a7b4;');footer.addWidget(self.count);footer.addStretch();self.key_hint=QLabel();self.key_hint.setFont(typeface(bar.font,8));self.key_hint.setStyleSheet('color:#a0a7b4;');footer.addWidget(self.key_hint);layout.addLayout(footer)
+        footer=QHBoxLayout();self.count=QLabel();self.count.setFont(typeface(bar.font,8));self.count.setStyleSheet('color:#a0a7b4;');footer.addWidget(self.count);footer.addStretch();layout.addLayout(footer)
         self.project_width=80;self.stamp_width=72;self.status_width=55
         self.search.textChanged.connect(self.apply_filter);self.projects.currentIndexChanged.connect(self.apply_filter)
         self.search.returnPressed.connect(self.open_selected)
@@ -239,12 +231,11 @@ class TaskFinder(QDialog):
         if key==self.input_key:return
         format_key=(self.bar.language,self.bar.chart_unit);format_changed=format_key!=getattr(self,'format_key',None);self.format_key=format_key
         self.input_key=key;self.rows=finder_rows(data,self.bar.language)
-        self.scope.setText(self.bar.label('All local history' if self.statistics else 'Recorded tasks'))
-        self.heading.setText(self.bar.label('Tasks'));self.key_hint.setText(self.bar.label('Enter to open'))
+        self.setAccessibleDescription(self.bar.label('All local history' if self.statistics else 'Recorded tasks'))
+        self.heading.setText(self.bar.label('Tasks'));self.view.setAccessibleDescription(self.bar.label('Enter to open'))
         self.statistics_button.setText(self.bar.label('History statistics'))
         self.statistics_button.setAccessibleName(self.bar.label('History statistics'))
-        self.statistics_button.setToolTip(self.bar.label('Show local lifetime run time, tokens and turns.'))
-        self.statistics_button.setAccessibleDescription(self.statistics_button.toolTip())
+        self.statistics_button.setAccessibleDescription(self.bar.label('Show local lifetime run time, tokens and turns.'))
         self.units.blockSignals(True);self.units.setCurrentText(self.bar.chart_unit);self.units.blockSignals(False)
         self.model.headerDataChanged.emit(Qt.Orientation.Horizontal,0,len(COLUMNS)-1)
         self.setWindowTitle(self.bar.label('Tasks'));self.search.setPlaceholderText(self.bar.label('Search tasks or projects'))

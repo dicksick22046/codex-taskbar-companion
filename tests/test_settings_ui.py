@@ -80,3 +80,15 @@ class SettingsLayoutTests(unittest.TestCase):
         toggle.focusInEvent(QFocusEvent(QEvent.Type.FocusIn,Qt.FocusReason.TabFocusReason));self.assertTrue(toggle.keyboard_focus)
         self.assertLessEqual(toggle.width(),48);self.assertLessEqual(toggle.switch_rect().width()+6,toggle.width())
         toggle.deleteLater()
+
+    def test_settings_have_no_explanatory_hover_but_keep_disconnected_display_state(self):
+        with patch('codex_taskbar.settings_ui.startup.enabled',return_value=False):
+            dialog=app.SettingsDialog(self.bar);self.bar.settings_dialog=dialog
+            self.bar.settings['floating_display']='missing-display'
+            for language in app.LANGUAGES:
+                self.bar.settings['language']=language;dialog.refresh()
+                for widget in dialog.findChildren(app.QWidget):self.assertEqual(widget.toolTip(),'')
+                for index in range(dialog.display.count()):self.assertIsNone(dialog.display.itemData(index,Qt.ItemDataRole.ToolTipRole))
+                self.assertEqual(dialog.display.currentText(),self.bar.label('Display unavailable'))
+                self.assertEqual(dialog.display.accessibleDescription(),self.bar.label('The saved display is disconnected. Using primary temporarily.'))
+                self.assertEqual(dialog.capsule.accessibleDescription(),self.bar.label('Colors and transparency apply to both strips.'))

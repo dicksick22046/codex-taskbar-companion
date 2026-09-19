@@ -2,6 +2,8 @@
 
 ## Shared navigation panels
 
+Visible copy is limited to actual task/project content, state, values, units, timestamps, necessary control names and actionable error/empty/confirmation states. Navigation, summary rows, task/detail panels, finder results and settings controls do not show explanatory hover tooltips or duplicate full-title popups. Keep existing deliberate long-title scrolling. Remove the finder's redundant scope subtitle and keyboard instruction; retain result counts and genuine indexing progress. Preserve invisible accessible names/descriptions and the system tray's application identity. Do not move removed explanations into another visible surface or replace them with new badges.
+
 Use the selected second visual concept as a material/type reference, not its single-task metadata layout. Keep every task's project beside that task; no project grouping. The navigation bar, pinned rows and quota/daily/5h/reset/status panels share restrained graphite/light materials, fine edges, clear primary text and subdued metadata. Keep all existing semantic state colors, charts, metrics, pins and motion.
 
 Panels use the navigation bar's existing left-edge anchor and the pinned region's existing occupied/target geometry. Never center a panel on its triggering button. Preserve screen clamping and safe placement above (below only when the screen requires it). The attached-region behavior below supersedes the previous separate popover/summary layout. Do not add arrows, necks or connecting lines.
@@ -36,7 +38,7 @@ Acceptance: all detail types form an attached surface; one host alternates summa
 
 新增悬浮显示的几何、拖动与设置约定见[Windows companion](windows-companion.md)。下面涉及任务栏锚点的约束用于Taskbar模式；Floating模式复用相同数据与内容，由屏幕可用区域决定面板方向。
 
-额度有效性、缓存提示、清楚的来源标签、独立开关和渐进历史统计按[产品清晰度](product-clarity.md)执行。当前额度统一排除过期窗口，保留原始历史边界；Today在提示中注明当天观测起点，重置显示自然、手动、官方三类。
+额度有效性、来源标签和渐进历史统计按[产品清晰度](product-clarity.md)执行。导航条与5h面板不显示“上次记录”文字；设置保留原有状态说明。当前额度统一排除过期窗口，保留原始历史边界；Today仍按当天观测起点累计，重置显示自然、手动、官方三类。
 
 ## 点击与信息
 
@@ -52,7 +54,7 @@ Acceptance: all detail types form an attached surface; one host alternates summa
 
 ## 固定状态行
 
-按[固定状态面板](pinned-status.md)执行：原状态面板右上角固定，各类状态合并为与底栏相接的多行小面板；替代独立任务悬浮条与位置开关。行内显示状态圆点、项目标签、任务标题与取消固定图钉，除图钉外整行可点击，具体信息继续在完整列表和提示中查看。
+按[固定状态面板](pinned-status.md)执行：原状态面板右上角固定，各类状态合并为与底栏相接的多行小面板；替代独立任务悬浮条与位置开关。行内显示状态圆点、项目标签、任务标题与取消固定图钉，除图钉外整行可点击，具体信息继续在完整列表中查看。
 
 ## 额度轮换
 
@@ -106,7 +108,7 @@ Codex侧边聊天是临时会话，不进入普通任务列表和持久化rollou
 
 主任务与侧边聊天分别作为状态项，按各自ID计数；同时运行时计为两项，多个侧聊各计一项。有关联侧聊的主任务显示Main标签，侧聊显示Side标签并沿用父任务标题和项目，保留parent_id；不把父任务改成侧聊的状态。各项独立进入Running、Needs input、Unread、Stopped、Failed或Recent。侧聊没有对应证据的状态不从父任务继承，原生空闲记录不冒充失败或成功。普通分叉、子代理仍不加入本次区分范围。
 
-侧聊本轮时间使用自己的开始和结束记录。Main/Side标签仅用于完整状态分类列表与提示，沿用中性色小方块与真实父任务名称；点击Side回到所属父任务，避免用临时ID打开不存在的独立任务页。今日Token列表每个普通任务只显示一行，不显示Main/Side标签或临时侧聊行；任务搜索同样只显示普通任务及其自身状态、全历史统计。临时侧聊不进入统计或搜索，不复制父任务用量，不改变今日、周期及历史总量的既有口径。Codex桌面重启后不沿用旧临时运行态；日志不可用时不伪造侧边状态。
+侧聊本轮时间使用自己的开始和结束记录。Main/Side标签仅用于完整状态分类列表，无障碍描述保留角色信息，沿用中性色小方块与真实父任务名称；点击Side回到所属父任务，避免用临时ID打开不存在的独立任务页。今日Token列表每个普通任务只显示一行，不显示Main/Side标签或临时侧聊行；任务搜索同样只显示普通任务及其自身状态、全历史统计。临时侧聊不进入统计或搜索，不复制父任务用量，不改变今日、周期及历史总量的既有口径。Codex桌面重启后不沿用旧临时运行态；日志不可用时不伪造侧边状态。
 
 重置历史显示各次重置前一个阶段的本机Token总量，分组标题显示重置周期，单位与类型图例统一置于标题行；统一按100M缩放，中文和日文使用亿/億，英文和西文使用×100M，不按数值大小改用M/B；区间为前一次记录时刻到本次记录时刻，首条优先用其原窗口起点；无边界依据时留空。复用UsageCursor的累计差分和分叉继承排除，首次回溯覆盖所需阶段，之后按原有日志增量累计；不重复扫描整份文件、不新增采样线程。阶段边界按观测时间划分，不能声称为账户跨设备精确额度或含未落盘临时会话用量。周图和日用量原有统计边界不变。
 

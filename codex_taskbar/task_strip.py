@@ -1,6 +1,5 @@
 """Automatic task summaries, driven by the owner's existing clocks."""
 import time
-from html import escape
 
 from PySide6.QtCore import Qt,QPointF,QRectF,QVariantAnimation,QEasingCurve,QAbstractAnimation
 from PySide6.QtGui import QColor,QFontMetricsF,QPainter,QPainterPath,QCursor
@@ -122,7 +121,10 @@ class TaskStrip(QWidget):
              self.geometry().getRect(),self.language,self.owner.settings.get('capsule_theme'),self.task_hover)
         if key!=self.frame_key:
             self.frame_key=key
-            if self.task:self.setAccessibleDescription(task_title(self.task,self.language))
+            if self.task:
+                role=task_role_label(self.task)
+                self.setAccessibleDescription(' · '.join([project_label(self.task.get('project'),self.language),
+                    *([translate(self.language,role)] if role else []),task_title(self.task,self.language)]))
             self.update()
 
     def row_hit_path(self):
@@ -147,13 +149,6 @@ class TaskStrip(QWidget):
             self.task_hover=hovering;self.title_hover_started=time.monotonic();self._sync_pause(self.title_hover_started);self.update()
         self.close_button.set_revealed(hovering)
         self.setCursor(Qt.CursorShape.PointingHandCursor if self.task_at_point(point) else Qt.CursorShape.ArrowCursor)
-        task=self.displayed_task();tip=''
-        if hovering and task:
-            role=task_role_label(task)
-            parts=[translate(self.language,CATEGORY_LABELS[self.category]),project_label(task.get('project'),self.language),
-                   *([translate(self.language,role)] if role else []),task_title(task,self.language)]
-            tip='<qt>'+'<br>'.join(escape(part) for part in parts)+'</qt>'
-        if self.toolTip()!=tip:self.setToolTip(tip)
 
     def begin_press(self,task,rect=None):
         self.pressed_local=QRectF(rect or self.task_area);self.pressed=(QRectF(self.pressed_local),dict(task));self.press_inside=True

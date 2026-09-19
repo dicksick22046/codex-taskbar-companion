@@ -69,7 +69,7 @@ An unresolved synchronous `request_user_input` record appears as **Needs input**
 
 ## About the numbers
 
-- Quota percentages come from the account; Token statistics come from this computer. Cycle/today panels show a compact summary and the last Token update. A quiet **Cached** marker identifies retained readings after a quota failure. Expired balances and reset times become unknown across all quota surfaces.
+- Quota percentages come from the account; Token statistics come from this computer. Cycle/today panels show a compact summary and the last Token update. Quota failures retain valid readings; connection status remains available in Settings. Expired balances and reset times become unknown across all quota surfaces.
 - **Week left / 5h left** show remaining account quota; **Today used** is observed consumption, not necessarily a complete day. Restarting preserves the baseline, earlier usage is not reconstructed, and resets are accumulated as separate intervals.
 - The daily task list includes today's turns. Status panels show the current or latest turn's duration, including time waiting for tools.
 - Historical token totals cover locally recorded tasks. Other devices and temporary side chats without saved usage are excluded.

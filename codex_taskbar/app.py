@@ -8,7 +8,6 @@ import math
 import json
 import os
 import subprocess
-from html import escape
 from functools import lru_cache
 from fractions import Fraction
 
@@ -18,7 +17,7 @@ RUNTIME = runtime_dir()
 try:
     from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QPointF, QVariantAnimation, QEasingCurve,QAbstractAnimation
     from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPen, QCursor, QLinearGradient, QImage
-    from PySide6.QtWidgets import QApplication, QWidget, QMenu, QSystemTrayIcon, QPushButton, QMessageBox,QButtonGroup,QToolTip,QScrollBar,QGraphicsOpacityEffect
+    from PySide6.QtWidgets import QApplication, QWidget, QMenu, QSystemTrayIcon, QPushButton, QMessageBox,QButtonGroup,QScrollBar,QGraphicsOpacityEffect
     from PySide6.QtSvg import QSvgRenderer
 except ImportError:
     if '--smoke-test' in sys.argv:raise SystemExit(1)
@@ -324,7 +323,7 @@ class SummaryCloseButton(QPushButton):
             target=self.hover_tween.endValue();self.hover_tween.stop();self.set_hover_value(target)
         if key==self.visual_key:return
         self.visual_key=key
-        self.setAccessibleName(label);self.setToolTip(label);self.update()
+        self.setAccessibleName(label);self.update()
     def paintEvent(self,event):
         opacity=1. if self.keyboard_focus or self.underMouse() or self.isDown() else self.hover_value
         if opacity<=0:return
@@ -778,9 +777,6 @@ class StatusBar(QWidget):
     def count_label(self,kind,count):
         return self.label('Needs input')+' '+str(count) if kind=='waiting' else str(count)
 
-    def cached_width(self):
-        return QFontMetricsF(face(7)).horizontalAdvance(self.label('Cached'))+12 if self.displayed_metrics() and quota_is_cached(self.data) else 0
-
     def displayed_metrics(self):
         metrics=visible_metrics(self.data,self.settings)
         choices=self.quota_choices()
@@ -808,8 +804,6 @@ class StatusBar(QWidget):
         metrics=self.displayed_metrics();rotating=self.settings.get('rotate_quotas')
         x=CONTENT_X+sum((25 if rotating else 29)+self.metric_text_width(kind,value) for kind,value,_ in metrics)
         right=x-(13 if rotating else 17) if metrics else CONTENT_X
-        cached=self.cached_width()
-        if cached:x+=cached;right+=cached
         if not self.settings['show_tasks']:return min(limit,math.ceil(right+12))
         counts=category_counts(self.data)
         statuses=[kind for kind in STATUS_CATEGORIES if counts[kind]]
@@ -1053,12 +1047,6 @@ class StatusBar(QWidget):
         hit=next((item for item in self.hit_regions if item[1].contains(point)),None)
         hovered=hit[0] if hit else None
         if hovered!=getattr(self,'hovered_button',None):self.hovered_button=hovered;self.update()
-        tip=''
-        if hit:
-            mode,_,_=hit
-            tip=self.label({'usage':'Weekly quota remaining','daily':"Today's quota consumption",'session':'5-hour quota remaining','resets':'Next quota reset'}.get(mode,CATEGORY_LABELS.get(mode,mode)))
-            if mode in STATUS_CATEGORIES:tip+=' · '+str(category_counts(self.data).get(mode,0))
-        if self.toolTip()!=tip:self.setToolTip(tip)
 
     def mousePressEvent(self,event):
         if not self.floating:return super().mousePressEvent(event)
@@ -1211,7 +1199,7 @@ class StatusBar(QWidget):
         # Keep visibility/interaction checks responsive without repainting unchanged pixels.
         frame_key=(tuple((kind,value,None if fraction is None else round(fraction,4)) for kind,value,fraction in self.displayed_metrics()),
                    tuple(category_counts(self.data).items()) if self.settings['show_tasks'] else (),
-                   self.position,tuple(self.settings.get(k) for k in DISPLAY_DEFAULTS),self.settings.get('rotate_quotas'),quota_is_cached(self.data))
+                   self.position,tuple(self.settings.get(k) for k in DISPLAY_DEFAULTS),self.settings.get('rotate_quotas'))
         if frame_key!=self.frame_key:
             self.frame_key=frame_key;self.update()
         self.update_hover_popup(QCursor.pos())
@@ -1293,9 +1281,6 @@ class StatusBar(QWidget):
                 p.drawLine(QPointF(x-6,y-5),QPointF(x-6,y+5))
             x+=7
         for kind,value,fraction in self.displayed_metrics():field(kind,value,fraction)
-        cached=self.cached_width()
-        if cached:
-            text(p,x-5,y,self.label('Cached'),face(7),palette['muted']);x+=cached
         if not self.settings['show_tasks']:finish();return
         counts=category_counts(data)
         if not any(counts[k] for k in STATUS_CATEGORIES):finish();return
@@ -1560,7 +1545,6 @@ class TaskPopup(QWidget):
             window=quota_window(effective_quota_data(self.data),300)
             value=self.owner.label('{value}% remaining',value=f"{window['remaining']:g}") if window else '—'
             first=49+QFontMetricsF(face(8)).horizontalAdvance(value)+18
-            if quota_is_cached(self.data):first+=10+small.horizontalAdvance(self.owner.label('Cached'))
             reset=datetime.fromtimestamp(window['resets_at']).strftime('%H:%M') if window and window.get('resets_at') else '—'
             metadata=48+small.horizontalAdvance(quota_update_label(self.owner,self.data))+small.horizontalAdvance(self.owner.label('Reset {time}',time=reset))
             return math.ceil(max(self.owner.navigation_width,first,metadata,66+2*small.horizontalAdvance('00:00')))
@@ -1615,10 +1599,7 @@ class SessionPopup(TaskPopup):
         text(p,18,21,'5h',face(9),colors['title'])
         value=self.owner.label('{value}% remaining',value=f"{window['remaining']:g}") if window else '—'
         value=QFontMetricsF(face(8)).elidedText(value,Qt.TextElideMode.ElideRight,max(0,self.width()-67))
-        value_width=text(p,49,21,value,face(8),colors['text'])
-        cached=self.owner.label('Cached')
-        if quota_is_cached(self.data) and 49+value_width+10+QFontMetricsF(face(7)).horizontalAdvance(cached)<=self.width()-18:
-            text(p,49+value_width+10,21,cached,face(7),colors['muted'])
+        text(p,49,21,value,face(8),colors['text'])
         reset=datetime.fromtimestamp(window['resets_at']).strftime('%H:%M') if window and window.get('resets_at') else '—'
         label=self.owner.label('Reset {time}',time=reset)
         text(p,self.width()-18-QFontMetricsF(face(7)).horizontalAdvance(label),47,label,face(7),colors['muted'])
@@ -2031,7 +2012,6 @@ class TaskListPopup(TaskPopup):
         task=self.task_at(point);hovered=task['id'] if task else None
         if hovered!=self.hovered:
             self.hovered=hovered;self.hover_started=time.monotonic()
-            self.setToolTip('<qt>'+escape(task_title(task,self.owner.language))+'</qt>' if task else '')
         over_unit=self.mode=='daily' and any(rect.contains(point) for rect in self.unit_rects().values())
         self.setCursor(Qt.CursorShape.PointingHandCursor if task or over_unit else Qt.CursorShape.ArrowCursor)
 
@@ -2110,7 +2090,7 @@ class TaskListPopup(TaskPopup):
         self.keyboard_navigation=False;super().focusOutEvent(event);self.update()
 
     def leaveEvent(self,event):
-        self.hovered=None;self.setToolTip('');self.sync_animation();self.update()
+        self.hovered=None;self.sync_animation();self.update()
 
     def wheelEvent(self,event):
         self.pressed_task=None
@@ -2152,7 +2132,6 @@ def main():
     migrate_legacy(BASE/'.runtime',RUNTIME,legacy_runtime_dirs())
     sys.stdout=sys.stderr=(RUNTIME/"app.log").open("a",encoding="utf-8",buffering=1)
     app=QApplication(sys.argv);app.setQuitOnLastWindowClosed(False);app.setApplicationName(APP_NAME)
-    QToolTip.setFont(face(8))
     provider=Provider(RUNTIME);bar=StatusBar(provider)
     app.exec()
 

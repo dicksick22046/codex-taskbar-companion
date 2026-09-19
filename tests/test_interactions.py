@@ -102,7 +102,7 @@ class InteractionTests(unittest.TestCase):
                     for task,role in ((main,'Main'),(child,'Side')):
                         tag.reset_mock();self.strip.task=task;self.strip.grab()
                         tag.assert_not_called()
-                        self.strip.track_pointer(self.strip.task_area.center());self.assertIn(self.bar.label(role),self.strip.toolTip())
+                        self.strip.track_pointer(self.strip.task_area.center());self.assertEqual(self.strip.toolTip(),'')
             with patch('codex_taskbar.app.os.startfile') as opened:
                 self.assertTrue(self.bar.open_task(running.rows[1]));opened.assert_called_once_with('codex://threads/'+parent)
         finally:
@@ -134,6 +134,25 @@ class InteractionTests(unittest.TestCase):
                         self.assertEqual(number_call.args[1],app.CONTENT_X+12)
         for i,(_,a,_) in enumerate(self.bar.hit_regions):
             for _,b,_ in self.bar.hit_regions[i+1:]:self.assertFalse(a.intersects(b))
+
+    def test_task_lists_keep_full_user_titles_and_marquee_without_hover_tooltips(self):
+        title='请继续任务 https://example.invalid/docs?q=<value> '+('Long task title '*20)
+        self.data['tasks'][0].update(title=title,project='https://project.invalid')
+        self.bar.resize(380,30)
+        for language in app.LANGUAGES:
+            self.bar.settings['language']=language
+            for mode in ('daily','running'):
+                panel=app.TaskListPopup(self.bar,mode);panel.refresh(self.data)
+                try:
+                    point=QPointF(panel.TITLE_X+2,panel.row_positions[0]+8+panel.ROW_HEIGHT/2)
+                    panel.track_hover(point)
+                    self.assertEqual(panel.hovered,'running');self.assertEqual(panel.toolTip(),'')
+                    self.assertEqual(panel.rows[0]['title'],title)
+                    with patch('codex_taskbar.app.marquee_offset',wraps=app.marquee_offset) as marquee,patch('codex_taskbar.app.text',wraps=app.text) as draw:panel.grab()
+                    self.assertIn(title,[call.args[3] for call in draw.call_args_list])
+                    self.assertTrue(any(call.args[1]>0 for call in marquee.call_args_list))
+                    panel.leaveEvent(Mock());self.assertEqual(panel.toolTip(),'')
+                finally:panel.close();panel.deleteLater()
 
     def test_task_target_is_frozen_at_press_and_dragging_out_cancels(self):
         point=self.strip.task_area.center()

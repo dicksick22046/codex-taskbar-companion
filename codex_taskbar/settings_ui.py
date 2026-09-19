@@ -195,7 +195,7 @@ class SettingsDialog(QDialog):
                 for i,value in enumerate(options):control.setItemText(i,label(value))
             control.setCurrentIndex(max(0,control.findData(self.bar.settings.get(key,{'language':'en','placement':'taskbar','capsule_theme':'dark'}[key]))));control.blockSignals(False)
         self.placement_label.setText(label('Status bar placement'));self.capsule_label.setText(label('Capsule'));self.transparency_label.setText(label('Transparency'))
-        self.capsule.setToolTip(label('Colors and transparency apply to both strips.'));self.transparency.setToolTip(label('Colors and transparency apply to both strips.'))
+        self.capsule.setAccessibleDescription(label('Colors and transparency apply to both strips.'));self.transparency.setAccessibleDescription(label('Colors and transparency apply to both strips.'))
         for caption,control in ((self.placement_label,self.placement),(self.display_label,self.display),(self.capsule_label,self.capsule),(self.transparency_label,self.transparency),(self.language_label,self.language)):
             caption.setBuddy(control);control.setAccessibleName(caption.text())
         floating_options=self.bar.settings.get('placement') in ('auto','floating')
@@ -203,7 +203,7 @@ class SettingsDialog(QDialog):
         self.topmost.setText(label('Keep floating windows on top'));self.topmost.setVisible(topmost_options);self.topmost_line.setVisible(topmost_options)
         self.topmost.row.setVisible(topmost_options);self.display_row.setVisible(floating_options);self.display_line.setVisible(floating_options)
         self.display_label.setText(label('Floating display'));self.display.setAccessibleName(label('Floating display'));self.refresh_displays()
-        self.placement.items[2][0].setToolTip(label('Use floating mode when taskbar space is unavailable.'))
+        self.placement.items[2][0].setAccessibleDescription(label('Use floating mode when taskbar space is unavailable.'))
         self.transparency.blockSignals(True);self.transparency.setValue(self.bar.settings.get('capsule_transparency',0));self.transparency.blockSignals(False);self.transparency_value.setText(f'{self.transparency.value()}%')
         for key,source in DISPLAY_LABELS.items():self.checks[key].setText(label(source))
         self.rotation.setText(label('Rotate left-side indicators'));self.hover.setText(label('Open panels on hover'));self.login.setText(label('Start at Windows sign-in'))
@@ -239,8 +239,8 @@ class SettingsDialog(QDialog):
         for index,(name,width,height) in enumerate(entries):
             self.display.addItem(f'{index+1} · {width} × {height}',name)
             description=self.bar.label('Display {number}',number=index+1)+f' · {width} × {height}'
-            self.display.setItemData(index+1,description,Qt.ItemDataRole.ToolTipRole);self.display.setItemData(index+1,description,Qt.ItemDataRole.AccessibleTextRole)
+            self.display.setItemData(index+1,description,Qt.ItemDataRole.AccessibleTextRole)
         if selected and selected not in [entry[0] for entry in entries]:
             self.display.addItem(self.bar.label('Display unavailable'),selected);self.display.model().item(self.display.count()-1).setEnabled(False)
         self.display.setCurrentIndex(max(0,self.display.findData(selected)));self.display.blockSignals(False)
-        self.display.setToolTip(self.bar.label('The saved display is disconnected. Using primary temporarily.') if selected and selected not in [entry[0] for entry in entries] else self.display.currentText())
+        self.display.setAccessibleDescription(self.bar.label('The saved display is disconnected. Using primary temporarily.') if selected and selected not in [entry[0] for entry in entries] else self.display.currentText())

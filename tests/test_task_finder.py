@@ -102,11 +102,15 @@ class FinderInteractionTests(unittest.TestCase):
         with patch.object(self.bar,'open_task',return_value=False),patch.object(self.finder,'hide') as hide:
             self.finder.open_selected();hide.assert_not_called()
 
-    def test_empty_states_and_untitled_are_translated_and_tooltips_escape_titles(self):
+    def test_empty_states_translate_and_raw_titles_have_no_duplicate_tooltip(self):
         self.data['catalog']=[{'id':'a','title':'','project':'','updated_at':0},{'id':'b','title':'<b>Literal</b>','project':'','updated_at':0}]
         self.bar.settings['language']='zh-CN';self.finder.refresh(self.data)
         self.assertEqual(self.finder.model.rows[0]['title'],'未命名任务')
-        self.assertIn('&lt;b&gt;',self.finder.model.index(1,0).data(Qt.ItemDataRole.ToolTipRole))
+        self.assertEqual(self.finder.model.index(1,1).data(Qt.ItemDataRole.DisplayRole),'<b>Literal</b>')
+        self.assertIn('<b>Literal</b>',self.finder.model.index(1,0).data(Qt.ItemDataRole.AccessibleTextRole))
+        for column in range(self.finder.model.columnCount()):
+            self.assertIsNone(self.finder.model.index(1,column).data(Qt.ItemDataRole.ToolTipRole))
+            self.assertIsNone(self.finder.model.headerData(column,Qt.Orientation.Horizontal,Qt.ItemDataRole.ToolTipRole))
         self.finder.search.setText('not found');self.assertEqual(self.finder.empty.text(),'没有匹配的任务')
         self.assertEqual(self.finder.count.text(),'结果：0')
 
@@ -115,6 +119,24 @@ class FinderInteractionTests(unittest.TestCase):
         self.bar.settings['language']='zh-CN';self.finder.refresh(self.data)
         spoken=self.finder.model.index(0,0).data(Qt.ItemDataRole.AccessibleTextRole)
         self.assertIn('进行中',spoken);self.assertIn(self.finder.model.rows[0]['stamp'],spoken)
+
+    def test_finder_discloses_statistics_without_explanatory_hover_or_visible_guides(self):
+        from PySide6.QtWidgets import QLabel
+        title='请继续任务 https://example.invalid/<task>'
+        self.data['catalog']=[{'id':'original','title':title,'project':'https://project.invalid','updated_at':0}]
+        for language in app.LANGUAGES:
+            self.bar.settings['language']=language
+            for expanded in (False,True):
+                self.finder.statistics_button.setChecked(expanded);self.finder.refresh(self.data)
+                self.assertEqual(self.finder.model.index(0,1).data(Qt.ItemDataRole.DisplayRole),title)
+                for column in range(self.finder.model.columnCount()):
+                    self.assertIsNone(self.finder.model.index(0,column).data(Qt.ItemDataRole.ToolTipRole))
+                    self.assertIsNone(self.finder.model.headerData(column,Qt.Orientation.Horizontal,Qt.ItemDataRole.ToolTipRole))
+                self.assertEqual(self.finder.statistics_button.toolTip(),'')
+                self.assertEqual(self.finder.statistics_button.accessibleDescription(),self.bar.label('Show local lifetime run time, tokens and turns.'))
+                labels=[label.text() for label in self.finder.findChildren(QLabel)]
+                for key in ('Recorded tasks','All local history','Enter to open'):self.assertNotIn(self.bar.label(key),labels)
+                self.assertEqual(self.finder.view.accessibleDescription(),self.bar.label('Enter to open'))
 
     def test_totals_are_numeric_sortable_in_both_directions_with_unknown_last(self):
         self.finder.statistics_button.setChecked(True)
@@ -137,7 +159,7 @@ class FinderInteractionTests(unittest.TestCase):
         self.assertEqual(self.finder.view.currentIndex().data(Qt.ItemDataRole.UserRole)['id'],'3')
         self.assertEqual(self.finder.model.rows[3]['total_tokens'],100)
         self.assertIn('<0.1M',self.finder.model.index(3,4).data(Qt.ItemDataRole.AccessibleTextRole))
-        self.assertEqual(self.finder.scope.text(),'All local history')
+        self.assertEqual(self.finder.accessibleDescription(),'All local history')
 
     def test_indexing_shows_known_lower_bounds_and_byte_progress(self):
         self.finder.statistics_button.setChecked(True)
@@ -174,7 +196,7 @@ class FinderInteractionTests(unittest.TestCase):
 
     def test_default_search_has_four_columns_and_does_not_index_history(self):
         self.assertEqual([i for i in range(7) if not self.finder.view.isColumnHidden(i)],[0,1,2,6])
-        self.assertTrue(self.finder.units.isHidden());self.assertEqual(self.finder.scope.text(),'Recorded tasks')
+        self.assertTrue(self.finder.units.isHidden());self.assertEqual(self.finder.accessibleDescription(),'Recorded tasks')
         self.provider.set_statistics_active.reset_mock()
         self.finder.showEvent(QShowEvent())
         self.provider.set_statistics_active.assert_called_once_with(False)

@@ -57,7 +57,7 @@ La barra se ajusta al contenido y al espacio disponible. Las filas fijadas reser
 
 ## Qué significan los datos
 
-Semana y 5h indican cuota restante; Hoy indica consumo observado desde la primera lectura del día. Los detalles muestran el inicio de observación y la última actualización. Un marcador identifica los valores conservados tras un fallo; las cuotas y horas de reinicio caducadas pasan a desconocidas. Los tokens locales no equivalen a un porcentaje exacto de la cuota de cuenta.
+Semana y 5h indican cuota restante; Hoy indica consumo observado desde la primera lectura del día. Si falla la consulta, se conservan las lecturas válidas; el estado de conexión está disponible en Ajustes. Las cuotas y horas de reinicio caducadas pasan a desconocidas. Los tokens locales no equivalen a un porcentaje exacto de la cuota de cuenta.
 
 La búsqueda muestra inicialmente proyecto, título, estado y actividad reciente. Activa Estadísticas históricas para revelar tiempo, tokens, turnos y unidades. La indexación solo se ejecuta mientras la ventana y las estadísticas están visibles; al ocultarlas se pausa y conserva la caché. La selección y los filtros se mantienen. `≥` indica un mínimo conocido cuando faltan registros.
 
