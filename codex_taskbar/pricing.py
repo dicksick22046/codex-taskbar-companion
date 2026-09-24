@@ -1,4 +1,4 @@
-"""Standard API equivalent prices; reviewed 2026-09-16, not subscription billing.
+"""Standard API equivalent prices; reviewed 2026-09-24, not subscription billing.
 
 Source: https://developers.openai.com/api/docs/pricing
 Rates are USD per million tokens followed by the long-input threshold, if any.
@@ -7,6 +7,8 @@ Model identifiers match exactly.
 
 RATES = {
     'gpt-6-astra': (10., 1., 12.5, 50., 272000),
+    'gpt-6-sol': (2., .2, 2.5, 10., 272000),
+    'gpt-6-luna': (.1, .01, .125, .5, 272000),
     'gpt-5.6-sol': (4., .4, 5., 20., 272000),
     'gpt-5.6-terra': (2., .2, 2.5, 12., 272000),
     'gpt-5.5': (5., .5, None, 30., 272000),

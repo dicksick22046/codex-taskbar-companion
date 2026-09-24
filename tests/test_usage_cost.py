@@ -36,6 +36,8 @@ def count(at, total, step):
 class PricingTests(unittest.TestCase):
     def test_cache_read_write_and_reasoning_are_not_double_counted(self):
         self.assertAlmostEqual(estimate_usd('gpt-6-astra', usage()), .01255)
+        self.assertAlmostEqual(estimate_usd('gpt-6-sol', usage()), .00251)
+        self.assertAlmostEqual(estimate_usd('gpt-6-luna', usage()), .0001255)
         self.assertAlmostEqual(estimate_usd('gpt-5.6-sol', usage()), .00502)
         self.assertAlmostEqual(estimate_usd('gpt-5.5', usage()), .00665)
         self.assertAlmostEqual(estimate_usd('gpt-5.6-terra', usage()), .00271)
@@ -46,6 +48,10 @@ class PricingTests(unittest.TestCase):
         above=usage(272001, 100000, 10000, 1000)
         self.assertAlmostEqual(estimate_usd('gpt-6-astra', at_limit), 1.895)
         self.assertAlmostEqual(estimate_usd('gpt-6-astra', above), 3.76502)
+        self.assertAlmostEqual(estimate_usd('gpt-6-sol', at_limit), .379)
+        self.assertAlmostEqual(estimate_usd('gpt-6-sol', above), .753004)
+        self.assertAlmostEqual(estimate_usd('gpt-6-luna', at_limit), .01895)
+        self.assertAlmostEqual(estimate_usd('gpt-6-luna', above), .0376502)
 
     def test_mini_does_not_have_a_long_context_surcharge(self):
         large=usage(300000,100000,0,1000)
@@ -100,6 +106,18 @@ class CursorCostTests(unittest.TestCase):
         self.assertEqual(replay.daily_usd, cursor.daily_usd)
         self.assertEqual(replay.daily, cursor.daily)
         self.assertEqual(cursor.by_day_usd, {self.now.date().isoformat():expected})
+
+    def test_new_model_steps_complete_daily_and_period_totals(self):
+        sol=usage();luna=usage(2000,1000,100,200)
+        periods=(('current',self.now.timestamp()-1,self.now.timestamp()+60),)
+        data=context(self.now,'gpt-6-sol')+count(self.now,sol,sol)
+        data+=context(self.now,'gpt-6-luna')+count(self.now,add(sol,luna),luna)
+        cursor=self.cursor(data,periods=periods)
+        expected=estimate_usd('gpt-6-sol',sol)+estimate_usd('gpt-6-luna',luna)
+        self.assertAlmostEqual(cursor.daily_usd,expected)
+        self.assertAlmostEqual(cursor.by_day_usd[self.now.date().isoformat()],expected)
+        self.assertAlmostEqual(cursor.period_usd['current'],expected)
+        self.assertEqual(cursor.daily['total_tokens'],sol['total_tokens']+luna['total_tokens'])
 
     def test_cumulative_inputs_do_not_trigger_long_context_price(self):
         step=usage(200000, 100000, 0, 1000)

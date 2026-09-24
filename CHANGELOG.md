@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Price GPT-6 Sol and Luna usage from verified Standard API rates, restoring complete USD totals when those models were the only missing price data.
+
 - Remove the community reset forecast and its network request; keep account reset timing, recorded history and available reset credits.
 
 - Remove redundant hover explanations and duplicate full-title popups across navigation, task rows, panels, search and settings, plus the finder's repeated scope and keyboard instructions. Remove the Cached label and its reserved space; retain actual values, state/error feedback, accessibility information and quota refresh behavior.
