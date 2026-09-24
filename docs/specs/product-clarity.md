@@ -20,7 +20,7 @@ Cycle/today sums remain beside their period labels. The expiry section identifie
 
 The pinned status interaction is governed by [pinned status](pinned-status.md), replacing the independent Running-strip preference and placement described in this milestone.
 
-The optional reset forecast uses the public [Codex Reset Today API](https://codex-reset.today/developers), without keys, account identifiers or task data. Fetch asynchronously only when the reset panel is in use, at most once per 15 minutes after success (two-minute retry after failure), with a four-second request timeout and bounded JSON. Display only a validated, fresh Codex forecast with a future window end and probability from 0 to 100; expired, missing or failed data hides the row. Show its remaining time window and approximate probability below Next reset, without a panel-wide hover explanation. Never substitute it for the official per-account resetsAt or invent an exact ETA. The [Codex Reset API](https://codexreset.dev/api/) was also checked but currently publishes null probabilities due to insufficient samples.
+The reset panel uses the account's observed quota window, local reset history and available reset credits. It does not request or show a community forecast: public discretionary-reset predictions cannot establish when this account's limit will recover, and a banked credit does not replenish the account until redeemed. Keep the existing reset-credit confirmation and observed-history classifications.
 
 ## 2. Independent windows and defaults
 
