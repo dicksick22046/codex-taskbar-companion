@@ -18,6 +18,7 @@
 ## 构建与验收
 
 1. 更新CHANGELOG和VERSION。
+   同步核对[官方模型价格](https://developers.openai.com/api/docs/pricing)与 `codex_taskbar/pricing.py`，检查本机日志已出现的模型标识是否有未计价的新模型；没有官方价格或必要明细时仍保留未知。
 2. 安装requirements-build.txt，运行unittest discover。
 3. 使用scripts/package.ps1生成安装器及SHA-256文件。
    脚本先生成Inno负载，再用Windows自带.NET Framework编译安装引导程序，发布文件仍是单个Setup.exe。原始负载只留在build中，不能单独作为Release安装包。

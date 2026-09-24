@@ -4,11 +4,13 @@
 
 为周期用量、今日用量和重置周期历史提供 USD 查看方式。USD 是本机已记录 Token 按当前已核验的 OpenAI 标准 API 价格计算的等值估算，不是订阅账单、额度换算或实际 API 付款记录。日志未提供服务档位，统一以 Standard 为比较基准，不推测 Fast、Batch、地区加价或工具调用费。价格版本随应用维护，不从网页实时抓取，不发送任务数据。
 
-定价依据（2026-09-16 核验）：[官方价格表](https://developers.openai.com/api/docs/pricing)、[GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra)、[GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol)、[GPT-5.6 Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra)、[GPT-5.5](https://developers.openai.com/api/docs/models/gpt-5.5)、[GPT-5.4](https://developers.openai.com/api/docs/models/gpt-5.4)、[GPT-5.4 mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini)。精确匹配上述六个模型标识；无已核验价格的模型保持未知，不按前缀猜测。
+定价依据（2026-09-24 核验）：[官方价格表](https://developers.openai.com/api/docs/pricing)、[GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra)、[GPT-6 Sol](https://developers.openai.com/api/docs/models/gpt-6-sol)、[GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna)、[GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol)、[GPT-5.6 Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra)、[GPT-5.5](https://developers.openai.com/api/docs/models/gpt-5.5)、[GPT-5.4](https://developers.openai.com/api/docs/models/gpt-5.4)、[GPT-5.4 mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini)。只精确匹配已核验的模型标识；无已核验价格的模型保持未知，不按前缀猜测。每次准备版本时核对官方模型与价格表，并检查本机已观察到的新模型标识，避免新增模型长时间显示为未知。
 
 | 模型 | 输入 / 百万 | 缓存读取 / 百万 | 缓存写入 / 百万 | 输出 / 百万 |
 |---|---:|---:|---:|---:|
 | gpt-6-astra | $10 | $1 | $12.50 | $50 |
+| gpt-6-sol | $2 | $0.20 | $2.50 | $10 |
+| gpt-6-luna | $0.10 | $0.01 | $0.125 | $0.50 |
 | gpt-5.6-sol | $4 | $0.40 | $5 | $20 |
 | gpt-5.6-terra | $2 | $0.20 | $2.50 | $12 |
 | gpt-5.5 | $5 | $0.50 | 不另计写入 | $30 |
