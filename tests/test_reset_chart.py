@@ -52,7 +52,7 @@ class ResetChartTests(unittest.TestCase):
             header_height=round(48*panel.devicePixelRatioF())
             self.assertEqual(before.copy(0,0,before.width(),header_height),after.copy(0,0,after.width(),header_height))
             self.assertEqual(panel.button.geometry(),button)
-            last_credit_y=panel.forecast_height+panel.credits_top+26*max(1,len(panel.credits))-panel.scroll
+            last_credit_y=panel.credits_top+26*max(1,len(panel.credits))-panel.scroll
             self.assertLess(last_credit_y+8,button.top())
         self.provider.request_reset.assert_not_called()
 
@@ -87,7 +87,7 @@ class ResetChartTests(unittest.TestCase):
             self.assertLessEqual(panel.height()-height,14);self.assertGreater(panel.history_scroll.maximum(),0)
             panel.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress,Qt.Key.Key_End,Qt.KeyboardModifier.NoModifier))
             self.assertEqual(panel.history_scroll.value(),panel.history_scroll.maximum())
-            point=QPointF(panel.width()-19,panel.DATE_Y+panel.forecast_height)
+            point=QPointF(panel.width()-19,panel.DATE_Y)
             self.assertEqual(panel.history_at(point),len(panel.rows)-1)
             offset=panel.history_scroll.value();panel.refresh(self.data);self.assertEqual(panel.history_scroll.value(),offset)
             panel.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress,Qt.Key.Key_Home,Qt.KeyboardModifier.NoModifier));self.assertEqual(panel.history_scroll.value(),0)
@@ -97,7 +97,7 @@ class ResetChartTests(unittest.TestCase):
     def test_wheel_axes_scroll_without_changing_data(self):
         panel=self.panel;self.data['reset_events']*=4;panel.refresh(self.data)
         panel.history_scroll.setValue(0);rows=list(panel.rows)
-        point=QPointF(50,150+panel.forecast_height)
+        point=QPointF(50,150)
         def wheel(pixel=QPoint(),angle=QPoint(),shift=False):
             event=QWheelEvent(point,point,pixel,angle,Qt.MouseButton.NoButton,Qt.KeyboardModifier.ShiftModifier if shift else Qt.KeyboardModifier.NoModifier,Qt.ScrollPhase.ScrollUpdate,False)
             panel.wheelEvent(event)

@@ -15,7 +15,7 @@ class Owner(QWidget):
     @property
     def selected_chart_unit(self):return self.chart_unit
     def __init__(self):
-        super().__init__();self.forecast=Mock();self.forecast.get.return_value=None
+        super().__init__()
 
     def label(self,key,**values):return translate(self.language,key,**values)
 

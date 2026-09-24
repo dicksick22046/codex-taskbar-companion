@@ -23,7 +23,6 @@ Windows 11 x64 的单行 Codex 状态工具，支持任务栏与可选悬浮胶�
 | preferences.py、unread.py | 本机设置、旧数据迁移与未读状态 |
 | windows.py、startup.py | 任务栏布局、鼠标命中和用户启动项 |
 | presentation.py | 悬浮位置与面板的屏幕边界计算，使用Qt逻辑坐标 |
-| forecast.py | 按需读取公开全局重置预测，不发送账户或任务数据 |
 | updates.py、build_info.py | GitHub 更新及唯一版本来源 |
 
 以上模块均在 codex_taskbar/。根目录 app.py 仅负责启动，start.ps1 和 PyInstaller 共用它；测试位于 tests/。

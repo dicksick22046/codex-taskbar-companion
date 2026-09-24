@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Remove the community reset forecast and its network request; keep account reset timing, recorded history and available reset credits.
+
 - Remove redundant hover explanations and duplicate full-title popups across navigation, task rows, panels, search and settings, plus the finder's repeated scope and keyboard instructions. Remove the Cached label and its reserved space; retain actual values, state/error feedback, accessibility information and quota refresh behavior.
 
 - Replace persistent status pins with automatic running, input-needed, unread and failed summaries. A small close control appears on row hover or keyboard focus; dismissals persist for the current executions and reopen on new tasks, turns or state entries.

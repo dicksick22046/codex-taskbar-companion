@@ -160,14 +160,18 @@ class QuotaPresentationTests(unittest.TestCase):
             self.assertNotIn('7d',self.rendered_labels(panel));self.assertNotIn('Tokens',self.rendered_labels(panel))
         finally:panel.close();panel.deleteLater()
 
-    def test_forecast_is_separate_and_disappears_when_expired(self):
-        now=datetime.now().timestamp();self.bar.forecast.value=dict(chance=3,confidence='low',generated=now,end=now+48*3600)
+    def test_reset_panel_uses_account_history_and_credits_without_prediction(self):
+        self.data['reset_events']=[{'id':'observed','kind':'scheduled','at':datetime.now().timestamp(),'tokens':12000000}]
         panel=app.ResetPopup(self.bar);panel.refresh(self.data)
         try:
-            labels=self.rendered_labels(panel);self.assertIn('Reset forecast',labels);self.assertIn('Within 48h · ~3%',labels)
+            labels=self.rendered_labels(panel)
+            self.assertIn('Next reset',labels)
+            self.assertEqual(panel.history_choice.currentText(),panel.history_heading())
+            self.assertIn('Reset credit expiry',labels)
+            self.assertNotIn('Reset forecast',labels)
             self.assertEqual(panel.toolTip(),'')
-            self.bar.forecast.value['end']=now-1;panel.refresh(self.data)
-            self.assertNotIn('Reset forecast',self.rendered_labels(panel));self.assertEqual(panel.forecast_height,0)
+            self.assertFalse(hasattr(self.bar,'forecast'))
+            self.assertFalse(hasattr(panel,'forecast_height'))
         finally:panel.close();panel.deleteLater()
 
     def test_waiting_has_a_visible_name_and_menu_categories_dispatch_existing_panels(self):

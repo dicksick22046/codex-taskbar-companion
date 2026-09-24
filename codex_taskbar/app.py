@@ -34,7 +34,6 @@ from .i18n import LANGUAGES, translate, project_label, task_title
 from .presentation import floating_rect,remember_position,clamp_rect,panel_rect,AutoPlacement
 from .motion import Spring
 from .attention_notices import AttentionNotices
-from .forecast import ResetForecast
 
 PANEL, MUTED, ACCENT, BLUE = "#262b33", "#bac5d2", "#53d5a0", "#79b6f5"
 TITLE_MUTED = "#8797aa"
@@ -510,7 +509,6 @@ class StatusBar(QWidget):
         self.ring_values={};self.ring_tweens={}
         from .task_strip import PinnedPanel
         self.task_strip=PinnedPanel(self)
-        self.forecast=ResetForecast(self)
         self.timer=QTimer(self);self.timer.timeout.connect(self.tick);self.timer.start(150)
         self.animation=QTimer(self);self.animation.timeout.connect(self.animate)
         self.stack_repair_pending=False
@@ -1671,8 +1669,6 @@ class ResetPopup(TaskPopup):
 
     def refresh(self,data):
         self.data=data;self.rows=data.get('reset_events',[])
-        self.owner.forecast.request();self.forecast=self.owner.forecast.get()
-        self.forecast_height=24 if self.forecast else 0
         self.credits=data.get('reset_credits',[])
         metrics=QFontMetricsF(face(7))
         self.boundary_labels=self.history_boundary_labels()
@@ -1689,7 +1685,7 @@ class ResetPopup(TaskPopup):
         axis_bottom=usage_date_rect(0,self.BASELINE,self.column_width).bottom()
         self.history_height=axis_bottom+(16 if overflow else 2)-self.HISTORY_START if self.rows else 28
         self.credits_top=self.HISTORY_START+self.history_height+20
-        height=self.credits_top+16+26*max(1,len(self.credits))+46+self.forecast_height
+        height=self.credits_top+16+26*max(1,len(self.credits))+46
         self.full_height=height
         self.place_panel(width,math.ceil(height))
         self.scroll_body=self.height()<height
@@ -1806,13 +1802,13 @@ class ResetPopup(TaskPopup):
         return QRectF(center-12,self.BASELINE-height,24,height)
 
     def layout_history_scroll(self):
-        heading_y=64+self.forecast_height-self.scroll
+        heading_y=64-self.scroll
         width=min(self.history_choice_width(),max(26,self.width()-108))
         self.history_choice.setGeometry(12,round(heading_y-13),width,26)
-        self.history_choice.setVisible(heading_y-13>=48+self.forecast_height and heading_y+13<=self.height()-56)
-        y=usage_date_rect(0,self.BASELINE,self.column_width).bottom()+4+self.forecast_height-self.scroll
+        self.history_choice.setVisible(heading_y-13>=48 and heading_y+13<=self.height()-56)
+        y=usage_date_rect(0,self.BASELINE,self.column_width).bottom()+4-self.scroll
         self.history_scroll.setGeometry(18,round(y),self.width()-36,12)
-        self.history_scroll.setVisible(bool(self.history_scroll.maximum() and y>=48+self.forecast_height and y+12<=self.height()-56))
+        self.history_scroll.setVisible(bool(self.history_scroll.maximum() and y>=48 and y+12<=self.height()-56))
 
     def draw_history(self,p):
         colors=popup_palette(self.owner);font=face(7);metrics=QFontMetricsF(font)
@@ -1849,13 +1845,9 @@ class ResetPopup(TaskPopup):
         text(p,18,23,self.owner.label('Next reset'),face(8),colors['muted'])
         value=datetime.fromtimestamp(window['resets_at']).strftime('%m.%d %H:%M') if window and window.get('resets_at') else '—'
         right_label(value,23,colors['link'])
-        if self.forecast:
-            text(p,18,49,self.owner.label('Reset forecast'),face(8),colors['muted'])
-            hours=max(1,math.ceil((self.forecast['end']-time.time())/3600))
-            right_label(self.owner.label('Within {hours}h · ~{value}%',hours=hours,value=f"{self.forecast['chance']:g}"),49,colors['lilac'],face(7))
-        p.translate(0,self.forecast_height);divider(44)
+        divider(44)
         if self.scroll_body:
-            p.save();p.setClipRect(QRectF(0,48,self.width(),max(0,self.height()-104-self.forecast_height)));p.translate(0,-self.scroll)
+            p.save();p.setClipRect(QRectF(0,48,self.width(),max(0,self.height()-104)));p.translate(0,-self.scroll)
         self.draw_history_heading(p)
         p.save();p.setClipRect(QRectF(18,self.HISTORY_START,self.width()-36,self.history_height),Qt.ClipOperation.IntersectClip)
         if not self.rows:text(p,18,89,self.owner.label('No records yet'),face(8),colors['muted'])
@@ -1879,8 +1871,8 @@ class ResetPopup(TaskPopup):
         return max(0,self.full_height-self.height())
 
     def history_at(self,point):
-        local_y=point.y()-self.forecast_height+self.scroll
-        if not (18<=point.x()<self.width()-18 and self.CHART_TOP<=local_y<usage_date_rect(0,self.BASELINE,1).bottom()+2 and point.y()>=48+self.forecast_height and point.y()<self.height()-56):return None
+        local_y=point.y()+self.scroll
+        if not (18<=point.x()<self.width()-18 and self.CHART_TOP<=local_y<usage_date_rect(0,self.BASELINE,1).bottom()+2 and point.y()>=48 and point.y()<self.height()-56):return None
         local_x=point.x()-18+self.history_scroll.value()
         if not self.rows or not 0<=local_x<self.history_width:return None
         index=int((local_x-self.history_padding[0])//self.column_width)

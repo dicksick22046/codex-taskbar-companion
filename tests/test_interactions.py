@@ -23,7 +23,6 @@ class InteractionTests(unittest.TestCase):
     def setUpClass(cls):cls.application=app.QApplication.instance() or app.QApplication([])
 
     def setUp(self):
-        forecast=patch('codex_taskbar.app.ResetForecast.request',new=lambda self:None);forecast.start();self.addCleanup(forecast.stop)
         runtime=tempfile.TemporaryDirectory();self.addCleanup(runtime.cleanup)
         isolated=patch('codex_taskbar.app.RUNTIME',Path(runtime.name));isolated.start();self.addCleanup(isolated.stop)
         hidden=patch('codex_taskbar.task_strip.PinnedPanel.ensure_visible',new=lambda self:False)
