@@ -25,8 +25,8 @@ def record(at, kind, payload):
     return (json.dumps({'timestamp':at.isoformat(), 'type':kind, 'payload':payload})+'\n').encode()
 
 
-def context(at, model='gpt-6-astra'):
-    return record(at, 'turn_context', {'model':model, 'turn_id':'t', 'cwd':'private-path', 'summary':'private text'})
+def context(at, model='gpt-6-astra', turn='t'):
+    return record(at, 'turn_context', {'model':model, 'turn_id':turn, 'cwd':'private-path', 'summary':'private text'})
 
 
 def count(at, total, step):
@@ -147,6 +147,45 @@ class CursorCostTests(unittest.TestCase):
         before=usage(2000,300,100,100);after=usage(1000,100,50,200)
         mixed=self.cursor(context(self.now)+count(self.now,before,before)+count(self.now,after,after))
         self.assertIsNone(mixed.daily_usd)
+
+    def test_new_turn_single_call_restarts_counters_even_when_total_grows(self):
+        old=usage();fresh=usage(2000,1000,100,200)
+        periods=(('current',self.now.timestamp()-1,self.now.timestamp()+60),)
+        data=context(self.now)+count(self.now,old,old)
+        data+=record(self.now,'event_msg',{'type':'task_started','turn_id':'next'})
+        data+=context(self.now,turn='next')+count(self.now,fresh,fresh)
+        cursor=self.cursor(data,periods=periods)
+        expected=estimate_usd('gpt-6-astra',old)+estimate_usd('gpt-6-astra',fresh)
+        self.assertEqual(cursor.daily['total_tokens'],old['total_tokens']+fresh['total_tokens'])
+        self.assertEqual(cursor.period_totals['current'],cursor.daily['total_tokens'])
+        self.assertAlmostEqual(cursor.daily_usd,expected)
+        self.assertAlmostEqual(cursor.period_usd['current'],expected)
+        replay=UsageCursor(self.path,periods=periods);replay.update()
+        self.assertEqual(replay.daily_usd,cursor.daily_usd)
+
+    def test_new_turn_reset_prices_complete_call_when_output_counter_grows(self):
+        before=usage(2000,300,100,100);after=usage(1000,100,50,200)
+        data=context(self.now)+count(self.now,before,before)
+        data+=record(self.now,'event_msg',{'type':'task_started','turn_id':'next'})
+        data+=context(self.now,turn='next')+count(self.now,after,after)
+        cursor=self.cursor(data)
+        self.assertEqual(cursor.daily['total_tokens'],before['total_tokens']+after['total_tokens'])
+        self.assertAlmostEqual(cursor.daily_usd,estimate_usd('gpt-6-astra',before)+estimate_usd('gpt-6-astra',after))
+
+    def test_new_turn_with_mismatched_detail_does_not_invent_a_price(self):
+        before=usage();after=usage(2000,1000,100,200)
+        data=context(self.now)+count(self.now,before,before)
+        data+=record(self.now,'event_msg',{'type':'task_started','turn_id':'next'})
+        data+=context(self.now,turn='next')+count(self.now,after,before)
+        self.assertIsNone(self.cursor(data).daily_usd)
+
+    def test_inconsistent_counter_restart_stays_unknown(self):
+        before=usage(1000000,500000,0,1000)
+        incomplete={'total_tokens':828400,'input_tokens':0,'cached_input_tokens':0,
+                    'cache_write_input_tokens':0,'output_tokens':0}
+        zero={key:0 for key in incomplete}
+        data=context(self.now)+count(self.now,before,before)+count(self.now,incomplete,zero)
+        self.assertIsNone(self.cursor(data).daily_usd)
 
     def test_fork_baseline_and_period_boundaries(self):
         old=self.now-timedelta(days=1);step=usage()

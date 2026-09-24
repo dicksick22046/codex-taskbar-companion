@@ -64,6 +64,7 @@ class UsageCursor:
         self.offset = 0
         self.pending = b""
         self.last = None
+        self.new_turn_since_count = False
         self.daily = {key: 0 for key in FIELDS}
         self.running = False
         self.turn = None
@@ -97,7 +98,8 @@ class UsageCursor:
             self.activity_at = event["at"].isoformat()
         if kind == "task_started":
             if not event['turn'] or event['turn'] != self.model_turn:self.model = None
-            if not self.running or self.turn!=event['turn']:self.pending_input.clear()
+            if not self.running or self.turn!=event['turn']:
+                self.pending_input.clear();self.new_turn_since_count = True
             if not self.running or self.turn != event["turn"] or self.duration_start is None:
                 self.duration_start = event["at"] if original else None
                 self.started_at = event["at"].isoformat()
@@ -121,10 +123,11 @@ class UsageCursor:
             local_day = event["at"].astimezone().date()
             original = self.created_after is None or event["at"].timestamp() >= self.created_after
             total = current.get('total_tokens')
-            previous = (self.last or {}).get('total_tokens')
+            previous_usage = None if self.new_turn_since_count and self.one_call_baseline(current,event.get('last_usage')) else self.last
+            previous = (previous_usage or {}).get('total_tokens')
             if original and type(total) is int and total >= 0:
                 delta = total if previous is None or total < previous else total-previous
-                cost = 0. if delta == 0 else usage_cost(self.model, current, self.last, event.get('last_usage'))
+                cost = 0. if delta == 0 else usage_cost(self.model, current, previous_usage, event.get('last_usage'))
                 if self.created_after is not None and self.last is None and delta > 0:cost = None
                 if local_day == self.day:
                     self.daily_usd = cost if not self.daily_cost_seen else self.add_cost(self.daily_usd, cost)
@@ -139,7 +142,7 @@ class UsageCursor:
                         self.period_usd[key] = self.add_cost(self.period_usd.get(key, 0.), cost)
             for key in FIELDS:
                 value = current.get(key)
-                previous = (self.last or {}).get(key)
+                previous = (previous_usage or {}).get(key)
                 if isinstance(value, int):
                     delta = value if previous is None or value < previous else value - previous
                     if original and key == "total_tokens" and self.running and self.run_tokens is not None:
@@ -153,7 +156,19 @@ class UsageCursor:
                         at=event['at'].timestamp();index=bisect_right(self.period_starts,at)-1
                         if index>=0 and at<self.periods[index][2]:self.period_totals[self.periods[index][0]]+=delta
             self.last = current
+            if type(total) is int and total >= 0:self.new_turn_since_count = False
             self.usage_at = event["at"].isoformat()
+
+    @staticmethod
+    def one_call_baseline(current,step):
+        fields=FIELDS+('cache_write_input_tokens',)
+        if not isinstance(step,dict) or any(
+            type(current.get(key,0 if key=='cache_write_input_tokens' else None)) is not int or
+            current.get(key,0 if key=='cache_write_input_tokens' else None)<0 or
+            current.get(key,0 if key=='cache_write_input_tokens' else None)!=step.get(key,0 if key=='cache_write_input_tokens' else None)
+            for key in fields):return False
+        return (current['total_tokens']==current['input_tokens']+current['output_tokens']
+                and current['cached_input_tokens']+current.get('cache_write_input_tokens',0)<=current['input_tokens'])
 
     @staticmethod
     def add_cost(previous, cost):

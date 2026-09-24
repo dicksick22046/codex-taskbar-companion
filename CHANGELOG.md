@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Recover complete one-call usage at a proven new-turn counter baseline, including numeric resets and larger fresh totals; leave inconsistent historical counters unknown.
+
 - Check official Standard prices and new model IDs daily in public CI; cover verified GPT-5.6 Luna rates.
 
 - Price GPT-6 Sol and Luna usage from verified Standard API rates, restoring complete USD totals when those models were the only missing price data.
