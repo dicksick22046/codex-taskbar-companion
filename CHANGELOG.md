@@ -4,7 +4,9 @@
 
 ## Unreleased
 
-- Recover complete one-call usage at a proven new-turn counter baseline, including numeric resets and larger fresh totals; leave inconsistent historical counters unknown.
+- Ignore inconsistent context-window token records in usage and new task-search indexing; exclude inherited fork counters using local rollout metadata to restore verifiable Token and USD history.
+
+- Recover complete one-call usage at a proven new-turn counter baseline, including numeric resets and larger fresh totals; leave unproven call details unknown.
 
 - Check official Standard prices and new model IDs daily in public CI; cover verified GPT-5.6 Luna rates.
 

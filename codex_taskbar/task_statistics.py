@@ -7,7 +7,7 @@ from pathlib import Path
 import time
 from collections import deque
 from .preferences import write_json
-from .usage import event_from_line,LIFECYCLE
+from .usage import event_from_line,LIFECYCLE,inconsistent_total
 
 
 _HEADER=re.compile(rb'^\s*\{\s*"timestamp"\s*:\s*"[^"\\]*"\s*,\s*"type"\s*:\s*"([a-z_]+)"\s*,')
@@ -70,7 +70,8 @@ class TaskStatistics:
 
     @staticmethod
     def apply(entry,event):
-        if not event:return
+        if not event or event['kind'] not in LIFECYCLE and event['kind']!='token_count':return
+        if event['kind']=='token_count' and inconsistent_total(event.get('usage')):return
         at=event['at'].timestamp();original=entry['created'] is None or at>=entry['created'];kind=event['kind'];turn=event['turn']
         if kind=='token_count':
             value=(event.get('usage') or {}).get('total_tokens')

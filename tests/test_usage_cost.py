@@ -179,13 +179,40 @@ class CursorCostTests(unittest.TestCase):
         data+=context(self.now,turn='next')+count(self.now,after,before)
         self.assertIsNone(self.cursor(data).daily_usd)
 
-    def test_inconsistent_counter_restart_stays_unknown(self):
+    def test_inconsistent_counter_restart_is_ignored(self):
         before=usage(1000000,500000,0,1000)
         incomplete={'total_tokens':828400,'input_tokens':0,'cached_input_tokens':0,
                     'cache_write_input_tokens':0,'output_tokens':0}
         zero={key:0 for key in incomplete}
         data=context(self.now)+count(self.now,before,before)+count(self.now,incomplete,zero)
-        self.assertIsNone(self.cursor(data).daily_usd)
+        cursor=self.cursor(data)
+        self.assertEqual(cursor.daily['total_tokens'],before['total_tokens'])
+        self.assertAlmostEqual(cursor.daily_usd,estimate_usd('gpt-6-astra',before))
+
+    def test_inconsistent_context_fill_does_not_replace_baseline_or_poison_later_cost(self):
+        before=usage(1000000,500000,0,1000);step=usage(2000,1000,0,200)
+        incomplete={'total_tokens':828400,'input_tokens':0,'cached_input_tokens':0,
+                    'cache_write_input_tokens':0,'output_tokens':0}
+        periods=(('current',self.now.timestamp()-1,self.now.timestamp()+60),)
+        first=context(self.now)+count(self.now,before,before)
+        cursor=self.cursor(first,periods=periods)
+        valid_activity=cursor.activity_at
+        with self.path.open('ab') as stream:
+            stream.write(count(self.now,incomplete,{key:0 for key in incomplete})+
+                         count(self.now,incomplete,step))
+        cursor.update()
+        self.assertEqual(cursor.last,before)
+        self.assertEqual(cursor.activity_at,valid_activity)
+        with self.path.open('ab') as stream:stream.write(count(self.now,add(before,step),step))
+        cursor.update()
+        expected=estimate_usd('gpt-6-astra',before)+estimate_usd('gpt-6-astra',step)
+        self.assertEqual(cursor.daily['total_tokens'],before['total_tokens']+step['total_tokens'])
+        self.assertEqual(cursor.period_totals['current'],cursor.daily['total_tokens'])
+        self.assertAlmostEqual(cursor.daily_usd,expected)
+        self.assertAlmostEqual(cursor.period_usd['current'],expected)
+        replay=UsageCursor(self.path,periods=periods);replay.update()
+        self.assertEqual(replay.daily,cursor.daily)
+        self.assertEqual(replay.daily_usd,cursor.daily_usd)
 
     def test_fork_baseline_and_period_boundaries(self):
         old=self.now-timedelta(days=1);step=usage()
@@ -197,6 +224,57 @@ class CursorCostTests(unittest.TestCase):
         self.assertEqual(cursor.period_totals, {'old':0,'new':1100})
         missing=self.cursor(context(self.now)+count(self.now,step,step),created_after=self.now.timestamp())
         self.assertIsNone(missing.daily_usd)
+
+    def test_fork_metadata_excludes_inherited_cumulative_tokens_and_prices_local_calls(self):
+        inherited=usage(7000000,1000000,0,1000000)
+        local=usage(200000,100000,0,49798)
+        step=usage(2000,1000,0,200)
+        first=add(inherited,local)
+        periods=(('current',self.now.timestamp()-1,self.now.timestamp()+60),)
+        data=record(self.now,'session_meta',{'forked_from_id':'parent','private':'not retained'})
+        data+=record(self.now,'token_usage_record',{'thread_token_usage':local})
+        data+=record(self.now,'event_msg',{'type':'task_started','turn_id':'t'})+context(self.now)
+        cursor=self.cursor(data+count(self.now,first,local),periods=periods)
+        self.assertEqual(cursor.daily['total_tokens'],local['total_tokens'])
+        self.assertAlmostEqual(cursor.daily_usd,estimate_usd('gpt-6-astra',local))
+        with self.path.open('ab') as stream:stream.write(count(self.now,add(first,step),step))
+        cursor.update()
+        expected=estimate_usd('gpt-6-astra',local)+estimate_usd('gpt-6-astra',step)
+        self.assertEqual(cursor.daily['total_tokens'],local['total_tokens']+step['total_tokens'])
+        self.assertEqual(cursor.period_totals['current'],cursor.daily['total_tokens'])
+        self.assertAlmostEqual(cursor.daily_usd,expected)
+        self.assertAlmostEqual(cursor.period_usd['current'],expected)
+        replay=UsageCursor(self.path,periods=periods);replay.update()
+        self.assertEqual(replay.daily,cursor.daily)
+        self.assertEqual(replay.daily_usd,cursor.daily_usd)
+
+    def test_fork_counters_without_inherited_amount_use_zero_baseline(self):
+        local=usage(30000,10000,0,1520)
+        data=record(self.now,'session_meta',{'forked_from_id':'parent'})
+        data+=record(self.now,'token_usage_record',{'thread_token_usage':local})
+        data+=context(self.now)+count(self.now,local,local)
+        cursor=self.cursor(data)
+        self.assertEqual(cursor.daily['total_tokens'],local['total_tokens'])
+        self.assertAlmostEqual(cursor.daily_usd,estimate_usd('gpt-6-astra',local))
+
+    def test_catalog_fork_marker_survives_older_session_metadata(self):
+        inherited=usage(100000,10000,0,10000);local=usage()
+        data=record(self.now,'session_meta',{})
+        data+=record(self.now,'token_usage_record',{'thread_token_usage':local})
+        data+=context(self.now)+count(self.now,add(inherited,local),local)
+        cursor=self.cursor(data,created_after=self.now.timestamp()-1)
+        self.assertEqual(cursor.daily['total_tokens'],local['total_tokens'])
+        self.assertAlmostEqual(cursor.daily_usd,estimate_usd('gpt-6-astra',local))
+
+    def test_fork_without_provable_local_baseline_skips_inherited_total(self):
+        inherited=usage(7000000,1000000,0,1000000)
+        step=usage()
+        first=add(inherited,step)
+        data=record(self.now,'session_meta',{'forked_from_id':'parent'})+context(self.now)
+        data+=count(self.now,first,step)+count(self.now,add(first,step),step)
+        cursor=self.cursor(data)
+        self.assertEqual(cursor.daily['total_tokens'],step['total_tokens'])
+        self.assertIsNone(cursor.daily_usd)
 
     def test_zero_and_absent_observations_are_distinct(self):
         cursor=self.cursor(context(self.now))

@@ -10,12 +10,22 @@ FIELDS = ("total_tokens", "input_tokens", "cached_input_tokens", "output_tokens"
 LIFECYCLE = {"task_started", "task_complete", "turn_aborted"}
 
 
+def inconsistent_total(usage):
+    if not isinstance(usage,dict):return False
+    total,inputs,outputs=(usage.get(key) for key in ('total_tokens','input_tokens','output_tokens'))
+    return all(type(value) is int and value>=0 for value in (total,inputs,outputs)) and total!=inputs+outputs
+
+
 def event_from_line(line):
     try:
         item = json.loads(line)
         if not isinstance(item,dict):return None
         payload=item.get('payload') or {}
         if not isinstance(payload,dict):return None
+        if item.get('type') == 'session_meta':
+            return {'kind':'session_meta', 'forked':bool(payload.get('forked_from_id'))}
+        if item.get('type') == 'token_usage_record':
+            return {'kind':'token_usage_record', 'usage':payload.get('thread_token_usage')}
         if item.get('type') == 'turn_context':
             return {'kind':'model_context', 'at':datetime.fromisoformat(item['timestamp'].replace('Z','+00:00')),
                     'turn':payload.get('turn_id'), 'model':payload.get('model')}
@@ -64,6 +74,9 @@ class UsageCursor:
         self.offset = 0
         self.pending = b""
         self.last = None
+        self.forked = created_after is not None
+        self.fork_thread_usage = None
+        self.fork_first_count = True
         self.new_turn_since_count = False
         self.daily = {key: 0 for key in FIELDS}
         self.running = False
@@ -84,10 +97,18 @@ class UsageCursor:
         if event is None:
             return
         kind = event["kind"]
+        if kind == 'session_meta':
+            self.forked = self.forked or event['forked']
+            return
+        if kind == 'token_usage_record':
+            if self.fork_first_count and self.valid_usage(event.get('usage')):
+                self.fork_thread_usage = event['usage']
+            return
         if kind == 'model_context':
             self.model = event.get('model') if isinstance(event.get('model'), str) else None
             self.model_turn = event.get('turn')
             return
+        if kind == 'token_count' and inconsistent_total(event.get('usage')):return
         original = self.created_after is None or event["at"].timestamp() >= self.created_after
         if kind in ('input_requested','input_resolved'):
             if original and self.running:
@@ -123,12 +144,24 @@ class UsageCursor:
             local_day = event["at"].astimezone().date()
             original = self.created_after is None or event["at"].timestamp() >= self.created_after
             total = current.get('total_tokens')
-            previous_usage = None if self.new_turn_since_count and self.one_call_baseline(current,event.get('last_usage')) else self.last
+            fork_baseline = self.inherited_baseline(current) if self.forked and self.fork_first_count else None
+            unknown_fork_baseline = self.forked and self.fork_first_count and fork_baseline is None
+            previous_usage = (fork_baseline if fork_baseline is not None else
+                              None if not unknown_fork_baseline and self.new_turn_since_count and
+                              self.one_call_baseline(current,event.get('last_usage')) else self.last)
             previous = (previous_usage or {}).get('total_tokens')
-            if original and type(total) is int and total >= 0:
+            if original and unknown_fork_baseline and type(total) is int and total>0:
+                if local_day == self.day:
+                    self.daily_usd = None
+                    self.daily_cost_seen = True
+                if event['at'] >= self.since:self.by_day_usd[local_day.isoformat()] = None
+                if self.periods:
+                    at=event['at'].timestamp();index=bisect_right(self.period_starts,at)-1
+                    if index>=0 and at<self.periods[index][2]:self.period_usd[self.periods[index][0]] = None
+            if original and not unknown_fork_baseline and type(total) is int and total >= 0:
                 delta = total if previous is None or total < previous else total-previous
                 cost = 0. if delta == 0 else usage_cost(self.model, current, previous_usage, event.get('last_usage'))
-                if self.created_after is not None and self.last is None and delta > 0:cost = None
+                if self.created_after is not None and self.last is None and fork_baseline is None and delta > 0:cost = None
                 if local_day == self.day:
                     self.daily_usd = cost if not self.daily_cost_seen else self.add_cost(self.daily_usd, cost)
                     self.daily_cost_seen = True
@@ -145,19 +178,36 @@ class UsageCursor:
                 previous = (previous_usage or {}).get(key)
                 if isinstance(value, int):
                     delta = value if previous is None or value < previous else value - previous
-                    if original and key == "total_tokens" and self.running and self.run_tokens is not None:
+                    if original and not unknown_fork_baseline and key == "total_tokens" and self.running and self.run_tokens is not None:
                         self.run_tokens += delta
-                    if original and local_day == self.day:
+                    if original and not unknown_fork_baseline and local_day == self.day:
                         self.daily[key] += delta
-                    if original and key == "total_tokens" and event["at"] >= self.since:
+                    if original and not unknown_fork_baseline and key == "total_tokens" and event["at"] >= self.since:
                         name = local_day.isoformat()
                         self.by_day[name] = self.by_day.get(name, 0) + delta
-                    if original and key=='total_tokens' and self.periods:
+                    if original and not unknown_fork_baseline and key=='total_tokens' and self.periods:
                         at=event['at'].timestamp();index=bisect_right(self.period_starts,at)-1
                         if index>=0 and at<self.periods[index][2]:self.period_totals[self.periods[index][0]]+=delta
             self.last = current
-            if type(total) is int and total >= 0:self.new_turn_since_count = False
+            if type(total) is int and total >= 0:
+                self.new_turn_since_count = False
+                self.fork_first_count = False
             self.usage_at = event["at"].isoformat()
+
+    @staticmethod
+    def valid_usage(usage):
+        if not isinstance(usage,dict) or any(type(usage.get(key)) is not int or usage[key]<0 for key in FIELDS):return False
+        written=usage.get('cache_write_input_tokens',0)
+        return (type(written) is int and written>=0 and
+                usage['total_tokens']==usage['input_tokens']+usage['output_tokens'] and
+                usage['cached_input_tokens']+written<=usage['input_tokens'])
+
+    def inherited_baseline(self,current):
+        local=self.fork_thread_usage
+        if not self.valid_usage(current) or not self.valid_usage(local):return None
+        fields=FIELDS+('cache_write_input_tokens',)
+        baseline={key:current.get(key,0)-local.get(key,0) for key in fields}
+        return baseline if self.valid_usage(baseline) else None
 
     @staticmethod
     def one_call_baseline(current,step):

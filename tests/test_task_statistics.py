@@ -23,6 +23,25 @@ class LifetimeTests(unittest.TestCase):
         self.sync();row=self.index.view()['task']
         self.assertEqual((row['tokens'],row['seconds'],row['turns']),(170,30,2));self.assertFalse(row['partial'])
 
+    def test_context_fill_is_ignored_without_replacing_token_baseline(self):
+        invalid={'total_tokens':828400,'input_tokens':0,'cached_input_tokens':0,'output_tokens':0}
+        filled=json.dumps({'timestamp':self.start.isoformat(),'type':'event_msg',
+                           'payload':{'type':'token_count','info':{'total_token_usage':invalid}}}).encode()+b'\n'
+        self.log.write_bytes(self.event('token_count',1,100)+filled+filled+self.event('token_count',2,130))
+        self.sync();row=self.index.view()['task']
+        self.assertEqual(row['tokens'],130)
+        self.assertTrue(row['ready'])
+
+    def test_noncanonical_fork_metadata_does_not_mark_index_missing(self):
+        metadata=({'type':'session_meta','payload':{'forked_from_id':'parent'}},
+                  {'type':'token_usage_record','payload':{'thread_token_usage':{
+                      'total_tokens':30,'input_tokens':20,'cached_input_tokens':0,'output_tokens':10}}})
+        raw=b''.join((json.dumps({**item,'timestamp':self.start.isoformat()})+'\n').encode() for item in metadata)
+        self.log.write_bytes(raw+self.event('token_count',1,100))
+        self.sync();row=self.index.view()['task']
+        self.assertTrue(row['ready'])
+        self.assertEqual(row['tokens'],100)
+
     def test_fork_excludes_inherited_counters_and_turns(self):
         self.log.write_bytes(self.event('task_started',0)+self.event('token_count',1,100)+self.event('task_complete',10)+
                              self.event('task_started',50,turn='b')+self.event('token_count',51,130,turn='b')+self.event('task_complete',70,turn='b'))
