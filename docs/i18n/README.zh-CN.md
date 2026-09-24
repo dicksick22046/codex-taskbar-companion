@@ -97,6 +97,8 @@ uv pip install --python .venv/Scripts/python.exe -r requirements-build.txt
 
 运行源码前先退出安装版，重复启动会打开已有实例的设置。构建结果在 `dist/` 和 `release/`，版本号位于 `codex_taskbar/build_info.py`。
 
+公开的[模型价格检查](../../.github/workflows/model-prices.yml)每天运行，也可以本地执行 `python scripts/check_model_prices.py`。它将已核验的标准价格和新增模型标识与 OpenAI 官方价格页比较；检查失败后需审查，不能直接把网页价格送入客户端。
+
 没有 5h 额度的账号可运行 `./scripts/preview-session.ps1`，用独立窗口里的模拟数据预览，不修改账号或设置。
 
 开发说明：[架构](../architecture.md)、[交互规范](../specs/interaction.md)。

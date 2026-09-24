@@ -100,6 +100,8 @@ uv pip install --python .venv/Scripts/python.exe -r requirements-build.txt
 
 Exit the installed app before running from source; a second launch opens the existing instance's settings. Build outputs go to `dist/` and `release/`. Version information is in `codex_taskbar/build_info.py`.
 
+The public [model-price check](.github/workflows/model-prices.yml) runs daily and can be run locally with `python scripts/check_model_prices.py`. It compares verified Standard prices and new model IDs against OpenAI's official pricing page; a failed check requires review before a new price is shipped.
+
 To preview the 5h panel without an eligible account, run `./scripts/preview-session.ps1`. It uses sample data in a separate window and does not change your account or settings.
 
 Implementation notes: [architecture](docs/architecture.md), [interaction specification](docs/specs/interaction.md), [performance checks](docs/performance.md), and [roadmap](docs/roadmap.md). Some technical documents are in Chinese.

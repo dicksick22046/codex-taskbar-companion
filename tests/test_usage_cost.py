@@ -41,6 +41,7 @@ class PricingTests(unittest.TestCase):
         self.assertAlmostEqual(estimate_usd('gpt-5.6-sol', usage()), .00502)
         self.assertAlmostEqual(estimate_usd('gpt-5.5', usage()), .00665)
         self.assertAlmostEqual(estimate_usd('gpt-5.6-terra', usage()), .00271)
+        self.assertAlmostEqual(estimate_usd('gpt-5.6-luna', usage()), .000271)
         self.assertAlmostEqual(estimate_usd('gpt-5.4', usage()), .003325)
 
     def test_long_context_uses_call_input_and_strict_boundary(self):
@@ -52,6 +53,8 @@ class PricingTests(unittest.TestCase):
         self.assertAlmostEqual(estimate_usd('gpt-6-sol', above), .753004)
         self.assertAlmostEqual(estimate_usd('gpt-6-luna', at_limit), .01895)
         self.assertAlmostEqual(estimate_usd('gpt-6-luna', above), .0376502)
+        self.assertAlmostEqual(estimate_usd('gpt-5.6-luna', at_limit), .0381)
+        self.assertAlmostEqual(estimate_usd('gpt-5.6-luna', above), .0756004)
 
     def test_mini_does_not_have_a_long_context_surcharge(self):
         large=usage(300000,100000,0,1000)

@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Check official Standard prices and new model IDs daily in public CI; cover verified GPT-5.6 Luna rates.
+
 - Price GPT-6 Sol and Luna usage from verified Standard API rates, restoring complete USD totals when those models were the only missing price data.
 
 - Remove the community reset forecast and its network request; keep account reset timing, recorded history and available reset credits.
