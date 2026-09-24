@@ -6,6 +6,8 @@
 
 定价依据（2026-09-24 核验）：[官方价格表](https://developers.openai.com/api/docs/pricing)、[GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra)、[GPT-6 Sol](https://developers.openai.com/api/docs/models/gpt-6-sol)、[GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna)、[GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol)、[GPT-5.6 Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra)、[GPT-5.5](https://developers.openai.com/api/docs/models/gpt-5.5)、[GPT-5.4](https://developers.openai.com/api/docs/models/gpt-5.4)、[GPT-5.4 mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini)。只精确匹配已核验的模型标识；无已核验价格的模型保持未知，不按前缀猜测。每次准备版本时核对官方模型与价格表，并检查本机已观察到的新模型标识，避免新增模型长时间显示为未知。
 
+仓库每天在 GitHub Actions 中只读读取官方价格页的 Markdown Standard 表，核对已支持模型的输入、缓存读取、缓存写入、输出及长上下文费率，并与已审查的 Standard 模型标识清单比较。价格变化、新标识、表格无法解析或官方站点不可用时检查失败并给出原因，不能静默宣称价格仍准确。该公开工作流不访问任何用户日志或账号，不自动修改费率或发布。维护者核对新增模型是否属于 Codex 后更新价格与清单；正式发布后现有更新机制再将修正送达安装用户。客户端对未知模型继续显示未知，不从网页实时取价。
+
 | 模型 | 输入 / 百万 | 缓存读取 / 百万 | 缓存写入 / 百万 | 输出 / 百万 |
 |---|---:|---:|---:|---:|
 | gpt-6-astra | $10 | $1 | $12.50 | $50 |
