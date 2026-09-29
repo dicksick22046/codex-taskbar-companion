@@ -14,6 +14,7 @@ from .resets import ResetLedger
 from .side_chats import SideChats
 from .task_statistics import TaskStatistics
 from .pricing import sum_costs
+from .model_monitor import ModelMonitor
 
 
 class Provider:
@@ -36,6 +37,7 @@ class Provider:
         self.api = None
         self.reset_busy = False
         self.reset_request = None
+        self.model_monitor = ModelMonitor(self.runtime_dir)
         ctypes.windll.kernel32.GetTickCount64.restype = ctypes.c_ulonglong
         self.boot_time = time.time() - ctypes.windll.kernel32.GetTickCount64() / 1000
         self.thread = threading.Thread(target=self._run, daemon=True)
@@ -51,6 +53,11 @@ class Provider:
     def set_statistics_active(self,active):
         if active:self.statistics_active.set()
         else:self.statistics_active.clear()
+
+    def set_model_monitoring(self, enabled):
+        active = any(task.get('running') for task in self.snapshot.get('tasks', []))
+        self.model_monitor.set_enabled(enabled, active=active)
+        self.refresh_event.set()
 
     def request_reset(self, account, credit_id):
         with self.lock:
@@ -162,6 +169,9 @@ class Provider:
                 if active:tasks.append(side_task)
                 elif datetime.fromtimestamp(side['activity_at']).astimezone().date()==datetime.now().astimezone().date():recent.append(side_task)
         tasks.sort(key=lambda t: (t["project"], t["started_at"] or "", t["id"]))
+        monitor=getattr(self,'model_monitor',None)
+        if monitor and error is None and getattr(self,'catalog_rows',None) is not None:
+            monitor.maybe_handoff([task for task in tasks if task.get('running')])
         from .usage import daily_observed_at, daily_quota_text
         week = next((w for w in quota if w["label"] == "周"), None)
         observed_now = datetime.now().astimezone()
@@ -176,7 +186,8 @@ class Provider:
                     "daily_observed_at": daily_observed_at(self.quota_history, week, observed_now),
                     "totals": totals, "usage_at": newest_usage, "loading": False,
                     "updated_at": datetime.now().astimezone().isoformat(), "error": error, "quota_error": quota_error,
-                    "source": "本机 Codex 日志；Token 包含缓存输入，按模型步骤上报"}
+                    "source": "本机 Codex 日志；Token 包含缓存输入，按模型步骤上报",
+                    "model_monitor": monitor.view() if monitor else {'enabled':False,'phase':'off','records':[],'mismatch_count':0}}
         with self.lock:
             if hasattr(self,'resets'):
                 snapshot.update(self.resets.view())
@@ -295,6 +306,8 @@ class Provider:
                             last_turn_errors.pop(thread['id'],None)
                             turn_signatures[thread['id']]=signature
                     if getattr(self,'statistics_active',None) and self.statistics_active.is_set():self.statistics.step()
+                    monitor=getattr(self,'model_monitor',None)
+                    if monitor:monitor.poll()
                     error = catalog_error
                     self._publish(threads, projects, cursors, quota, quota_at, error,last_turns,quota_error)
                 except Exception as exc:

@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Add an opt-in model-monitoring mode that waits for Codex to become idle, restarts it through the taskbar companion with restricted WebSocket trace logging, and stores only server/request model metadata. Real restart handoff remains a user-run acceptance step.
+
 - Ignore inconsistent context-window token records in usage and new task-search indexing; exclude inherited fork counters using local rollout metadata to restore verifiable Token and USD history.
 
 - Recover complete one-call usage at a proven new-turn counter baseline, including numeric resets and larger fresh totals; leave unproven call details unknown.

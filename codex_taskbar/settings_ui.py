@@ -143,6 +143,9 @@ class SettingsDialog(QDialog):
         localization=card(general);self.language_label=QLabel();self.language=combo([(name,code) for code,name in LANGUAGE_NAMES],bar.settings.get('language','en'),bar.set_language);row(localization,self.language_label,self.language)
         startup_card=card(general);self.login=toggle(startup_card);self.login.setChecked(startup.enabled());self.login.toggled.connect(bar.set_startup)
         line(startup_card);self.notify_input=toggle(startup_card);self.notify_input.setChecked(bar.settings.get('notify_input',False));self.notify_input.toggled.connect(bar.set_notify_input)
+        monitor_card=card(general);self.model_monitor=toggle(monitor_card);self.model_monitor.setChecked(bar.settings.get('model_monitoring',False));self.model_monitor.toggled.connect(bar.set_model_monitoring)
+        line(monitor_card);self.model_monitor_status=QLabel();self.model_monitor_status.setWordWrap(True);self.model_monitor_status.setStyleSheet('color:#8797aa;font-size:12px;');monitor_card.addWidget(self.model_monitor_status)
+        line(monitor_card);self.model_monitor_button=QPushButton();self.model_monitor_button.setAutoDefault(False);self.model_monitor_button.clicked.connect(bar.open_model_monitor);monitor_card.addWidget(self.model_monitor_button)
         updates=card(general);self.update_label=QLabel();self.update_button=QPushButton();self.update_button.setAutoDefault(False);self.update_button.clicked.connect(bar.update_clicked);row(updates,self.update_label,self.update_button)
         line(updates);self.support_label=QLabel();self.diagnostics_button=QPushButton();self.diagnostics_button.setAutoDefault(False)
         self.diagnostics_button.setStyleSheet('QPushButton{background:#383c45;} QPushButton:hover{background:#464d59;} QPushButton:pressed{background:#30353e;}')
@@ -209,6 +212,7 @@ class SettingsDialog(QDialog):
         self.rotation.setText(label('Rotate left-side indicators'));self.hover.setText(label('Open panels on hover'));self.login.setText(label('Start at Windows sign-in'))
         self.metric_labels.setText(label('Show indicator names'))
         self.notify_input.setText(label('Notify when input is needed'))
+        self.model_monitor.setText(label('Monitor future Codex sessions'));self.model_monitor_button.setText(label('Model checks'))
         self.login.blockSignals(True);self.login.setChecked(startup.enabled());self.login.blockSignals(False)
         self.status_key=None;self.refresh_status()
 
@@ -217,7 +221,8 @@ class SettingsDialog(QDialog):
         self.refresh_displays()
         errors=tuple(sorted(self.bar.settings_errors))
         fallback=self.bar.settings.get('placement')=='auto' and self.bar.floating
-        key=(fallback,errors,self.bar.language,data.get('quota_error'),bool(data.get('quota')),data.get('error'),data.get('loading'),self.bar.placement_unavailable,self.bar.updater.message,self.bar.updater.busy,(self.bar.updater.release or {}).get('version'))
+        monitor=data.get('model_monitor') or {}
+        key=(fallback,errors,self.bar.language,data.get('quota_error'),bool(data.get('quota')),data.get('error'),data.get('loading'),self.bar.placement_unavailable,self.bar.updater.message,self.bar.updater.busy,(self.bar.updater.release or {}).get('version'),monitor.get('phase'),monitor.get('mismatch_count'),monitor.get('error'))
         if key==getattr(self,'status_key',None):return
         self.status_key=key
         self.feedback.setText('\n'.join(label(error) for error in errors));self.feedback.setVisible(bool(errors))
@@ -227,6 +232,11 @@ class SettingsDialog(QDialog):
         elif fallback:message='Taskbar space unavailable. Using floating mode.'
         elif self.bar.placement_unavailable and any(self.bar.settings.get(k) for k in DISPLAY_LABELS):message='Not enough room for enabled indicators. Hide some indicators or rotate them.'
         else:message='Connected to Codex'
+        phase=monitor.get('phase')
+        monitor_message={'waiting':label('Monitoring is waiting for Codex to become idle.'),
+                         'monitoring':label('Monitoring Codex model responses.'),
+                         'error':label('Monitoring error')+(': '+str(monitor.get('error')) if monitor.get('error') else '')}.get(phase,label('Not monitored. Start Codex from this app.'))
+        self.model_monitor_status.setText(monitor_message)
         self.connection.setText(label(message));self.update_button.setText(label(self.bar.updater.message,version=(self.bar.updater.release or {}).get('version','')));self.update_button.setEnabled(not self.bar.updater.busy)
 
     def refresh_displays(self):

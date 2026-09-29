@@ -486,6 +486,8 @@ class StatusBar(QWidget):
         self.auto_placement=AutoPlacement()
         self.motion_enabled=windows.animations_enabled()
         self.settings=read_settings(RUNTIME/'ui_settings.json')
+        if hasattr(self.provider,'set_model_monitoring'):
+            self.provider.set_model_monitoring(self.settings.get('model_monitoring',False))
         self.chart_unit=self.settings['chart_unit']
         self.updater=UpdateController(RUNTIME,self);self.updater.changed.connect(self.update_status)
         self.updater.ready.connect(self.install_update)
@@ -618,6 +620,7 @@ class StatusBar(QWidget):
             if mode=='usage':self.popup=TaskPopup(self,self.task_strip)
             elif mode=='session':self.popup=SessionPopup(self,self.task_strip)
             elif mode=='resets':self.popup=ResetPopup(self,self.task_strip)
+            elif mode=='model_monitor':self.popup=ModelMonitorPopup(self,self.task_strip)
             else:self.popup=TaskListPopup(self,mode,self.task_strip)
             self.task_strip.attach_detail(self.popup)
             self.popup.refresh(self.data)
@@ -672,7 +675,8 @@ class StatusBar(QWidget):
         if self.task_finder:self.task_finder.refresh(self.data)
         if self.settings_dialog:self.settings_dialog.refresh()
         if self.popup:
-            self.popup.setWindowTitle('Codex · '+self.label('Tasks' if isinstance(self.popup,TaskListPopup) else 'Usage'))
+            title='Model checks' if self.popup.mode=='model_monitor' else 'Tasks' if isinstance(self.popup,TaskListPopup) else 'Usage'
+            self.popup.setWindowTitle('Codex · '+self.label(title))
             self.popup.refresh(self.data)
         self.tick(resize=True)
 
@@ -716,6 +720,17 @@ class StatusBar(QWidget):
 
     def set_floating_topmost(self,value):
         self.settings['floating_topmost']=bool(value);self.host_key=None;self.save_settings();self.tick()
+
+    def set_model_monitoring(self,value):
+        self.settings['model_monitoring']=bool(value)
+        if hasattr(self.provider,'set_model_monitoring'):
+            self.provider.set_model_monitoring(value)
+        self.save_settings()
+        if self.settings_dialog:self.settings_dialog.refresh_status()
+
+    def open_model_monitor(self):
+        if self.settings_dialog:self.settings_dialog.navigation.setCurrentRow(2)
+        self.toggle_popup('model_monitor')
 
     def floating_screen(self):
         position=self.settings.get('floating_position') or {}
@@ -1311,6 +1326,60 @@ class StatusBar(QWidget):
         if self.settings_dialog:self.settings_dialog.close()
         if self.task_finder:self.task_finder.close()
         self.provider.stop();event.accept();QApplication.instance().quit()
+
+
+class ModelMonitorPopup(QWidget):
+    mode='model_monitor'
+
+    def __init__(self,owner,parent=None):
+        super().__init__(parent)
+        self.owner=owner;self.host=parent;self.data={};self.rows=[];self.reveal_target=1.
+        self.fade=Spring(self,response=.18);self.fade.changed.connect(lambda value:self.update())
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setWindowTitle('Codex · '+owner.label('Model checks'))
+
+    def refresh(self,data):
+        self.data=data.get('model_monitor') or {}
+        self.rows=list(self.data.get('records') or [])[-8:][::-1]
+        height=min(320,76+max(1,len(self.rows))*38)
+        self.requested_size=(max(340,self.owner.navigation_width),height)
+        if self.host:self.host.place_detail(*self.requested_size)
+        else:self.resize(*self.requested_size)
+        self.update()
+
+    def reveal_to(self,target,force=False):
+        self.reveal_target=float(target)
+        if self.host:self.host.reveal_detail(bool(target))
+        elif not target:self.owner.hide_popup(immediate=True)
+
+    def sync_owner(self):
+        if self.host:self.host.ensure_visible()
+
+    def sync_theme(self):self.update()
+
+    def global_geometry(self):
+        return QRect(self.mapToGlobal(QPointF().toPoint()),self.size()).intersected(self.host.geometry()) if self.host else self.geometry()
+
+    def owner_unplaced(self):return False
+
+    def paintEvent(self,event):
+        p=panel_painter(self);colors=popup_palette(self.owner)
+        text(p,18,24,self.owner.label('Model checks'),face(10),colors['title'])
+        if not self.rows:
+            text(p,18,66,self.owner.label('No model checks yet'),face(8),colors['muted'])
+            p.end();return
+        for index,row in enumerate(self.rows):
+            y=61+index*38
+            status=self.owner.label('Model differs' if row.get('mismatch') else 'Model matches' if row.get('server_model') else 'Not verified')
+            source=row.get('requested_model') or '—';served=row.get('server_model') or '—'
+            text(p,18,y,f'{source} → {served}',face(8),colors['link'] if row.get('mismatch') else colors['text'])
+            text(p,18,y+14,status,face(7),colors['muted'])
+        p.end()
+
+    def keyPressEvent(self,event):
+        if event.key()==Qt.Key.Key_Escape:self.owner.hide_popup();event.accept();return
+        super().keyPressEvent(event)
 
 
 class TaskPopup(QWidget):

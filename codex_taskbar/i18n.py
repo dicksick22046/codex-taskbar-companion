@@ -244,6 +244,42 @@ TRANSLATIONS = {'zh-CN': COPY, 'ja': {
 }}
 
 
+_MODEL_MONITOR_COPY = {
+    'Model monitoring': '模型监测',
+    'Monitor future Codex sessions': '监测后续 Codex 会话',
+    'Start monitoring will restart Codex after current tasks are idle.': '开始监测会在当前任务空闲后重启 Codex。',
+    'Monitoring is waiting for Codex to become idle.': '监测等待 Codex 进入空闲状态。',
+    'Monitoring Codex model responses.': '正在监测 Codex 的模型回报。',
+    'Not monitored. Start Codex from this app.': '当前未监测，请从本工具启动 Codex。',
+    'Model checks': '模型核对',
+    'No model checks yet': '暂无模型核对记录',
+    'Requested model': '请求模型',
+    'Server-reported model': '服务端回报模型',
+    'Not verified': '未核对',
+    'Model matches': '模型一致',
+    'Model differs': '模型不一致',
+    'Monitoring error': '监测错误',
+}
+COPY.update(_MODEL_MONITOR_COPY)
+TRANSLATIONS['zh-CN'] = COPY
+TRANSLATIONS['ja'].update({
+    'Model monitoring': 'モデル監視', 'Monitor future Codex sessions': '今後のCodexセッションを監視',
+    'Start monitoring will restart Codex after current tasks are idle.': '監視を開始すると、現在のタスクがアイドルになった後にCodexを再起動します。',
+    'Monitoring is waiting for Codex to become idle.': 'Codexがアイドルになるのを待っています。',
+    'Monitoring Codex model responses.': 'Codexのモデル応答を監視中', 'Not monitored. Start Codex from this app.': '未監視です。このアプリからCodexを起動してください。',
+    'Model checks': 'モデル確認', 'No model checks yet': 'モデル確認はまだありません', 'Requested model': '要求モデル',
+    'Server-reported model': 'サーバー報告モデル', 'Not verified': '未確認', 'Model matches': 'モデル一致', 'Model differs': 'モデル不一致', 'Monitoring error': '監視エラー',
+})
+TRANSLATIONS['es'].update({
+    'Model monitoring': 'Supervisión del modelo', 'Monitor future Codex sessions': 'Supervisar futuras sesiones de Codex',
+    'Start monitoring will restart Codex after current tasks are idle.': 'La supervisión reiniciará Codex cuando las tareas actuales estén inactivas.',
+    'Monitoring is waiting for Codex to become idle.': 'La supervisión espera a que Codex quede inactivo.',
+    'Monitoring Codex model responses.': 'Supervisando las respuestas del modelo de Codex', 'Not monitored. Start Codex from this app.': 'Sin supervisión. Inicia Codex desde esta aplicación.',
+    'Model checks': 'Comprobaciones del modelo', 'No model checks yet': 'Aún no hay comprobaciones', 'Requested model': 'Modelo solicitado',
+    'Server-reported model': 'Modelo informado por el servidor', 'Not verified': 'Sin verificar', 'Model matches': 'Modelo coincide', 'Model differs': 'Modelo diferente', 'Monitoring error': 'Error de supervisión',
+})
+
+
 def translate(language, key, **values):
     return (TRANSLATIONS[language][key] if language in TRANSLATIONS else key).format(**values)
 

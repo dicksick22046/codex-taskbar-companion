@@ -66,6 +66,7 @@ def read_settings(path):
     result['rotate_quotas'] = data.get('rotate_quotas') is True
     result['show_metric_labels'] = data.get('show_metric_labels') is not False
     result['notify_input'] = data.get('notify_input') is True
+    result['model_monitoring'] = data.get('model_monitoring') is True
     result['language'] = data.get('language') if data.get('language') in LANGUAGES else 'en'
     result['capsule_theme'] = data.get('capsule_theme') if data.get('capsule_theme') in ('dark','light') else 'dark'
     transparency=data.get('capsule_transparency',0)
