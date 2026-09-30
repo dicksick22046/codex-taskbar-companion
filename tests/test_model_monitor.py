@@ -60,6 +60,12 @@ class ModelTraceTests(unittest.TestCase):
             self.assertEqual(monitor.records[0]['server_model'],'gpt-6.1-sol')
             self.assertEqual(monitor.records[0]['status'],'observed')
 
+    def test_manual_handoff_never_starts_while_tasks_are_active(self):
+        with tempfile.TemporaryDirectory() as folder, patch('codex_taskbar.model_monitor.CodexLauncher') as launcher:
+            monitor=ModelMonitor(Path(folder));monitor.set_enabled(True)
+            self.assertFalse(monitor.manual_handoff(['running-task']))
+            launcher.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

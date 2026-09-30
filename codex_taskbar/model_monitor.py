@@ -273,17 +273,21 @@ class ModelMonitor:
                 'mismatch_count': mismatch_count,
                 'records': [dict(row) for row in self.records[-self.LIMIT:]]}
 
-    def maybe_handoff(self, active_tasks):
-        if not self.enabled or self.phase != 'waiting' or active_tasks:
-            return
+    def manual_handoff(self, active_tasks):
+        """Restart Codex only after an explicit user action."""
+        if not self.enabled or active_tasks or self.phase in ('restarting','waiting_response'):
+            return False
         self.phase='restarting';self.error=None;self._save()
         try:
             if self.proxy is None:
                 self.proxy=ModelProxy(lambda model,at:self._proxy_models.put((model,at))).start()
             CodexLauncher().graceful_restart(proxy=self.proxy)
             self.phase='waiting_response'
+            result=True
         except (OSError,RuntimeError,subprocess.SubprocessError) as exc:
             if self.proxy:
                 self.proxy.close();self.proxy=None
             self.phase='error';self.error=type(exc).__name__
+            result=False
         self._save()
+        return result

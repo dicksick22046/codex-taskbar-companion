@@ -27,7 +27,8 @@ class ModelMonitorUITests(unittest.TestCase):
             dialog=app.SettingsDialog(self.bar);self.bar.settings_dialog=dialog
             dialog.navigation.setCurrentRow(2);dialog.grab()
             self.assertTrue(dialog.model_monitor_button.isHidden())
-        self.assertIn(self.bar.label('Enabled; Codex will restart automatically after current tasks finish.'),dialog.model_monitor_status.text())
+            self.assertFalse(dialog.model_monitor_restart_button.isHidden())
+        self.assertIn(self.bar.label('Enabled; restart Codex manually to begin monitoring.'),dialog.model_monitor_status.text())
 
     def test_settings_secondary_action_has_clearance_in_four_languages(self):
         self.data['model_monitor']=dict(enabled=True,phase='monitoring',records=[self.record()])

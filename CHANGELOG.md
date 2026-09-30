@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Remove automatic Codex restart from model monitoring; monitoring now waits for an explicit manual handoff from Settings.
+
 - Keep automatic replacement fully silent: the installer remains a release artifact and never becomes a user-facing update window.
 
 - Make automatic update cancellation recover the companion without retrying the same installer in a loop; keep transient download failures retryable.

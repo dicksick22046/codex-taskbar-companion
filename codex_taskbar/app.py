@@ -728,6 +728,11 @@ class StatusBar(QWidget):
         self.save_settings()
         if self.settings_dialog:self.settings_dialog.refresh_status()
 
+    def manual_model_monitor_handoff(self):
+        if hasattr(self.provider,'request_model_monitor_handoff'):
+            self.provider.request_model_monitor_handoff()
+        if self.settings_dialog:self.settings_dialog.refresh_status()
+
     def open_model_monitor(self):
         if self.settings_dialog:self.settings_dialog.navigation.setCurrentRow(2)
         self.toggle_popup('model_monitor')
