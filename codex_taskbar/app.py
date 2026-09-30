@@ -34,6 +34,7 @@ from .i18n import LANGUAGES, translate, project_label, task_title
 from .presentation import floating_rect,remember_position,clamp_rect,panel_rect,AutoPlacement
 from .motion import Spring
 from .attention_notices import AttentionNotices
+from .status_summaries import SUMMARY_CATEGORIES
 
 PANEL, MUTED, ACCENT, BLUE = "#262b33", "#bac5d2", "#53d5a0", "#79b6f5"
 TITLE_MUTED = "#8797aa"
@@ -803,7 +804,7 @@ class StatusBar(QWidget):
         x=CONTENT_X+sum((25 if rotating else 29)+self.metric_text_width(kind,value) for kind,value,_ in metrics)
         right=x-(13 if rotating else 17) if metrics else CONTENT_X
         if not self.settings['show_tasks']:return min(limit,math.ceil(right+12))
-        counts=category_counts(self.data)
+        counts=self.visible_status_counts(self.data)
         statuses=[kind for kind in STATUS_CATEGORIES if counts[kind]]
         if not statuses:return min(limit,math.ceil(right+12))
         if metrics:x+=7
@@ -910,7 +911,7 @@ class StatusBar(QWidget):
 
     def refresh_status_menu(self):
         self.status_menu.setTitle(self.label('Task status'));self.status_menu.clear()
-        counts=category_counts(self.provider.get())
+        counts=self.visible_status_counts(self.provider.get())
         for category in CATEGORY_LABELS:
             if counts[category]:
                 action=self.status_menu.addAction(self.label(CATEGORY_LABELS[category])+' · '+str(counts[category]))
@@ -922,12 +923,19 @@ class StatusBar(QWidget):
         self.summaries.update(self.data);self.summaries.dismiss(category)
         self.task_strip.refresh(self.data,resize=True);self.tick(resize=True)
 
+    def visible_status_counts(self,data=None):
+        counts=category_counts(self.data if data is None else data)
+        active=set(self.summaries.active)
+        for kind in SUMMARY_CATEGORIES:
+            if kind not in active:counts[kind]=0
+        return counts
+
     def refresh_accessibility(self):
         full={kind:value for kind,value,fraction in self.quota_choices()}
         values=[full[kind] for kind,value,fraction in self.displayed_metrics()]
         if values and quota_is_cached(self.data):values.append(self.label('Cached'))
         if self.settings['show_tasks']:
-            counts=category_counts(self.data)
+            counts=self.visible_status_counts(self.data)
             values.extend(self.label(CATEGORY_LABELS[kind])+' '+str(counts[kind]) for kind in STATUS_CATEGORIES if counts[kind])
         self.setAccessibleName(self.label('Status bar')+(' · '+' · '.join(values) if values else ''))
         self.setAccessibleDescription(self.label('Account quota and task status. Use the tray menu to open task categories.')+' '+quota_update_label(self,self.data))
@@ -996,7 +1004,7 @@ class StatusBar(QWidget):
             self.notification_kind='navigation';self.tray.showMessage(APP_NAME,self.label('Could not open Codex. Open Codex and try again.'))
             return False
         category=task_category(task)
-        if category=='failed':self.dismiss_status(category)
+        if category in ('unread','failed','stopped'):self.dismiss_status(category)
         self.hide_popup(immediate=True)
         return True
 
@@ -1198,7 +1206,7 @@ class StatusBar(QWidget):
                 else:self.animate_ring(kind,fraction)
         # Keep visibility/interaction checks responsive without repainting unchanged pixels.
         frame_key=(tuple((kind,value,None if fraction is None else round(fraction,4)) for kind,value,fraction in self.displayed_metrics()),
-                   tuple(category_counts(self.data).items()) if self.settings['show_tasks'] else (),
+                   tuple(self.visible_status_counts(self.data).items()) if self.settings['show_tasks'] else (),
                    self.position,tuple(self.settings.get(k) for k in DISPLAY_DEFAULTS),self.settings.get('rotate_quotas'))
         if frame_key!=self.frame_key:
             self.frame_key=frame_key;self.update()
@@ -1282,7 +1290,7 @@ class StatusBar(QWidget):
             x+=7
         for kind,value,fraction in self.displayed_metrics():field(kind,value,fraction)
         if not self.settings['show_tasks']:finish();return
-        counts=category_counts(data)
+        counts=self.visible_status_counts(data)
         if not any(counts[k] for k in STATUS_CATEGORIES):finish();return
         if x>CONTENT_X:separator()
         badge_x=x-6

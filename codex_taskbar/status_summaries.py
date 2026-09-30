@@ -4,7 +4,7 @@ from pathlib import Path
 from .preferences import write_json
 from .tasks import task_rows,task_category
 
-SUMMARY_CATEGORIES=('waiting','running','unread','failed')
+SUMMARY_CATEGORIES=('waiting','running','unread','failed','stopped')
 
 
 def execution_key(task):

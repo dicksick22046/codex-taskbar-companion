@@ -19,7 +19,7 @@ class StatusSummaryTests(unittest.TestCase):
 
     def test_defaults_and_master_data_have_no_pin_dependency(self):
         self.model.update(snapshot(*(task(str(i),category=kind) for i,kind in enumerate(('waiting','running','unread','failed','stopped','recent')))))
-        self.assertEqual(self.model.active,['waiting','running','unread','failed'])
+        self.assertEqual(self.model.active,['waiting','running','unread','failed','stopped'])
 
     def test_dismiss_entire_group_and_refresh_time_names_subsets_do_not_reopen(self):
         a=task();b=task('b');self.model.update(snapshot(a,b));self.model.dismiss('running')

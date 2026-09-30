@@ -126,6 +126,21 @@ class InteractionTests(unittest.TestCase):
             self.assertTrue(self.bar.open_task(running))
         self.assertIn('running',self.bar.summaries.active)
 
+    def test_opening_active_statuses_keeps_waiting_and_dismisses_viewed_states(self):
+        rows={
+            'waiting':dict(id='waiting-id',project='Demo',title='Waiting',running=True,needs_input=True,status='idle'),
+            'unread':dict(id='unread-id',project='Demo',title='Unread',running=False,unread=True,status='idle'),
+            'failed':dict(id='failed-id',project='Demo',title='Failed',running=False,unread=False,status='failed'),
+            'stopped':dict(id='stopped-id',project='Demo',title='Stopped',running=False,unread=False,status='stopped'),
+        }
+        for category,row in rows.items():
+            self.bar.data={'tasks':[row],'recent_tasks':[],'task_account':'fixture-account'}
+            self.bar.summaries.dismissed.clear();self.bar.summaries.update(self.bar.data)
+            with patch('codex_taskbar.app.os.startfile'),patch('codex_taskbar.app.thread_url',return_value='codex://threads/'+row['id']):
+                self.assertTrue(self.bar.open_task(row))
+            if category=='waiting':self.assertIn(category,self.bar.summaries.active)
+            else:self.assertNotIn(category,self.bar.summaries.active)
+
     def test_hidden_metric_names_keep_numbers_accessibility_and_compact_spacing(self):
         self.bar.motion_enabled=False;self.bar.settings.update(show_tasks=False)
         for language in ('en','zh-CN','ja','es'):
