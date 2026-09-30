@@ -20,6 +20,15 @@ class ReleaseTests(unittest.TestCase):
                 timer.call_args.args[1]()
                 install.assert_called_once_with()
 
+    def test_cancelled_automatic_version_is_not_retried(self):
+        with tempfile.TemporaryDirectory() as folder:
+            controller=UpdateController(folder,auto_install=True)
+            release={'version':'9.9.9','name':'fixture.exe','url':'x','checksum_url':'y'}
+            with patch.object(controller,'install') as install, patch('codex_taskbar.updates.QTimer.singleShot') as timer:
+                controller.finish({'release':release})
+                controller.finish({'release':release})
+                self.assertEqual(timer.call_count,1);install.assert_not_called()
+
     def test_actual_windows_and_display_switches(self):
         q=quota_windows({'rateLimits':{'primary':{'usedPercent':20,'windowDurationMins':300,'resetsAt':time.time()+18000},'secondary':{'usedPercent':35,'windowDurationMins':10080,'resetsAt':time.time()+604800}}})
         data={'quota':q,'daily_quota':'4%'}

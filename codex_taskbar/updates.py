@@ -90,6 +90,8 @@ class UpdateController(QObject):
         super().__init__(parent)
         self.runtime = Path(runtime); self.release = None; self.busy = False
         self.auto_install = bool(auto_install)
+        self.attempt_path = self.runtime / 'update_attempt.json'
+        self.auto_install_pending = False
         self.message = 'Check for updates' if RELEASE_REPOSITORY else 'Release repository not configured'
         self.result.connect(self.finish)
 
@@ -103,8 +105,25 @@ class UpdateController(QObject):
             except Exception as exc: self.result.emit({'error': str(exc)})
         threading.Thread(target=work, daemon=True).start()
 
+    def _attempted_version(self):
+        try:
+            value=json.loads(self.attempt_path.read_text(encoding='utf-8'))
+            return value.get('version') if isinstance(value,dict) else None
+        except (OSError,ValueError):
+            return None
+
+    def _remember_attempt(self, version):
+        try:
+            self.runtime.mkdir(parents=True,exist_ok=True)
+            temporary=self.attempt_path.with_suffix('.tmp')
+            temporary.write_text(json.dumps({'version':version}),encoding='utf-8')
+            temporary.replace(self.attempt_path)
+        except OSError:
+            pass
+
     def install(self):
         if self.busy or not self.release: return
+        self.auto_install_pending = False
         self.busy = True; self.message = 'Downloading update…'; self.changed.emit()
         release = dict(self.release)
         def work():
@@ -115,6 +134,8 @@ class UpdateController(QObject):
     def finish(self, result):
         self.busy = False
         if 'installer' in result:
+            if self.auto_install:
+                self._remember_attempt(self.release['version'] if self.release else '')
             self.message = 'Update ready'; self.ready.emit(result['installer'])
         elif result.get('unpublished'):
             self.message = 'No release available yet'
@@ -124,7 +145,8 @@ class UpdateController(QObject):
         else:
             self.release = result['release']
             self.message = 'Update to {version}' if self.release else 'Up to date'
-            if self.release and self.auto_install:
+            if self.release and self.auto_install and not self.auto_install_pending and self._attempted_version()!=self.release['version']:
+                self.auto_install_pending = True
                 QTimer.singleShot(0, self.install)
         self.changed.emit()
 
@@ -150,4 +172,8 @@ def install_after_exit(installer, parent_pid, runtime):
     elif ctypes.get_last_error()!=87:raise ctypes.WinError(ctypes.get_last_error())
     from . import startup
     tasks='/TASKS=autostart' if startup.enabled() else '/TASKS='
-    subprocess.Popen([str(path),'/SP-','/SILENT','/CLOSEAPPLICATIONS','/UPDATE=1',tasks],creationflags=0x08000000)
+    completed=subprocess.run([str(path),'/SP-','/SILENT','/CLOSEAPPLICATIONS','/UPDATE=1',tasks],
+                             creationflags=0x08000000,check=False)
+    if completed.returncode:
+        current=Path(__import__('sys').executable)
+        subprocess.Popen([str(current)],creationflags=0x08000000)

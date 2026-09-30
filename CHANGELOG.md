@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Make automatic update cancellation recover the companion without retrying the same installer in a loop; keep transient download failures retryable.
+
 - Replace the non-functional Desktop trace handoff with a process-scoped localhost HTTPS observer that records only the server model response header; make the model-check panel scrollable and remove its empty action.
 - Let installed builds automatically download, verify and install a published update after the taskbar companion exits.
 
