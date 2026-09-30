@@ -18,6 +18,7 @@ Windows 11 x64 的单行 Codex 状态工具，支持任务栏与可选悬浮胶�
 | codex_api.py | 本机 app-server 只读查询及已确认的重置请求 |
 | usage.py、tasks.py | 增量 Token、时长与任务分类 |
 | pricing.py | 已核验模型的标准 API 等值费用，缺失明细保持未知 |
+| pricing_catalog.py、pricing_sync.py | 版本变化/未知模型触发的官方 Standard 价格校验、补充缓存与离线回退 |
 | resets.py | 按账号保存重置事件、阶段边界及幂等操作 |
 | side_chats.py | 只读关联临时侧边聊天及生命周期 |
 | preferences.py、unread.py | 本机设置、旧数据迁移与未读状态 |

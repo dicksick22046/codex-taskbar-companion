@@ -2,16 +2,17 @@
 
 ## 口径
 
-为周期用量、今日用量和重置周期历史提供 USD 查看方式。USD 是本机已记录 Token 按当前已核验的 OpenAI 标准 API 价格计算的等值估算，不是订阅账单、额度换算或实际 API 付款记录。日志未提供服务档位，统一以 Standard 为比较基准，不推测 Fast、Batch、地区加价或工具调用费。价格版本随应用维护，不从网页实时抓取，不发送任务数据。
+为周期用量、今日用量和重置周期历史提供 USD 查看方式。USD 是本机已记录 Token 按当前已核验的 OpenAI 标准 API 价格计算的等值估算，不是订阅账单、额度换算或实际 API 付款记录。日志未提供服务档位，统一以 Standard 为比较基准，不推测 Fast、Batch、地区加价或工具调用费。价格版本由应用内事件驱动同步：应用版本变化或日志出现未知模型时，后台只读核对官方价格页并缓存精确模型费率；不发送任务数据。
 
 定价依据（2026-09-24 核验）：[官方价格表](https://developers.openai.com/api/docs/pricing)、[GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra)、[GPT-6 Sol](https://developers.openai.com/api/docs/models/gpt-6-sol)、[GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna)、[GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol)、[GPT-5.6 Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra)、[GPT-5.5](https://developers.openai.com/api/docs/models/gpt-5.5)、[GPT-5.4](https://developers.openai.com/api/docs/models/gpt-5.4)、[GPT-5.4 mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini)。只精确匹配已核验的模型标识；无已核验价格的模型保持未知，不按前缀猜测。每次准备版本时核对官方模型与价格表，并检查本机已观察到的新模型标识，避免新增模型长时间显示为未知。
 
-仓库每天在 GitHub Actions 中只读读取官方价格页的 Markdown Standard 表，核对已支持模型的输入、缓存读取、缓存写入、输出及长上下文费率，并与已审查的 Standard 模型标识清单比较。价格变化、新标识、表格无法解析或官方站点不可用时检查失败并给出原因，不能静默宣称价格仍准确。该公开工作流不访问任何用户日志或账号，不自动修改费率或发布。维护者核对新增模型是否属于 Codex 后更新价格与清单；正式发布后现有更新机制再将修正送达安装用户。客户端对未知模型继续显示未知，不从网页实时取价。
+GitHub Actions 仅在价格相关文件变化时或手动触发，读取官方价格页的 Markdown Standard 表，核对已支持模型和模型标识。客户端同步只把严格校验后的新模型写入本机价格缓存；网络失败、表格变化或未知模型仍保持未知，不修改源码、不自动发布。缓存费率从抓取成功后的新日志事件生效，历史事件不追溯重算。维护者仍需在稳定模型确认后更新内置价格与清单。
 
 | 模型 | 输入 / 百万 | 缓存读取 / 百万 | 缓存写入 / 百万 | 输出 / 百万 |
 |---|---:|---:|---:|---:|
 | gpt-6-astra | $10 | $1 | $12.50 | $50 |
 | gpt-6-sol | $2 | $0.20 | $2.50 | $10 |
+| gpt-6.1-sol | $2 | $0.10 | $2.50 | $10 |
 | gpt-6-luna | $0.10 | $0.01 | $0.125 | $0.50 |
 | gpt-5.6-sol | $4 | $0.40 | $5 | $20 |
 | gpt-5.6-terra | $2 | $0.20 | $2.50 | $12 |

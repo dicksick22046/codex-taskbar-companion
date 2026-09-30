@@ -1,11 +1,11 @@
 name: Check model prices
 on:
-  schedule:
-    - cron: '17 2 * * *'
   workflow_dispatch:
   push:
     paths:
       - codex_taskbar/pricing.py
+      - codex_taskbar/pricing_catalog.py
+      - codex_taskbar/pricing_sync.py
       - scripts/check_model_prices.py
       - scripts/standard_model_ids.txt
       - .github/workflows/model-prices.yml

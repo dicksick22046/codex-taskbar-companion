@@ -14,6 +14,9 @@ from .resets import ResetLedger
 from .side_chats import SideChats
 from .task_statistics import TaskStatistics
 from .pricing import sum_costs
+from .build_info import VERSION
+from .pricing_catalog import PricingCatalog
+from .pricing_sync import PricingSyncCoordinator
 
 
 class Provider:
@@ -36,6 +39,9 @@ class Provider:
         self.api = None
         self.reset_busy = False
         self.reset_request = None
+        self.pricing_catalog = PricingCatalog(self.runtime_dir, VERSION)
+        self.pricing_sync = PricingSyncCoordinator(self.pricing_catalog, self.refresh_event.set)
+        self.pricing_sync.on_version_start()
         ctypes.windll.kernel32.GetTickCount64.restype = ctypes.c_ulonglong
         self.boot_time = time.time() - ctypes.windll.kernel32.GetTickCount64() / 1000
         self.thread = threading.Thread(target=self._run, daemon=True)
@@ -274,7 +280,9 @@ class Provider:
                             since = datetime.fromtimestamp(week["starts_at"]).astimezone() if week and week.get("starts_at") else datetime.now().astimezone().replace(hour=0,minute=0,second=0,microsecond=0)
                             if cursor is None or str(cursor.path) != path or cursor.since != since or cursor.periods!=periods:
                                 cursor = cursors[thread["id"]] = UsageCursor(path, since=since,
-                                    created_after=thread.get("createdAt") if thread.get("forkedFromId") else None,periods=periods)
+                                    created_after=thread.get("createdAt") if thread.get("forkedFromId") else None,periods=periods,
+                                    pricing_catalog=getattr(self, 'pricing_catalog', None),
+                                    model_observer=getattr(getattr(self, 'pricing_sync', None), 'on_unknown_model', None))
                             cursor.update()
                         except OSError:
                             cursors.pop(thread["id"], None)

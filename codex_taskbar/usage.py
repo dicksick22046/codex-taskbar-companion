@@ -56,7 +56,7 @@ def event_from_line(line):
 
 
 class UsageCursor:
-    def __init__(self, path, today=None, since=None, created_after=None, periods=()):
+    def __init__(self, path, today=None, since=None, created_after=None, periods=(), pricing_catalog=None, model_observer=None):
         self.path = Path(path)
         self.day = today or datetime.now().astimezone().date()
         self.since = since or datetime.combine(self.day, datetime.min.time()).astimezone()
@@ -92,6 +92,8 @@ class UsageCursor:
         self.duration_known = False
         self.duration_start = None
         self.pending_input={}
+        self.pricing_catalog = pricing_catalog
+        self.model_observer = model_observer
 
     def apply(self, event):
         if event is None:
@@ -107,6 +109,8 @@ class UsageCursor:
         if kind == 'model_context':
             self.model = event.get('model') if isinstance(event.get('model'), str) else None
             self.model_turn = event.get('turn')
+            if self.model_observer and self.model:
+                self.model_observer(self.model)
             return
         if kind == 'token_count' and inconsistent_total(event.get('usage')):return
         original = self.created_after is None or event["at"].timestamp() >= self.created_after
@@ -160,7 +164,8 @@ class UsageCursor:
                     if index>=0 and at<self.periods[index][2]:self.period_usd[self.periods[index][0]] = None
             if original and not unknown_fork_baseline and type(total) is int and total >= 0:
                 delta = total if previous is None or total < previous else total-previous
-                cost = 0. if delta == 0 else usage_cost(self.model, current, previous_usage, event.get('last_usage'))
+                resolver = self.pricing_catalog.rate_for if self.pricing_catalog else None
+                cost = 0. if delta == 0 else usage_cost(self.model, current, previous_usage, event.get('last_usage'), resolver, event['at'])
                 if self.created_after is not None and self.last is None and fork_baseline is None and delta > 0:cost = None
                 if local_day == self.day:
                     self.daily_usd = cost if not self.daily_cost_seen else self.add_cost(self.daily_usd, cost)
