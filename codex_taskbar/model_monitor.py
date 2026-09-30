@@ -274,8 +274,8 @@ class ModelMonitor:
                 'records': [dict(row) for row in self.records[-self.LIMIT:]]}
 
     def manual_handoff(self, active_tasks):
-        """Restart Codex only after an explicit user action."""
-        if not self.enabled or active_tasks or self.phase in ('restarting','waiting_response'):
+        """Restart Codex after an explicit user action, regardless of task state."""
+        if not self.enabled or self.phase in ('restarting','waiting_response'):
             return False
         self.phase='restarting';self.error=None;self._save()
         try:

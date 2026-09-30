@@ -257,7 +257,7 @@ class SettingsDialog(QDialog):
             monitor_message=label('Model monitoring is off.')
         self.model_monitor_status.setText(monitor_message)
         self.model_monitor_restart_button.setVisible(bool(monitor.get('enabled')))
-        self.model_monitor_restart_button.setEnabled(bool(monitor.get('enabled')) and not active and phase not in ('restarting','waiting_response'))
+        self.model_monitor_restart_button.setEnabled(bool(monitor.get('enabled')) and phase not in ('restarting','waiting_response'))
         self.model_monitor_button.setText(label('Model checks ({count})',count=len(records)))
         self.model_monitor_button.setVisible(bool(records));self.model_monitor_button.setEnabled(bool(records))
         self.connection.setText(label(message));self.update_button.setText(label(self.bar.updater.message,version=(self.bar.updater.release or {}).get('version','')));self.update_button.setEnabled(not self.bar.updater.busy);self.update_progress.setVisible(self.bar.updater.busy and self.bar.updater.message=='Downloading update…');self.update_progress.setValue(self.bar.updater.progress_value)

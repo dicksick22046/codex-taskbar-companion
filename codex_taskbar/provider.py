@@ -62,7 +62,7 @@ class Provider:
     def request_model_monitor_handoff(self):
         with self.lock:
             active = [task.get('id') for task in self.snapshot.get('tasks', []) if task.get('running')]
-        if active or not self.model_monitor.enabled:
+        if not self.model_monitor.enabled:
             return False
         def handoff():
             self.model_monitor.manual_handoff(active)
