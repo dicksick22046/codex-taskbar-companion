@@ -4,7 +4,7 @@ from unittest.mock import patch
 from PySide6.QtCore import QCoreApplication
 from codex_taskbar.preferences import read_settings,write_settings,migrate_legacy,DISPLAY_DEFAULTS
 from codex_taskbar.usage import quota_windows,visible_metrics
-from codex_taskbar.updates import release_candidate,download_installer,UpdateController
+from codex_taskbar.updates import release_candidate,download_installer,UpdateController,installer_command
 class ReleaseTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -28,6 +28,11 @@ class ReleaseTests(unittest.TestCase):
                 controller.finish({'release':release})
                 controller.finish({'release':release})
                 self.assertEqual(timer.call_count,1);install.assert_not_called()
+
+    def test_background_installer_suppresses_all_user_prompts(self):
+        command=installer_command(Path('setup.exe'),'/TASKS=')
+        self.assertEqual(command[1:8],['/SP-','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',
+                                       '/CLOSEAPPLICATIONS','/FORCECLOSEAPPLICATIONS','/UPDATE=1'])
 
     def test_actual_windows_and_display_switches(self):
         q=quota_windows({'rateLimits':{'primary':{'usedPercent':20,'windowDurationMins':300,'resetsAt':time.time()+18000},'secondary':{'usedPercent':35,'windowDurationMins':10080,'resetsAt':time.time()+604800}}})

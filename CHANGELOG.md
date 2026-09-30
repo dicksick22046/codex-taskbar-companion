@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Keep automatic replacement fully silent: the installer remains a release artifact and never becomes a user-facing update window.
+
 - Make automatic update cancellation recover the companion without retrying the same installer in a loop; keep transient download failures retryable.
 
 - Replace the non-functional Desktop trace handoff with a process-scoped localhost HTTPS observer that records only the server model response header; make the model-check panel scrollable and remove its empty action.

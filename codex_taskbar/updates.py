@@ -172,8 +172,14 @@ def install_after_exit(installer, parent_pid, runtime):
     elif ctypes.get_last_error()!=87:raise ctypes.WinError(ctypes.get_last_error())
     from . import startup
     tasks='/TASKS=autostart' if startup.enabled() else '/TASKS='
-    completed=subprocess.run([str(path),'/SP-','/SILENT','/CLOSEAPPLICATIONS','/UPDATE=1',tasks],
+    completed=subprocess.run(installer_command(path,tasks),
                              creationflags=0x08000000,check=False)
     if completed.returncode:
         current=Path(__import__('sys').executable)
         subprocess.Popen([str(current)],creationflags=0x08000000)
+
+
+def installer_command(path, tasks):
+    """Build the non-interactive command used by the companion's updater."""
+    return [str(path), '/SP-', '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART',
+            '/CLOSEAPPLICATIONS', '/FORCECLOSEAPPLICATIONS', '/UPDATE=1', tasks]
