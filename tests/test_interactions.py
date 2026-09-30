@@ -110,6 +110,22 @@ class InteractionTests(unittest.TestCase):
     def test_metric_and_status_regions_are_distinct(self):
         self.assertEqual([m for m,r,t in self.bar.hit_regions],['usage','session','daily','resets','running','unread','failed','stopped'])
 
+    def test_opening_failed_task_dismisses_the_failed_summary(self):
+        self.bar.summaries.dismissed.clear()
+        self.bar.summaries.update(self.data)
+        failed=next(task for task in self.data['recent_tasks'] if task['status']=='failed')
+        self.assertIn('failed',self.bar.summaries.active)
+        with patch('codex_taskbar.app.os.startfile'),patch('codex_taskbar.app.thread_url',return_value='codex://threads/failed'):
+            self.assertTrue(self.bar.open_task(failed))
+        self.assertNotIn('failed',self.bar.summaries.active)
+
+    def test_opening_running_task_keeps_running_summary(self):
+        self.bar.summaries.update(self.data)
+        running=self.data['tasks'][0]
+        with patch('codex_taskbar.app.os.startfile'),patch('codex_taskbar.app.thread_url',return_value='codex://threads/running'):
+            self.assertTrue(self.bar.open_task(running))
+        self.assertIn('running',self.bar.summaries.active)
+
     def test_hidden_metric_names_keep_numbers_accessibility_and_compact_spacing(self):
         self.bar.motion_enabled=False;self.bar.settings.update(show_tasks=False)
         for language in ('en','zh-CN','ja','es'):

@@ -995,6 +995,8 @@ class StatusBar(QWidget):
             print(f'Task navigation: {exc}',file=sys.stderr)
             self.notification_kind='navigation';self.tray.showMessage(APP_NAME,self.label('Could not open Codex. Open Codex and try again.'))
             return False
+        category=task_category(task)
+        if category=='failed':self.dismiss_status(category)
         self.hide_popup(immediate=True)
         return True
 
