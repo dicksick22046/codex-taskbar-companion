@@ -258,6 +258,7 @@ _MODEL_MONITOR_COPY = {
     'Model matches': '模型一致',
     'Model differs': '模型不一致',
     'Monitoring error': '监测错误',
+    'Codex did not close; close Codex and try again.': 'Codex 未能完全退出，请先关闭 Codex 后再试。',
     'Model monitoring is off.': '模型监测已关闭。',
     'Codex is restarting for monitoring…': '正在为监测重启 Codex…',
     'Monitoring is ready; waiting for the next server model response.': '监测已接管，等待下一次服务端模型回报。',
@@ -273,14 +274,14 @@ TRANSLATIONS['ja'].update({
     'Codex is monitored; waiting for a server model response.': 'Codexを監視中です。サーバーのモデル応答を待っています。',
     'Monitoring Codex model responses.': 'Codexのモデル応答を監視中', 'Not monitored. Start Codex from this app.': '未監視です。このアプリからCodexを起動してください。',
     'Model checks': 'モデル確認', 'No model checks yet': 'モデル確認はまだありません', 'Requested model': '要求モデル', 'Enabled; restart Codex manually to begin monitoring.': '有効です。手動でCodexを再起動すると監視を開始します。', 'Restart Codex and monitor': 'Codexを再起動して監視',
-    'Server-reported model': 'サーバー報告モデル', 'Not verified': '未確認', 'Model matches': 'モデル一致', 'Model differs': 'モデル不一致', 'Monitoring error': '監視エラー',
+    'Server-reported model': 'サーバー報告モデル', 'Not verified': '未確認', 'Model matches': 'モデル一致', 'Model differs': 'モデル不一致', 'Monitoring error': '監視エラー', 'Codex did not close; close Codex and try again.': 'Codexを終了できませんでした。Codexを閉じてから再試行してください。',
 })
 TRANSLATIONS['es'].update({
     'Model monitoring': 'Supervisión del modelo', 'Monitor future Codex sessions': 'Supervisar futuras sesiones de Codex',
     'Codex is monitored; waiting for a server model response.': 'Codex está supervisado; esperando el modelo informado por el servidor.',
     'Monitoring Codex model responses.': 'Supervisando las respuestas del modelo de Codex', 'Not monitored. Start Codex from this app.': 'Sin supervisión. Inicia Codex desde esta aplicación.',
     'Model checks': 'Comprobaciones del modelo', 'No model checks yet': 'Aún no hay comprobaciones', 'Requested model': 'Modelo solicitado', 'Enabled; restart Codex manually to begin monitoring.': 'Activado; reinicia Codex manualmente para comenzar.', 'Restart Codex and monitor': 'Reiniciar Codex y supervisar',
-    'Server-reported model': 'Modelo informado por el servidor', 'Not verified': 'Sin verificar', 'Model matches': 'Modelo coincide', 'Model differs': 'Modelo diferente', 'Monitoring error': 'Error de supervisión',
+    'Server-reported model': 'Modelo informado por el servidor', 'Not verified': 'Sin verificar', 'Model matches': 'Modelo coincide', 'Model differs': 'Modelo diferente', 'Monitoring error': 'Error de supervisión', 'Codex did not close; close Codex and try again.': 'Codex no se cerró; ciérralo y vuelve a intentarlo.',
 })
 for _catalog in TRANSLATIONS.values():
     for _key, _value in _MODEL_MONITOR_COPY.items():

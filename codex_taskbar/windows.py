@@ -67,6 +67,20 @@ def request_close_process_windows(process_ids):
     user32.EnumWindows(callback,0)
 
 
+def process_window_ids(process_ids):
+    """Return process IDs that own a top-level window."""
+    wanted={int(pid) for pid in process_ids};found=set()
+    if not wanted:return found
+    callback_type=ctypes.WINFUNCTYPE(w.BOOL,w.HWND,w.LPARAM)
+    @callback_type
+    def callback(hwnd,lparam):
+        pid=w.DWORD();user32.GetWindowThreadProcessId(hwnd,ctypes.byref(pid))
+        if pid.value in wanted:found.add(pid.value)
+        return True
+    user32.EnumWindows(callback,0)
+    return found
+
+
 class WindowPos(ctypes.Structure):
     _fields_=[('hwnd',w.HWND),('after',w.HWND),('x',ctypes.c_int),('y',ctypes.c_int),('width',ctypes.c_int),('height',ctypes.c_int),('flags',w.UINT)]
 

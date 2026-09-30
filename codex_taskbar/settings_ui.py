@@ -252,7 +252,7 @@ class SettingsDialog(QDialog):
         elif phase=='monitoring':
             monitor_message=label('Verified {count} model calls; {mismatches} differed.',count=len(records),mismatches=monitor.get('mismatch_count',0))
         elif phase=='error':
-            monitor_message=label('Monitoring error')+(': '+str(monitor.get('error')) if monitor.get('error') else '')
+            monitor_message=label('Codex did not close; close Codex and try again.') if monitor.get('error')=='codex_busy' else label('Monitoring error')+(': '+str(monitor.get('error')) if monitor.get('error') else '')
         else:
             monitor_message=label('Model monitoring is off.')
         self.model_monitor_status.setText(monitor_message)

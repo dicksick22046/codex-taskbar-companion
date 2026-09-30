@@ -125,7 +125,7 @@ class CodexLauncher:
 
     def graceful_restart(self, proxy=None):
         """Request a quiet Desktop restart after the caller established idleness."""
-        old=self._process_ids()
+        old=windows.process_window_ids(self._process_ids())
         windows.request_close_process_windows(old)
         deadline=time.monotonic()+20
         while old and time.monotonic()<deadline:
@@ -287,7 +287,7 @@ class ModelMonitor:
         except (OSError,RuntimeError,subprocess.SubprocessError) as exc:
             if self.proxy:
                 self.proxy.close();self.proxy=None
-            self.phase='error';self.error=type(exc).__name__
+            self.phase='error';self.error='codex_busy' if isinstance(exc,RuntimeError) else type(exc).__name__
             result=False
         self._save()
         return result
