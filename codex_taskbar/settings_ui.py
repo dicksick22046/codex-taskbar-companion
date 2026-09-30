@@ -222,7 +222,8 @@ class SettingsDialog(QDialog):
         errors=tuple(sorted(self.bar.settings_errors))
         fallback=self.bar.settings.get('placement')=='auto' and self.bar.floating
         monitor=data.get('model_monitor') or {}
-        key=(fallback,errors,self.bar.language,data.get('quota_error'),bool(data.get('quota')),data.get('error'),data.get('loading'),self.bar.placement_unavailable,self.bar.updater.message,self.bar.updater.busy,(self.bar.updater.release or {}).get('version'),monitor.get('phase'),monitor.get('mismatch_count'),monitor.get('error'))
+        records=monitor.get('records') or []
+        key=(fallback,errors,self.bar.language,data.get('quota_error'),bool(data.get('quota')),data.get('error'),data.get('loading'),self.bar.placement_unavailable,self.bar.updater.message,self.bar.updater.busy,(self.bar.updater.release or {}).get('version'),monitor.get('enabled'),monitor.get('phase'),len(records),monitor.get('mismatch_count'),monitor.get('error'))
         if key==getattr(self,'status_key',None):return
         self.status_key=key
         self.feedback.setText('\n'.join(label(error) for error in errors));self.feedback.setVisible(bool(errors))
@@ -233,10 +234,23 @@ class SettingsDialog(QDialog):
         elif self.bar.placement_unavailable and any(self.bar.settings.get(k) for k in DISPLAY_LABELS):message='Not enough room for enabled indicators. Hide some indicators or rotate them.'
         else:message='Connected to Codex'
         phase=monitor.get('phase')
-        monitor_message={'waiting':label('Monitoring is waiting for Codex to become idle.'),
-                         'monitoring':label('Monitoring Codex model responses.'),
-                         'error':label('Monitoring error')+(': '+str(monitor.get('error')) if monitor.get('error') else '')}.get(phase,label('Not monitored. Start Codex from this app.'))
+        if not monitor.get('enabled'):
+            monitor_message=label('Model monitoring is off.')
+        elif phase=='waiting':
+            monitor_message=label('Enabled; Codex will restart automatically after current tasks finish.')
+        elif phase=='restarting':
+            monitor_message=label('Codex is restarting for monitoring…')
+        elif phase=='waiting_response':
+            monitor_message=label('Monitoring is ready; waiting for the next server model response.')
+        elif phase=='monitoring':
+            monitor_message=label('Verified {count} model calls; {mismatches} differed.',count=len(records),mismatches=monitor.get('mismatch_count',0))
+        elif phase=='error':
+            monitor_message=label('Monitoring error')+(': '+str(monitor.get('error')) if monitor.get('error') else '')
+        else:
+            monitor_message=label('Model monitoring is off.')
         self.model_monitor_status.setText(monitor_message)
+        self.model_monitor_button.setText(label('Model checks ({count})',count=len(records)))
+        self.model_monitor_button.setEnabled(bool(records))
         self.connection.setText(label(message));self.update_button.setText(label(self.bar.updater.message,version=(self.bar.updater.release or {}).get('version','')));self.update_button.setEnabled(not self.bar.updater.busy)
 
     def refresh_displays(self):

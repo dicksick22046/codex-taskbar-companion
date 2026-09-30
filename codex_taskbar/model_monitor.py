@@ -152,6 +152,8 @@ class ModelMonitor:
         if not isinstance(data, dict):
             return
         self.last_id = data.get('last_id') if type(data.get('last_id')) is int else 0
+        self.phase = data.get('phase') if data.get('phase') in ('off','waiting','restarting','waiting_response','monitoring','error') else 'off'
+        self.error = data.get('error') if isinstance(data.get('error'), str) else None
         rows = data.get('records')
         if isinstance(rows, list):
             self.records = [row for row in rows[-self.LIMIT:] if self._valid(row)]
@@ -164,7 +166,8 @@ class ModelMonitor:
 
     def _save(self):
         try:
-            write_json(self.path, {'last_id': self.last_id, 'records': self.records[-self.LIMIT:]})
+            write_json(self.path, {'last_id': self.last_id, 'phase': self.phase, 'error': self.error,
+                                   'records': self.records[-self.LIMIT:]})
         except OSError:
             pass
 
@@ -174,7 +177,7 @@ class ModelMonitor:
             self.phase = 'off'
         elif active:
             self.phase = 'waiting'
-        elif self.phase in ('off', 'error'):
+        elif not self.records or self.phase in ('off', 'error'):
             self.phase = 'waiting'
         self._save()
 
@@ -203,7 +206,7 @@ class ModelMonitor:
                                     if row.get('response_id') != observation.response_id]
                     self.records.append(item)
                     changed = True
-            if rows:
+            if changed:
                 self.phase = 'monitoring'
             if changed or rows:
                 self._save()
@@ -226,7 +229,7 @@ class ModelMonitor:
         self.phase='restarting';self.error=None;self._save()
         try:
             CodexLauncher().graceful_restart()
-            self.phase='monitoring'
+            self.phase='waiting_response'
         except (OSError,subprocess.SubprocessError) as exc:
             self.phase='error';self.error=type(exc).__name__
         self._save()
