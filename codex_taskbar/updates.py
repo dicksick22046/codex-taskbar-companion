@@ -8,7 +8,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QTimer
 from .build_info import VERSION, RELEASE_REPOSITORY
 
 
@@ -86,9 +86,10 @@ class UpdateController(QObject):
     ready = Signal(str)
     result = Signal(object)
 
-    def __init__(self, runtime, parent=None):
+    def __init__(self, runtime, parent=None, auto_install=False):
         super().__init__(parent)
         self.runtime = Path(runtime); self.release = None; self.busy = False
+        self.auto_install = bool(auto_install)
         self.message = 'Check for updates' if RELEASE_REPOSITORY else 'Release repository not configured'
         self.result.connect(self.finish)
 
@@ -123,6 +124,8 @@ class UpdateController(QObject):
         else:
             self.release = result['release']
             self.message = 'Update to {version}' if self.release else 'Up to date'
+            if self.release and self.auto_install:
+                QTimer.singleShot(0, self.install)
         self.changed.emit()
 
 

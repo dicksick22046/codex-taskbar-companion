@@ -10,10 +10,12 @@ import re
 import sqlite3
 import subprocess
 import time
+import queue
 from typing import Iterable
 
 from .preferences import write_json
 from . import windows
+from .model_proxy import ModelProxy
 
 
 _EVENT_RE = re.compile(
@@ -90,13 +92,17 @@ class CodexLauncher:
             roots = []
         return roots[0] if roots else None
 
-    def launch(self):
+    def launch(self, proxy=None):
         executable = self.executable()
         if executable is None:
             raise FileNotFoundError('Codex Desktop executable not found')
         environment = os.environ.copy()
         environment['RUST_LOG'] = self.TRACE_LOG
-        self.process = subprocess.Popen([str(executable)], env=environment,
+        args = [str(executable)]
+        if proxy is not None:
+            args.extend(proxy.launch_args())
+            environment.update(proxy.environment())
+        self.process = subprocess.Popen(args, env=environment,
                                         cwd=str(executable.parent),
                                         creationflags=0x08000000)
         return self.process.pid
@@ -117,7 +123,7 @@ class CodexLauncher:
                     except ValueError:pass
         return sorted(set(ids))
 
-    def graceful_restart(self):
+    def graceful_restart(self, proxy=None):
         """Request a quiet Desktop restart after the caller established idleness."""
         old=self._process_ids()
         windows.request_close_process_windows(old)
@@ -125,7 +131,9 @@ class CodexLauncher:
         while old and time.monotonic()<deadline:
             time.sleep(.25)
             if not set(old).intersection(self._process_ids()):break
-        return self.launch()
+        if old and set(old).intersection(self._process_ids()):
+            raise RuntimeError('Codex Desktop did not close for monitoring handoff')
+        return self.launch(proxy=proxy)
 
 
 class ModelMonitor:
@@ -142,6 +150,8 @@ class ModelMonitor:
         self.last_id = 0
         self.error = None
         self.records: list[dict] = []
+        self._proxy_models = queue.Queue()
+        self.proxy = None
         self._load()
 
     def _load(self):
@@ -161,7 +171,7 @@ class ModelMonitor:
     @staticmethod
     def _valid(row):
         return isinstance(row, dict) and isinstance(row.get('response_id'), str) and \
-            row.get('status') in ('created', 'completed') and \
+            row.get('status') in ('created', 'completed', 'observed') and \
             isinstance(row.get('at'), str)
 
     def _save(self):
@@ -175,6 +185,10 @@ class ModelMonitor:
         self.enabled = bool(enabled)
         if not self.enabled:
             self.phase = 'off'
+            if self.proxy:
+                self.proxy.close();self.proxy=None
+        elif self.proxy is None and self.phase in ('restarting','waiting_response','monitoring'):
+            self.phase = 'waiting'
         elif active:
             self.phase = 'waiting'
         elif not self.records or self.phase in ('off', 'error'):
@@ -182,20 +196,22 @@ class ModelMonitor:
         self._save()
 
     def poll(self):
-        if not self.enabled or not self.logs_path.exists():
+        if not self.enabled:
             return
         try:
-            db = sqlite3.connect(self.logs_path.as_uri() + '?mode=ro', uri=True, timeout=0.2)
-            try:
-                rows = db.execute(
-                    "SELECT id, ts, feedback_log_body FROM logs "
-                    "WHERE id>? AND target IN (?,?) AND feedback_log_body LIKE ? "
-                    "ORDER BY id LIMIT 500",
-                    (self.last_id, 'codex_api::endpoint::responses_websocket',
-                     'codex_api::sse::responses', '%response.%')).fetchall()
-            finally:
-                db.close()
-            changed = False
+            changed = self._drain_proxy_models()
+            rows = []
+            if self.logs_path.exists():
+                db = sqlite3.connect(self.logs_path.as_uri() + '?mode=ro', uri=True, timeout=0.2)
+                try:
+                    rows = db.execute(
+                        "SELECT id, ts, feedback_log_body FROM logs "
+                        "WHERE id>? AND target IN (?,?) AND feedback_log_body LIKE ? "
+                        "ORDER BY id LIMIT 500",
+                        (self.last_id, 'codex_api::endpoint::responses_websocket',
+                         'codex_api::sse::responses', '%response.%')).fetchall()
+                finally:
+                    db.close()
             for ident, timestamp, body in rows:
                 self.last_id = max(self.last_id, int(ident))
                 for observation in parse_trace_metadata(body or '',
@@ -215,6 +231,40 @@ class ModelMonitor:
             self.phase = 'error'
             self.error = type(exc).__name__
 
+    def close(self):
+        if self.proxy:
+            self.proxy.close();self.proxy=None
+        self._save()
+
+    def _drain_proxy_models(self):
+        changed = False
+        while True:
+            try:
+                server_model, stamp = self._proxy_models.get_nowait()
+            except queue.Empty:
+                break
+            requested = self._latest_requested_model()
+            item = {'response_id': '',
+                    'requested_model': requested, 'server_model': server_model,
+                    'thread_id': None, 'turn_id': None, 'at': stamp,
+                    'status': 'observed',
+                    'mismatch': bool(requested and requested.lower()!=server_model.lower())}
+            self.records = [row for row in self.records if row.get('response_id') != item['response_id']]
+            self.records.append(item);changed=True
+        return changed
+
+    def _latest_requested_model(self):
+        try:
+            db=sqlite3.connect(self.logs_path.as_uri()+'?mode=ro',uri=True,timeout=.2)
+            try:
+                rows=db.execute("SELECT feedback_log_body FROM logs WHERE target IN (?,?) AND feedback_log_body LIKE '%model=%' ORDER BY id DESC LIMIT 1",
+                                ('codex_api::endpoint::responses_websocket','codex_api::sse::responses')).fetchall()
+            finally:db.close()
+            match=_REQUEST_MODEL_RE.search(rows[0][0]) if rows else None
+            return match.group(1) if match else None
+        except (OSError,sqlite3.Error):
+            return None
+
     def view(self):
         latest = self.records[-1] if self.records else None
         mismatch_count = sum(row.get('mismatch') is True for row in self.records)
@@ -228,8 +278,12 @@ class ModelMonitor:
             return
         self.phase='restarting';self.error=None;self._save()
         try:
-            CodexLauncher().graceful_restart()
+            if self.proxy is None:
+                self.proxy=ModelProxy(lambda model,at:self._proxy_models.put((model,at))).start()
+            CodexLauncher().graceful_restart(proxy=self.proxy)
             self.phase='waiting_response'
-        except (OSError,subprocess.SubprocessError) as exc:
+        except (OSError,RuntimeError,subprocess.SubprocessError) as exc:
+            if self.proxy:
+                self.proxy.close();self.proxy=None
             self.phase='error';self.error=type(exc).__name__
         self._save()

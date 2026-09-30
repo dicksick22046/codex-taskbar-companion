@@ -105,11 +105,13 @@ class Provider:
         history_costs = {}
         newest_usage = None
         native_running=[]
+        observed_running=[]
         unread_ids=self.unread_state.read()
         for thread in threads:
             cursor = cursors.get(thread["id"])
             if cursor is None or not cursor.initialized:
                 continue
+            if cursor.running:observed_running.append(thread['id'])
             for key in FIELDS:
                 totals[key] += cursor.daily[key]
             daily_costs.append((cursor.daily['total_tokens'], getattr(cursor, 'daily_usd', None)))
@@ -157,6 +159,7 @@ class Provider:
                 recent.append(task)
             for side in sides:
                 active=side['running'];start=side.get('started_at');end=side.get('ended_at')
+                if active:observed_running.append(side['id'])
                 completion=side.get('completion_kind')
                 stamp=lambda at:datetime.fromtimestamp(at).astimezone().isoformat() if at is not None else None
                 side_task={'id':side['id'],'parent_id':thread['id'],'navigation_id':thread['id'],
@@ -171,7 +174,7 @@ class Provider:
         tasks.sort(key=lambda t: (t["project"], t["started_at"] or "", t["id"]))
         monitor=getattr(self,'model_monitor',None)
         if monitor and error is None and getattr(self,'catalog_rows',None) is not None:
-            monitor.maybe_handoff([task for task in tasks if task.get('running')])
+            monitor.maybe_handoff(observed_running)
         from .usage import daily_observed_at, daily_quota_text
         week = next((w for w in quota if w["label"] == "周"), None)
         observed_now = datetime.now().astimezone()
@@ -330,6 +333,7 @@ class Provider:
 
     def stop(self):
         self.stop_event.set()
+        self.model_monitor.close()
         if self.api:
             self.api.close()
         self.thread.join(timeout=2)

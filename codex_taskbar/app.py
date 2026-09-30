@@ -489,7 +489,7 @@ class StatusBar(QWidget):
         if hasattr(self.provider,'set_model_monitoring'):
             self.provider.set_model_monitoring(self.settings.get('model_monitoring',False))
         self.chart_unit=self.settings['chart_unit']
-        self.updater=UpdateController(RUNTIME,self);self.updater.changed.connect(self.update_status)
+        self.updater=UpdateController(RUNTIME,self,auto_install=getattr(sys,'frozen',False));self.updater.changed.connect(self.update_status)
         self.updater.ready.connect(self.install_update)
         self.tray=QSystemTrayIcon(app_icon(),self);self.tray.setToolTip(APP_NAME)
         self.menu=QMenu(self);self.menu.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint,True);self.menu.setFont(face(8))
@@ -1328,60 +1328,6 @@ class StatusBar(QWidget):
         self.provider.stop();event.accept();QApplication.instance().quit()
 
 
-class ModelMonitorPopup(QWidget):
-    mode='model_monitor'
-
-    def __init__(self,owner,parent=None):
-        super().__init__(parent)
-        self.owner=owner;self.host=parent;self.data={};self.rows=[];self.reveal_target=1.
-        self.fade=Spring(self,response=.18);self.fade.changed.connect(lambda value:self.update())
-        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setWindowTitle('Codex · '+owner.label('Model checks'))
-
-    def refresh(self,data):
-        self.data=data.get('model_monitor') or {}
-        self.rows=list(self.data.get('records') or [])[-8:][::-1]
-        height=min(320,76+max(1,len(self.rows))*38)
-        self.requested_size=(max(340,self.owner.navigation_width),height)
-        if self.host:self.host.place_detail(*self.requested_size)
-        else:self.resize(*self.requested_size)
-        self.update()
-
-    def reveal_to(self,target,force=False):
-        self.reveal_target=float(target)
-        if self.host:self.host.reveal_detail(bool(target))
-        elif not target:self.owner.hide_popup(immediate=True)
-
-    def sync_owner(self):
-        if self.host:self.host.ensure_visible()
-
-    def sync_theme(self):self.update()
-
-    def global_geometry(self):
-        return QRect(self.mapToGlobal(QPointF().toPoint()),self.size()).intersected(self.host.geometry()) if self.host else self.geometry()
-
-    def owner_unplaced(self):return False
-
-    def paintEvent(self,event):
-        p=panel_painter(self);colors=popup_palette(self.owner)
-        text(p,18,24,self.owner.label('Model checks'),face(10),colors['title'])
-        if not self.rows:
-            text(p,18,66,self.owner.label('No model checks yet'),face(8),colors['muted'])
-            p.end();return
-        for index,row in enumerate(self.rows):
-            y=61+index*38
-            status=self.owner.label('Model differs' if row.get('mismatch') else 'Model matches' if row.get('server_model') else 'Not verified')
-            source=row.get('requested_model') or '—';served=row.get('server_model') or '—'
-            text(p,18,y,f'{source} → {served}',face(8),colors['link'] if row.get('mismatch') else colors['text'])
-            text(p,18,y+14,status,face(7),colors['muted'])
-        p.end()
-
-    def keyPressEvent(self,event):
-        if event.key()==Qt.Key.Key_Escape:self.owner.hide_popup();event.accept();return
-        super().keyPressEvent(event)
-
-
 class TaskPopup(QWidget):
     mode='usage'
     GAP=8
@@ -1986,6 +1932,49 @@ class ResetPopup(TaskPopup):
             values={Qt.Key.Key_Left:offset-self.column_width,Qt.Key.Key_Right:offset+self.column_width,Qt.Key.Key_Home:0,Qt.Key.Key_End:self.history_scroll.maximum()}
             self.history_scroll.setValue(values[event.key()]);event.accept();return
         super().keyPressEvent(event)
+
+
+class ModelMonitorPopup(TaskPopup):
+    mode='model_monitor'
+    ROW_HEIGHT=42
+
+    def __init__(self,owner,parent=None):
+        super().__init__(owner,parent)
+        self.mode='model_monitor'
+        self.setWindowTitle('Codex · '+owner.label('Model checks'))
+
+    def refresh(self,data):
+        self.data=data
+        monitor=data.get('model_monitor') or {}
+        self.rows=list(monitor.get('records') or [])[::-1]
+        self.full_height=58+max(1,len(self.rows))*self.ROW_HEIGHT
+        self.place_panel(max(340,self.owner.navigation_width),min(360,self.full_height))
+        self.scroll=min(self.scroll,max(0,self.full_height-self.height()))
+        self.sync_units();self.update()
+
+    def paintEvent(self,event):
+        colors=popup_palette(self.owner);p=panel_painter(self)
+        text(p,18,24,self.owner.label('Model checks'),face(10),colors['title'])
+        if not self.rows:
+            text(p,18,66,self.owner.label('No model checks yet'),face(8),colors['muted']);p.end();return
+        p.save();p.setClipRect(QRectF(0,42,self.width(),max(0,self.height()-42)));p.translate(0,-self.scroll)
+        metrics=QFontMetricsF(face(8));small=face(7)
+        for index,row in enumerate(self.rows):
+            y=62+index*self.ROW_HEIGHT
+            requested=row.get('requested_model') or self.owner.label('Not verified')
+            served=row.get('server_model') or self.owner.label('Not verified')
+            status=self.owner.label('Model differs' if row.get('mismatch') else 'Model matches' if row.get('requested_model') and row.get('server_model') else 'Not verified')
+            color=colors['link'] if row.get('mismatch') else colors['text']
+            text(p,18,y,metrics.elidedText(f'{requested} → {served}',Qt.TextElideMode.ElideRight,self.width()-36),face(8),color)
+            raw_stamp=row.get('at')
+            try:stamp=datetime.fromisoformat(raw_stamp).astimezone().strftime('%m.%d %H:%M')
+            except (TypeError,ValueError):stamp=str(raw_stamp or '')[:16]
+            response=str(row.get('response_id') or '')
+            meta=' · '.join(value for value in (stamp,status,response) if value)
+            text(p,18,y+17,metrics.elidedText(meta,Qt.TextElideMode.ElideRight,self.width()-36),small,colors['muted'])
+            if index+1<len(self.rows):
+                pen(p,colors['divider'],.45);p.drawLine(QPointF(18,y+27),QPointF(self.width()-18,y+27))
+        p.restore();p.end()
 
 
 class TaskListPopup(TaskPopup):

@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+- Replace the non-functional Desktop trace handoff with a process-scoped localhost HTTPS observer that records only the server model response header; make the model-check panel scrollable and remove its empty action.
+- Let installed builds automatically download, verify and install a published update after the taskbar companion exits.
+
 ## 0.13.0
 
 - Add an opt-in model-monitoring mode that waits for Codex to become idle, restarts it through the taskbar companion with restricted WebSocket trace logging, and stores only server/request model metadata. The restart handoff is opt-in and remains a user-run acceptance step.

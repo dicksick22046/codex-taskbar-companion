@@ -144,8 +144,11 @@ class SettingsDialog(QDialog):
         startup_card=card(general);self.login=toggle(startup_card);self.login.setChecked(startup.enabled());self.login.toggled.connect(bar.set_startup)
         line(startup_card);self.notify_input=toggle(startup_card);self.notify_input.setChecked(bar.settings.get('notify_input',False));self.notify_input.toggled.connect(bar.set_notify_input)
         monitor_card=card(general);self.model_monitor=toggle(monitor_card);self.model_monitor.setChecked(bar.settings.get('model_monitoring',False));self.model_monitor.toggled.connect(bar.set_model_monitoring)
-        line(monitor_card);self.model_monitor_status=QLabel();self.model_monitor_status.setWordWrap(True);self.model_monitor_status.setStyleSheet('color:#8797aa;font-size:12px;');monitor_card.addWidget(self.model_monitor_status)
-        line(monitor_card);self.model_monitor_button=QPushButton();self.model_monitor_button.setAutoDefault(False);self.model_monitor_button.clicked.connect(bar.open_model_monitor);monitor_card.addWidget(self.model_monitor_button)
+        line(monitor_card)
+        monitor_status_row=QWidget();monitor_status_layout=QHBoxLayout(monitor_status_row);monitor_status_layout.setContentsMargins(0,8,0,6);monitor_status_layout.setSpacing(8)
+        self.model_monitor_status=QLabel();self.model_monitor_status.setWordWrap(True);self.model_monitor_status.setStyleSheet('color:#8797aa;font-size:12px;');monitor_status_layout.addWidget(self.model_monitor_status,1);monitor_card.addWidget(monitor_status_row)
+        monitor_action_row=QWidget();monitor_action_layout=QHBoxLayout(monitor_action_row);monitor_action_layout.setContentsMargins(0,0,0,14);monitor_action_layout.setSpacing(8);monitor_action_layout.addStretch()
+        self.model_monitor_button=QPushButton();self.model_monitor_button.setAutoDefault(False);self.model_monitor_button.setFixedHeight(32);self.model_monitor_button.setMinimumWidth(118);self.model_monitor_button.setMaximumWidth(160);self.model_monitor_button.setStyleSheet('QPushButton{background:#383c45;color:#d7dfe9;border:1px solid transparent;border-radius:6px;padding:0 12px;} QPushButton:hover{background:#464d59;} QPushButton:pressed{background:#30353e;} QPushButton:disabled{background:#30333a;color:#707987;}');self.model_monitor_button.clicked.connect(bar.open_model_monitor);monitor_action_layout.addWidget(self.model_monitor_button);monitor_card.addWidget(monitor_action_row)
         updates=card(general);self.update_label=QLabel();self.update_button=QPushButton();self.update_button.setAutoDefault(False);self.update_button.clicked.connect(bar.update_clicked);row(updates,self.update_label,self.update_button)
         line(updates);self.support_label=QLabel();self.diagnostics_button=QPushButton();self.diagnostics_button.setAutoDefault(False)
         self.diagnostics_button.setStyleSheet('QPushButton{background:#383c45;} QPushButton:hover{background:#464d59;} QPushButton:pressed{background:#30353e;}')
@@ -250,7 +253,7 @@ class SettingsDialog(QDialog):
             monitor_message=label('Model monitoring is off.')
         self.model_monitor_status.setText(monitor_message)
         self.model_monitor_button.setText(label('Model checks ({count})',count=len(records)))
-        self.model_monitor_button.setEnabled(bool(records))
+        self.model_monitor_button.setVisible(bool(records));self.model_monitor_button.setEnabled(bool(records))
         self.connection.setText(label(message));self.update_button.setText(label(self.bar.updater.message,version=(self.bar.updater.release or {}).get('version','')));self.update_button.setEnabled(not self.bar.updater.busy)
 
     def refresh_displays(self):

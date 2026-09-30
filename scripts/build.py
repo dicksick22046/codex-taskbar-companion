@@ -16,7 +16,7 @@ def main():
     work = ROOT/'build'; work.mkdir(exist_ok=True)
     (work/'version.txt').write_text(VERSION,encoding='utf-8')
     notices = work/'licenses'; notices.mkdir(exist_ok=True)
-    for package in ('PySide6-Essentials', 'shiboken6'):
+    for package in ('PySide6-Essentials', 'shiboken6', 'cryptography', 'cffi'):
         distribution = importlib.metadata.distribution(package)
         for entry in distribution.files or []:
             if 'license' in str(entry).lower() or 'copying' in entry.name.lower():

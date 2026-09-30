@@ -52,6 +52,14 @@ class ModelTraceTests(unittest.TestCase):
         self.assertEqual(parse_trace_metadata(
             'model=gpt-6-astra {"type":"response.completed","response":{"id":"resp_2"}}'), [])
 
+    def test_proxy_model_is_sanitized_without_a_log_database(self):
+        with tempfile.TemporaryDirectory() as folder:
+            monitor = ModelMonitor(Path(folder));monitor.enabled=True;monitor.logs_path=Path(folder)/'missing.sqlite'
+            monitor._proxy_models.put(('gpt-6.1-sol','2026-09-30T01:02:03+00:00'))
+            monitor.poll()
+            self.assertEqual(monitor.records[0]['server_model'],'gpt-6.1-sol')
+            self.assertEqual(monitor.records[0]['status'],'observed')
+
 
 if __name__ == '__main__':
     unittest.main()

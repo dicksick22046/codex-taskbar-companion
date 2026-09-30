@@ -1,10 +1,25 @@
 import json,hashlib,tempfile,io,unittest,time
 from pathlib import Path
 from unittest.mock import patch
+from PySide6.QtCore import QCoreApplication
 from codex_taskbar.preferences import read_settings,write_settings,migrate_legacy,DISPLAY_DEFAULTS
 from codex_taskbar.usage import quota_windows,visible_metrics
-from codex_taskbar.updates import release_candidate,download_installer
+from codex_taskbar.updates import release_candidate,download_installer,UpdateController
 class ReleaseTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.qt_app=QCoreApplication.instance() or QCoreApplication([])
+
+    def test_packaged_build_schedules_verified_release_for_automatic_install(self):
+        with tempfile.TemporaryDirectory() as folder:
+            controller=UpdateController(folder,auto_install=True)
+            release={'version':'9.9.9','name':'fixture.exe','url':'x','checksum_url':'y'}
+            with patch.object(controller,'install') as install, patch('codex_taskbar.updates.QTimer.singleShot') as timer:
+                controller.finish({'release':release})
+                timer.assert_called_once()
+                timer.call_args.args[1]()
+                install.assert_called_once_with()
+
     def test_actual_windows_and_display_switches(self):
         q=quota_windows({'rateLimits':{'primary':{'usedPercent':20,'windowDurationMins':300,'resetsAt':time.time()+18000},'secondary':{'usedPercent':35,'windowDurationMins':10080,'resetsAt':time.time()+604800}}})
         data={'quota':q,'daily_quota':'4%'}
