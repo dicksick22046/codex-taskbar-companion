@@ -123,15 +123,22 @@ class CodexLauncher:
                     except ValueError:pass
         return sorted(set(ids))
 
-    def graceful_restart(self, proxy=None):
-        """Request a quiet Desktop restart after the caller established idleness."""
+    def graceful_restart(self, proxy=None, force=False):
+        """Restart Desktop; force is reserved for the explicit manual action."""
         old=windows.process_window_ids(self._process_ids())
         windows.request_close_process_windows(old)
         deadline=time.monotonic()+20
         while old and time.monotonic()<deadline:
             time.sleep(.25)
             if not set(old).intersection(self._process_ids()):break
-        if old and set(old).intersection(self._process_ids()):
+        remaining=set(old).intersection(self._process_ids())
+        if remaining and force:
+            for pid in remaining:
+                subprocess.run(['taskkill','/PID',str(pid),'/T','/F'],capture_output=True,creationflags=0x08000000)
+            deadline=time.monotonic()+5
+            while remaining and time.monotonic()<deadline:
+                time.sleep(.25);remaining=set(old).intersection(self._process_ids())
+        if remaining:
             raise RuntimeError('Codex Desktop did not close for monitoring handoff')
         return self.launch(proxy=proxy)
 
@@ -281,7 +288,7 @@ class ModelMonitor:
         try:
             if self.proxy is None:
                 self.proxy=ModelProxy(lambda model,at:self._proxy_models.put((model,at))).start()
-            CodexLauncher().graceful_restart(proxy=self.proxy)
+            CodexLauncher().graceful_restart(proxy=self.proxy,force=True)
             self.phase='waiting_response'
             result=True
         except (OSError,RuntimeError,subprocess.SubprocessError) as exc:

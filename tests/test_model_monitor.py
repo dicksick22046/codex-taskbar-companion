@@ -65,7 +65,7 @@ class ModelTraceTests(unittest.TestCase):
             proxy.return_value.start.return_value=proxy.return_value
             monitor=ModelMonitor(Path(folder));monitor.set_enabled(True)
             self.assertTrue(monitor.manual_handoff(['running-task']))
-            launcher.return_value.graceful_restart.assert_called_once_with(proxy=proxy.return_value)
+            launcher.return_value.graceful_restart.assert_called_once_with(proxy=proxy.return_value,force=True)
 
     def test_manual_handoff_reports_codex_close_timeout_clearly(self):
         with tempfile.TemporaryDirectory() as folder, patch('codex_taskbar.model_monitor.CodexLauncher') as launcher:
