@@ -33,8 +33,6 @@ user32.WindowFromPoint.argtypes=[w.POINT]
 user32.WindowFromPoint.restype=w.HWND
 user32.GetAncestor.argtypes=[w.HWND,w.UINT];user32.GetAncestor.restype=w.HWND
 user32.GetClassNameW.argtypes=[w.HWND,w.LPWSTR,ctypes.c_int]
-user32.EnumWindows.argtypes=[ctypes.WINFUNCTYPE(w.BOOL,w.HWND,w.LPARAM),w.LPARAM]
-user32.GetWindowThreadProcessId.argtypes=[w.HWND,ctypes.POINTER(w.DWORD)]
 
 
 class MonitorInfo(ctypes.Structure):
@@ -52,33 +50,6 @@ def pointer_over(hwnd,x,y):
 def taskbar_at_point(x,y):
     tray=user32.FindWindowW('Shell_TrayWnd',None);hit=user32.WindowFromPoint(w.POINT(round(x),round(y)))
     return bool(tray and hit and (hit==tray or user32.GetAncestor(hit,2)==tray))
-
-
-def request_close_process_windows(process_ids):
-    """Ask matching top-level windows to close; never terminate their processes."""
-    wanted={int(pid) for pid in process_ids}
-    if not wanted:return
-    callback_type=ctypes.WINFUNCTYPE(w.BOOL,w.HWND,w.LPARAM)
-    @callback_type
-    def callback(hwnd,lparam):
-        pid=w.DWORD();user32.GetWindowThreadProcessId(hwnd,ctypes.byref(pid))
-        if pid.value in wanted:user32.PostMessageW(hwnd,0x0010,0,0)
-        return True
-    user32.EnumWindows(callback,0)
-
-
-def process_window_ids(process_ids):
-    """Return process IDs that own a top-level window."""
-    wanted={int(pid) for pid in process_ids};found=set()
-    if not wanted:return found
-    callback_type=ctypes.WINFUNCTYPE(w.BOOL,w.HWND,w.LPARAM)
-    @callback_type
-    def callback(hwnd,lparam):
-        pid=w.DWORD();user32.GetWindowThreadProcessId(hwnd,ctypes.byref(pid))
-        if pid.value in wanted:found.add(pid.value)
-        return True
-    user32.EnumWindows(callback,0)
-    return found
 
 
 class WindowPos(ctypes.Structure):

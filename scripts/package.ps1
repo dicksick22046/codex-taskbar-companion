@@ -5,7 +5,7 @@ $pythonPath = Join-Path $repoRoot '.venv/Scripts/python.exe'
 & $pythonPath (Join-Path $PSScriptRoot 'build.py')
 if ($LASTEXITCODE -ne 0) { throw 'Application build failed' }
 if (-not $Compiler) {
-    $compilerPaths = @("${env:ProgramFiles(x86)}/Inno Setup 7/ISCC.exe", "${env:ProgramFiles(x86)}/Inno Setup 6/ISCC.exe", "$env:LOCALAPPDATA/Programs/Inno Setup 7/ISCC.exe", "$env:LOCALAPPDATA/Programs/Inno Setup 6/ISCC.exe")
+    $compilerPaths = @("${env:ProgramFiles(x86)}/Inno Setup 7/ISCC.exe", "${env:ProgramFiles(x86)}/Inno Setup 6/ISCC.exe", "$env:LOCALAPPDATA/Programs/Inno Setup 7/ISCC.exe")
     $Compiler = $compilerPaths | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
 }
 if (-not $Compiler) { throw 'Install Inno Setup or pass -Compiler with the ISCC.exe path.' }

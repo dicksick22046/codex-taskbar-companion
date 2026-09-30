@@ -1,41 +1,10 @@
 import json,hashlib,tempfile,io,unittest,time
 from pathlib import Path
 from unittest.mock import patch
-from PySide6.QtCore import QCoreApplication
 from codex_taskbar.preferences import read_settings,write_settings,migrate_legacy,DISPLAY_DEFAULTS
 from codex_taskbar.usage import quota_windows,visible_metrics
-from codex_taskbar.updates import release_candidate,download_installer,UpdateController,installer_command
+from codex_taskbar.updates import release_candidate,download_installer
 class ReleaseTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.qt_app=QCoreApplication.instance() or QCoreApplication([])
-
-    def test_explicit_update_check_schedules_verified_release_for_download(self):
-        with tempfile.TemporaryDirectory() as folder:
-            controller=UpdateController(folder);controller.install_after_check=True
-            release={'version':'9.9.9','name':'fixture.exe','url':'x','checksum_url':'y'}
-            with patch.object(controller,'install') as install, patch('codex_taskbar.updates.QTimer.singleShot') as timer:
-                controller.finish({'release':release})
-                timer.assert_called_once()
-                timer.call_args.args[1]()
-                install.assert_called_once_with()
-
-    def test_download_reports_verified_progress(self):
-        class Response(io.BytesIO):
-            headers={'Content-Length':'15'}
-        progress=[]
-        release={'name':'test.exe','checksum_url':'checksum','url':'installer'}
-        payload=b'verified fixture';checksum=hashlib.sha256(payload).hexdigest().encode()
-        with tempfile.TemporaryDirectory() as d, patch('codex_taskbar.updates.open_url',side_effect=[Response(checksum),Response(payload)]):
-            from codex_taskbar.updates import download_installer
-            download_installer(release,Path(d),progress.append)
-        self.assertEqual(progress[-1],100)
-
-    def test_background_installer_suppresses_all_user_prompts(self):
-        command=installer_command(Path('setup.exe'),'/TASKS=')
-        self.assertEqual(command[1:8],['/SP-','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',
-                                       '/CLOSEAPPLICATIONS','/FORCECLOSEAPPLICATIONS','/UPDATE=1'])
-
     def test_actual_windows_and_display_switches(self):
         q=quota_windows({'rateLimits':{'primary':{'usedPercent':20,'windowDurationMins':300,'resetsAt':time.time()+18000},'secondary':{'usedPercent':35,'windowDurationMins':10080,'resetsAt':time.time()+604800}}})
         data={'quota':q,'daily_quota':'4%'}

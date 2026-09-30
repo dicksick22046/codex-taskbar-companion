@@ -4,21 +4,6 @@
 
 ## Unreleased
 
-- Move installed-build updates behind Settings: show download progress after an explicit check and keep the Windows launcher invisible.
-
-- Remove automatic Codex restart from model monitoring; monitoring now waits for an explicit manual handoff from Settings.
-
-- Keep automatic replacement fully silent: the installer remains a release artifact and never becomes a user-facing update window.
-
-- Make automatic update cancellation recover the companion without retrying the same installer in a loop; keep transient download failures retryable.
-
-- Replace the non-functional Desktop trace handoff with a process-scoped localhost HTTPS observer that records only the server model response header; make the model-check panel scrollable and remove its empty action.
-- Let installed builds automatically download, verify and install a published update after the taskbar companion exits.
-
-## 0.13.0
-
-- Add an opt-in model-monitoring mode that waits for Codex to become idle, restarts it through the taskbar companion with restricted WebSocket trace logging, and stores only server/request model metadata. The restart handoff is opt-in and remains a user-run acceptance step.
-
 - Ignore inconsistent context-window token records in usage and new task-search indexing; exclude inherited fork counters using local rollout metadata to restore verifiable Token and USD history.
 
 - Recover complete one-call usage at a proven new-turn counter baseline, including numeric resets and larger fresh totals; leave unproven call details unknown.

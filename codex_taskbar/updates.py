@@ -8,7 +8,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from PySide6.QtCore import QObject, Signal, QTimer
+from PySide6.QtCore import QObject, Signal
 from .build_info import VERSION, RELEASE_REPOSITORY
 
 
@@ -60,7 +60,7 @@ def fetch_release(repository):
     return release_candidate(json.loads(raw), repository)
 
 
-def download_installer(release, folder, progress=None):
+def download_installer(release, folder):
     folder.mkdir(parents=True, exist_ok=True)
     with open_url(release['checksum_url']) as response:
         expected = response.read(1025).decode('ascii').split()[0].lower()
@@ -70,14 +70,11 @@ def download_installer(release, folder, progress=None):
     digest = hashlib.sha256(); size = 0
     try:
         with open_url(release['url']) as response, temporary.open('wb') as stream:
-            total=int(getattr(response,'headers',{}).get('Content-Length','0') or 0)
             while chunk := response.read(128*1024):
                 size += len(chunk)
                 if size > 350*1024*1024: raise ValueError('安装包超过大小限制')
                 stream.write(chunk); digest.update(chunk)
-                if progress and total:progress(min(99,round(size*100/total)))
         if digest.hexdigest() != expected: raise ValueError('安装包校验未通过，请稍后重试')
-        if progress:progress(100)
         temporary.replace(target)
         return target
     finally:
@@ -88,19 +85,15 @@ class UpdateController(QObject):
     changed = Signal()
     ready = Signal(str)
     result = Signal(object)
-    progress = Signal(int)
 
     def __init__(self, runtime, parent=None):
         super().__init__(parent)
         self.runtime = Path(runtime); self.release = None; self.busy = False
-        self.install_after_check = False
-        self.progress_value = 0
         self.message = 'Check for updates' if RELEASE_REPOSITORY else 'Release repository not configured'
         self.result.connect(self.finish)
 
-    def check(self, install=False):
+    def check(self):
         if self.busy: return
-        self.install_after_check = bool(install)
         self.busy = True; self.message = 'Checking for updates…'; self.changed.emit()
         def work():
             try: self.result.emit({'release': fetch_release(RELEASE_REPOSITORY)})
@@ -111,19 +104,16 @@ class UpdateController(QObject):
 
     def install(self):
         if self.busy or not self.release: return
-        self.busy = True; self.progress_value = 0; self.progress.emit(0); self.message = 'Downloading update…'; self.changed.emit()
+        self.busy = True; self.message = 'Downloading update…'; self.changed.emit()
         release = dict(self.release)
-        def report(value):
-            self.progress_value=value;self.progress.emit(value)
         def work():
-            try: self.result.emit({'installer': str(download_installer(release, self.runtime/'updates',report))})
+            try: self.result.emit({'installer': str(download_installer(release, self.runtime/'updates'))})
             except Exception as exc: self.result.emit({'error': str(exc)})
         threading.Thread(target=work, daemon=True).start()
 
     def finish(self, result):
         self.busy = False
         if 'installer' in result:
-            self.progress_value=100;self.progress.emit(100)
             self.message = 'Update ready'; self.ready.emit(result['installer'])
         elif result.get('unpublished'):
             self.message = 'No release available yet'
@@ -133,9 +123,6 @@ class UpdateController(QObject):
         else:
             self.release = result['release']
             self.message = 'Update to {version}' if self.release else 'Up to date'
-            if self.release and self.install_after_check:
-                QTimer.singleShot(0, self.install)
-            self.install_after_check=False
         self.changed.emit()
 
 
@@ -160,14 +147,4 @@ def install_after_exit(installer, parent_pid, runtime):
     elif ctypes.get_last_error()!=87:raise ctypes.WinError(ctypes.get_last_error())
     from . import startup
     tasks='/TASKS=autostart' if startup.enabled() else '/TASKS='
-    completed=subprocess.run(installer_command(path,tasks),
-                             creationflags=0x08000000,check=False)
-    if completed.returncode:
-        current=Path(__import__('sys').executable)
-        subprocess.Popen([str(current)],creationflags=0x08000000)
-
-
-def installer_command(path, tasks):
-    """Build the non-interactive command used by the companion's updater."""
-    return [str(path), '/SP-', '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART',
-            '/CLOSEAPPLICATIONS', '/FORCECLOSEAPPLICATIONS', '/UPDATE=1', tasks]
+    subprocess.Popen([str(path),'/SP-','/SILENT','/CLOSEAPPLICATIONS','/UPDATE=1',tasks],creationflags=0x08000000)

@@ -2,7 +2,7 @@
 from pathlib import Path
 from PySide6.QtCore import Qt,QSize,QRectF,QTimer
 from PySide6.QtGui import QIcon, QPainter, QPixmap, QColor, QPen
-from PySide6.QtWidgets import QApplication,QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox, QListView, QSlider, QScrollArea, QWidget, QFrame,QStackedWidget,QGraphicsOpacityEffect,QProgressBar
+from PySide6.QtWidgets import QApplication,QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox, QListView, QSlider, QScrollArea, QWidget, QFrame,QStackedWidget,QGraphicsOpacityEffect
 from .build_info import APP_NAME, VERSION
 from .i18n import LANGUAGE_NAMES
 from . import startup,windows
@@ -143,16 +143,7 @@ class SettingsDialog(QDialog):
         localization=card(general);self.language_label=QLabel();self.language=combo([(name,code) for code,name in LANGUAGE_NAMES],bar.settings.get('language','en'),bar.set_language);row(localization,self.language_label,self.language)
         startup_card=card(general);self.login=toggle(startup_card);self.login.setChecked(startup.enabled());self.login.toggled.connect(bar.set_startup)
         line(startup_card);self.notify_input=toggle(startup_card);self.notify_input.setChecked(bar.settings.get('notify_input',False));self.notify_input.toggled.connect(bar.set_notify_input)
-        monitor_card=card(general);self.model_monitor=toggle(monitor_card);self.model_monitor.setChecked(bar.settings.get('model_monitoring',False));self.model_monitor.toggled.connect(bar.set_model_monitoring)
-        line(monitor_card)
-        monitor_status_row=QWidget();monitor_status_layout=QHBoxLayout(monitor_status_row);monitor_status_layout.setContentsMargins(0,8,0,6);monitor_status_layout.setSpacing(8)
-        self.model_monitor_status=QLabel();self.model_monitor_status.setWordWrap(True);self.model_monitor_status.setStyleSheet('color:#8797aa;font-size:12px;');monitor_status_layout.addWidget(self.model_monitor_status,1);monitor_card.addWidget(monitor_status_row)
-        monitor_action_row=QWidget();monitor_action_layout=QHBoxLayout(monitor_action_row);monitor_action_layout.setContentsMargins(0,0,0,14);monitor_action_layout.setSpacing(8);monitor_action_layout.addStretch()
-        monitor_button_style='QPushButton{background:#383c45;color:#d7dfe9;border:1px solid transparent;border-radius:6px;padding:0 12px;} QPushButton:hover{background:#464d59;} QPushButton:pressed{background:#30353e;} QPushButton:disabled{background:#30333a;color:#707987;}'
-        self.model_monitor_restart_button=QPushButton();self.model_monitor_restart_button.setAutoDefault(False);self.model_monitor_restart_button.setFixedHeight(32);self.model_monitor_restart_button.setMinimumWidth(128);self.model_monitor_restart_button.setMaximumWidth(170);self.model_monitor_restart_button.setStyleSheet(monitor_button_style);self.model_monitor_restart_button.clicked.connect(bar.manual_model_monitor_handoff);monitor_action_layout.addWidget(self.model_monitor_restart_button)
-        self.model_monitor_button=QPushButton();self.model_monitor_button.setAutoDefault(False);self.model_monitor_button.setFixedHeight(32);self.model_monitor_button.setMinimumWidth(118);self.model_monitor_button.setMaximumWidth(160);self.model_monitor_button.setStyleSheet(monitor_button_style);self.model_monitor_button.clicked.connect(bar.open_model_monitor);monitor_action_layout.addWidget(self.model_monitor_button);monitor_card.addWidget(monitor_action_row)
         updates=card(general);self.update_label=QLabel();self.update_button=QPushButton();self.update_button.setAutoDefault(False);self.update_button.clicked.connect(bar.update_clicked);row(updates,self.update_label,self.update_button)
-        self.update_progress=QProgressBar();self.update_progress.setRange(0,100);self.update_progress.setTextVisible(False);self.update_progress.setFixedHeight(4);self.update_progress.setStyleSheet('QProgressBar{background:#343943;border:0;border-radius:2px;} QProgressBar::chunk{background:#6b9dcc;border-radius:2px;}');self.update_progress.setVisible(False);updates.addWidget(self.update_progress)
         line(updates);self.support_label=QLabel();self.diagnostics_button=QPushButton();self.diagnostics_button.setAutoDefault(False)
         self.diagnostics_button.setStyleSheet('QPushButton{background:#383c45;} QPushButton:hover{background:#464d59;} QPushButton:pressed{background:#30353e;}')
         self.diagnostics_button.clicked.connect(self.copy_diagnostics);row(updates,self.support_label,self.diagnostics_button)
@@ -218,7 +209,6 @@ class SettingsDialog(QDialog):
         self.rotation.setText(label('Rotate left-side indicators'));self.hover.setText(label('Open panels on hover'));self.login.setText(label('Start at Windows sign-in'))
         self.metric_labels.setText(label('Show indicator names'))
         self.notify_input.setText(label('Notify when input is needed'))
-        self.model_monitor.setText(label('Monitor future Codex sessions'));self.model_monitor_restart_button.setText(label('Restart Codex and monitor'));self.model_monitor_button.setText(label('Model checks'))
         self.login.blockSignals(True);self.login.setChecked(startup.enabled());self.login.blockSignals(False)
         self.status_key=None;self.refresh_status()
 
@@ -227,10 +217,7 @@ class SettingsDialog(QDialog):
         self.refresh_displays()
         errors=tuple(sorted(self.bar.settings_errors))
         fallback=self.bar.settings.get('placement')=='auto' and self.bar.floating
-        monitor=data.get('model_monitor') or {}
-        records=monitor.get('records') or []
-        active=any(task.get('running') for task in data.get('tasks',[]))
-        key=(fallback,errors,self.bar.language,data.get('quota_error'),bool(data.get('quota')),data.get('error'),data.get('loading'),self.bar.placement_unavailable,self.bar.updater.message,self.bar.updater.busy,self.bar.updater.progress_value,(self.bar.updater.release or {}).get('version'),monitor.get('enabled'),monitor.get('phase'),len(records),monitor.get('mismatch_count'),monitor.get('error'),active)
+        key=(fallback,errors,self.bar.language,data.get('quota_error'),bool(data.get('quota')),data.get('error'),data.get('loading'),self.bar.placement_unavailable,self.bar.updater.message,self.bar.updater.busy,(self.bar.updater.release or {}).get('version'))
         if key==getattr(self,'status_key',None):return
         self.status_key=key
         self.feedback.setText('\n'.join(label(error) for error in errors));self.feedback.setVisible(bool(errors))
@@ -240,27 +227,7 @@ class SettingsDialog(QDialog):
         elif fallback:message='Taskbar space unavailable. Using floating mode.'
         elif self.bar.placement_unavailable and any(self.bar.settings.get(k) for k in DISPLAY_LABELS):message='Not enough room for enabled indicators. Hide some indicators or rotate them.'
         else:message='Connected to Codex'
-        phase=monitor.get('phase')
-        if not monitor.get('enabled'):
-            monitor_message=label('Model monitoring is off.')
-        elif phase=='waiting':
-            monitor_message=label('Enabled; restart Codex manually to begin monitoring.')
-        elif phase=='restarting':
-            monitor_message=label('Codex is restarting for monitoring…')
-        elif phase=='waiting_response':
-            monitor_message=label('Monitoring is ready; waiting for the next server model response.')
-        elif phase=='monitoring':
-            monitor_message=label('Verified {count} model calls; {mismatches} differed.',count=len(records),mismatches=monitor.get('mismatch_count',0))
-        elif phase=='error':
-            monitor_message=label('Codex did not close; close Codex and try again.') if monitor.get('error')=='codex_busy' else label('Monitoring error')+(': '+str(monitor.get('error')) if monitor.get('error') else '')
-        else:
-            monitor_message=label('Model monitoring is off.')
-        self.model_monitor_status.setText(monitor_message)
-        self.model_monitor_restart_button.setVisible(bool(monitor.get('enabled')))
-        self.model_monitor_restart_button.setEnabled(bool(monitor.get('enabled')) and phase not in ('restarting','waiting_response'))
-        self.model_monitor_button.setText(label('Model checks ({count})',count=len(records)))
-        self.model_monitor_button.setVisible(bool(records));self.model_monitor_button.setEnabled(bool(records))
-        self.connection.setText(label(message));self.update_button.setText(label(self.bar.updater.message,version=(self.bar.updater.release or {}).get('version','')));self.update_button.setEnabled(not self.bar.updater.busy);self.update_progress.setVisible(self.bar.updater.busy and self.bar.updater.message=='Downloading update…');self.update_progress.setValue(self.bar.updater.progress_value)
+        self.connection.setText(label(message));self.update_button.setText(label(self.bar.updater.message,version=(self.bar.updater.release or {}).get('version','')));self.update_button.setEnabled(not self.bar.updater.busy)
 
     def refresh_displays(self):
         screens=QApplication.screens();position=self.bar.settings.get('floating_position') or {}

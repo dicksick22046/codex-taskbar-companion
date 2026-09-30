@@ -1,2 +1,1 @@
 PySide6-Essentials==6.11.0
-cryptography==46.0.2
