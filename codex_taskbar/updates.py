@@ -60,7 +60,7 @@ def fetch_release(repository):
     return release_candidate(json.loads(raw), repository)
 
 
-def download_installer(release, folder):
+def download_installer(release, folder, progress=None):
     folder.mkdir(parents=True, exist_ok=True)
     with open_url(release['checksum_url']) as response:
         expected = response.read(1025).decode('ascii').split()[0].lower()
@@ -70,11 +70,14 @@ def download_installer(release, folder):
     digest = hashlib.sha256(); size = 0
     try:
         with open_url(release['url']) as response, temporary.open('wb') as stream:
+            total=int(getattr(response,'headers',{}).get('Content-Length','0') or 0)
             while chunk := response.read(128*1024):
                 size += len(chunk)
                 if size > 350*1024*1024: raise ValueError('安装包超过大小限制')
                 stream.write(chunk); digest.update(chunk)
+                if progress and total:progress(min(99,round(size*100/total)))
         if digest.hexdigest() != expected: raise ValueError('安装包校验未通过，请稍后重试')
+        if progress:progress(100)
         temporary.replace(target)
         return target
     finally:
@@ -85,18 +88,19 @@ class UpdateController(QObject):
     changed = Signal()
     ready = Signal(str)
     result = Signal(object)
+    progress = Signal(int)
 
-    def __init__(self, runtime, parent=None, auto_install=False):
+    def __init__(self, runtime, parent=None):
         super().__init__(parent)
         self.runtime = Path(runtime); self.release = None; self.busy = False
-        self.auto_install = bool(auto_install)
-        self.attempt_path = self.runtime / 'update_attempt.json'
-        self.auto_install_pending = False
+        self.install_after_check = False
+        self.progress_value = 0
         self.message = 'Check for updates' if RELEASE_REPOSITORY else 'Release repository not configured'
         self.result.connect(self.finish)
 
-    def check(self):
+    def check(self, install=False):
         if self.busy: return
+        self.install_after_check = bool(install)
         self.busy = True; self.message = 'Checking for updates…'; self.changed.emit()
         def work():
             try: self.result.emit({'release': fetch_release(RELEASE_REPOSITORY)})
@@ -105,37 +109,21 @@ class UpdateController(QObject):
             except Exception as exc: self.result.emit({'error': str(exc)})
         threading.Thread(target=work, daemon=True).start()
 
-    def _attempted_version(self):
-        try:
-            value=json.loads(self.attempt_path.read_text(encoding='utf-8'))
-            return value.get('version') if isinstance(value,dict) else None
-        except (OSError,ValueError):
-            return None
-
-    def _remember_attempt(self, version):
-        try:
-            self.runtime.mkdir(parents=True,exist_ok=True)
-            temporary=self.attempt_path.with_suffix('.tmp')
-            temporary.write_text(json.dumps({'version':version}),encoding='utf-8')
-            temporary.replace(self.attempt_path)
-        except OSError:
-            pass
-
     def install(self):
         if self.busy or not self.release: return
-        self.auto_install_pending = False
-        self.busy = True; self.message = 'Downloading update…'; self.changed.emit()
+        self.busy = True; self.progress_value = 0; self.progress.emit(0); self.message = 'Downloading update…'; self.changed.emit()
         release = dict(self.release)
+        def report(value):
+            self.progress_value=value;self.progress.emit(value)
         def work():
-            try: self.result.emit({'installer': str(download_installer(release, self.runtime/'updates'))})
+            try: self.result.emit({'installer': str(download_installer(release, self.runtime/'updates',report))})
             except Exception as exc: self.result.emit({'error': str(exc)})
         threading.Thread(target=work, daemon=True).start()
 
     def finish(self, result):
         self.busy = False
         if 'installer' in result:
-            if self.auto_install:
-                self._remember_attempt(self.release['version'] if self.release else '')
+            self.progress_value=100;self.progress.emit(100)
             self.message = 'Update ready'; self.ready.emit(result['installer'])
         elif result.get('unpublished'):
             self.message = 'No release available yet'
@@ -145,9 +133,9 @@ class UpdateController(QObject):
         else:
             self.release = result['release']
             self.message = 'Update to {version}' if self.release else 'Up to date'
-            if self.release and self.auto_install and not self.auto_install_pending and self._attempted_version()!=self.release['version']:
-                self.auto_install_pending = True
+            if self.release and self.install_after_check:
                 QTimer.singleShot(0, self.install)
+            self.install_after_check=False
         self.changed.emit()
 
 

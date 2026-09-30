@@ -489,7 +489,8 @@ class StatusBar(QWidget):
         if hasattr(self.provider,'set_model_monitoring'):
             self.provider.set_model_monitoring(self.settings.get('model_monitoring',False))
         self.chart_unit=self.settings['chart_unit']
-        self.updater=UpdateController(RUNTIME,self,auto_install=getattr(sys,'frozen',False));self.updater.changed.connect(self.update_status)
+        self.updater=UpdateController(RUNTIME,self);self.updater.changed.connect(self.update_status)
+        self.updater.progress.connect(self.update_progress)
         self.updater.ready.connect(self.install_update)
         self.tray=QSystemTrayIcon(app_icon(),self);self.tray.setToolTip(APP_NAME)
         self.menu=QMenu(self);self.menu.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint,True);self.menu.setFont(face(8))
@@ -506,8 +507,6 @@ class StatusBar(QWidget):
         self.tray.messageClicked.connect(self.notification_clicked)
         self.tray.show()
         self.update_timer=QTimer(self);self.update_timer.setInterval(24*60*60*1000)
-        self.update_timer.timeout.connect(self.updater.check)
-        if RELEASE_REPOSITORY:self.update_timer.start();QTimer.singleShot(5000,self.updater.check)
         self.ring_values={};self.ring_tweens={}
         from .task_strip import PinnedPanel
         self.task_strip=PinnedPanel(self)
@@ -1000,7 +999,10 @@ class StatusBar(QWidget):
 
     def update_clicked(self):
         if self.updater.release:self.updater.install()
-        else:self.updater.check();self.open_settings()
+        else:self.updater.check(install=True);self.open_settings()
+
+    def update_progress(self,value):
+        if self.settings_dialog:self.settings_dialog.refresh_status()
 
     def install_update(self,path):
         command=[sys.executable]+([] if getattr(sys,'frozen',False) else [str(BASE/'app.py')])

@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Move installed-build updates behind Settings: show download progress after an explicit check and keep the Windows launcher invisible.
+
 - Remove automatic Codex restart from model monitoring; monitoring now waits for an explicit manual handoff from Settings.
 
 - Keep automatic replacement fully silent: the installer remains a release artifact and never becomes a user-facing update window.

@@ -10,9 +10,9 @@ class ReleaseTests(unittest.TestCase):
     def setUpClass(cls):
         cls.qt_app=QCoreApplication.instance() or QCoreApplication([])
 
-    def test_packaged_build_schedules_verified_release_for_automatic_install(self):
+    def test_explicit_update_check_schedules_verified_release_for_download(self):
         with tempfile.TemporaryDirectory() as folder:
-            controller=UpdateController(folder,auto_install=True)
+            controller=UpdateController(folder);controller.install_after_check=True
             release={'version':'9.9.9','name':'fixture.exe','url':'x','checksum_url':'y'}
             with patch.object(controller,'install') as install, patch('codex_taskbar.updates.QTimer.singleShot') as timer:
                 controller.finish({'release':release})
@@ -20,14 +20,16 @@ class ReleaseTests(unittest.TestCase):
                 timer.call_args.args[1]()
                 install.assert_called_once_with()
 
-    def test_cancelled_automatic_version_is_not_retried(self):
-        with tempfile.TemporaryDirectory() as folder:
-            controller=UpdateController(folder,auto_install=True)
-            release={'version':'9.9.9','name':'fixture.exe','url':'x','checksum_url':'y'}
-            with patch.object(controller,'install') as install, patch('codex_taskbar.updates.QTimer.singleShot') as timer:
-                controller.finish({'release':release})
-                controller.finish({'release':release})
-                self.assertEqual(timer.call_count,1);install.assert_not_called()
+    def test_download_reports_verified_progress(self):
+        class Response(io.BytesIO):
+            headers={'Content-Length':'15'}
+        progress=[]
+        release={'name':'test.exe','checksum_url':'checksum','url':'installer'}
+        payload=b'verified fixture';checksum=hashlib.sha256(payload).hexdigest().encode()
+        with tempfile.TemporaryDirectory() as d, patch('codex_taskbar.updates.open_url',side_effect=[Response(checksum),Response(payload)]):
+            from codex_taskbar.updates import download_installer
+            download_installer(release,Path(d),progress.append)
+        self.assertEqual(progress[-1],100)
 
     def test_background_installer_suppresses_all_user_prompts(self):
         command=installer_command(Path('setup.exe'),'/TASKS=')

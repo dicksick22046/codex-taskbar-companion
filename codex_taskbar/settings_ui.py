@@ -2,7 +2,7 @@
 from pathlib import Path
 from PySide6.QtCore import Qt,QSize,QRectF,QTimer
 from PySide6.QtGui import QIcon, QPainter, QPixmap, QColor, QPen
-from PySide6.QtWidgets import QApplication,QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox, QListView, QSlider, QScrollArea, QWidget, QFrame,QStackedWidget,QGraphicsOpacityEffect
+from PySide6.QtWidgets import QApplication,QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QComboBox, QListView, QSlider, QScrollArea, QWidget, QFrame,QStackedWidget,QGraphicsOpacityEffect,QProgressBar
 from .build_info import APP_NAME, VERSION
 from .i18n import LANGUAGE_NAMES
 from . import startup,windows
@@ -152,6 +152,7 @@ class SettingsDialog(QDialog):
         self.model_monitor_restart_button=QPushButton();self.model_monitor_restart_button.setAutoDefault(False);self.model_monitor_restart_button.setFixedHeight(32);self.model_monitor_restart_button.setMinimumWidth(128);self.model_monitor_restart_button.setMaximumWidth(170);self.model_monitor_restart_button.setStyleSheet(monitor_button_style);self.model_monitor_restart_button.clicked.connect(bar.manual_model_monitor_handoff);monitor_action_layout.addWidget(self.model_monitor_restart_button)
         self.model_monitor_button=QPushButton();self.model_monitor_button.setAutoDefault(False);self.model_monitor_button.setFixedHeight(32);self.model_monitor_button.setMinimumWidth(118);self.model_monitor_button.setMaximumWidth(160);self.model_monitor_button.setStyleSheet(monitor_button_style);self.model_monitor_button.clicked.connect(bar.open_model_monitor);monitor_action_layout.addWidget(self.model_monitor_button);monitor_card.addWidget(monitor_action_row)
         updates=card(general);self.update_label=QLabel();self.update_button=QPushButton();self.update_button.setAutoDefault(False);self.update_button.clicked.connect(bar.update_clicked);row(updates,self.update_label,self.update_button)
+        self.update_progress=QProgressBar();self.update_progress.setRange(0,100);self.update_progress.setTextVisible(False);self.update_progress.setFixedHeight(4);self.update_progress.setStyleSheet('QProgressBar{background:#343943;border:0;border-radius:2px;} QProgressBar::chunk{background:#6b9dcc;border-radius:2px;}');self.update_progress.setVisible(False);updates.addWidget(self.update_progress)
         line(updates);self.support_label=QLabel();self.diagnostics_button=QPushButton();self.diagnostics_button.setAutoDefault(False)
         self.diagnostics_button.setStyleSheet('QPushButton{background:#383c45;} QPushButton:hover{background:#464d59;} QPushButton:pressed{background:#30353e;}')
         self.diagnostics_button.clicked.connect(self.copy_diagnostics);row(updates,self.support_label,self.diagnostics_button)
@@ -229,7 +230,7 @@ class SettingsDialog(QDialog):
         monitor=data.get('model_monitor') or {}
         records=monitor.get('records') or []
         active=any(task.get('running') for task in data.get('tasks',[]))
-        key=(fallback,errors,self.bar.language,data.get('quota_error'),bool(data.get('quota')),data.get('error'),data.get('loading'),self.bar.placement_unavailable,self.bar.updater.message,self.bar.updater.busy,(self.bar.updater.release or {}).get('version'),monitor.get('enabled'),monitor.get('phase'),len(records),monitor.get('mismatch_count'),monitor.get('error'),active)
+        key=(fallback,errors,self.bar.language,data.get('quota_error'),bool(data.get('quota')),data.get('error'),data.get('loading'),self.bar.placement_unavailable,self.bar.updater.message,self.bar.updater.busy,self.bar.updater.progress_value,(self.bar.updater.release or {}).get('version'),monitor.get('enabled'),monitor.get('phase'),len(records),monitor.get('mismatch_count'),monitor.get('error'),active)
         if key==getattr(self,'status_key',None):return
         self.status_key=key
         self.feedback.setText('\n'.join(label(error) for error in errors));self.feedback.setVisible(bool(errors))
@@ -259,7 +260,7 @@ class SettingsDialog(QDialog):
         self.model_monitor_restart_button.setEnabled(bool(monitor.get('enabled')) and not active and phase not in ('restarting','waiting_response'))
         self.model_monitor_button.setText(label('Model checks ({count})',count=len(records)))
         self.model_monitor_button.setVisible(bool(records));self.model_monitor_button.setEnabled(bool(records))
-        self.connection.setText(label(message));self.update_button.setText(label(self.bar.updater.message,version=(self.bar.updater.release or {}).get('version','')));self.update_button.setEnabled(not self.bar.updater.busy)
+        self.connection.setText(label(message));self.update_button.setText(label(self.bar.updater.message,version=(self.bar.updater.release or {}).get('version','')));self.update_button.setEnabled(not self.bar.updater.busy);self.update_progress.setVisible(self.bar.updater.busy and self.bar.updater.message=='Downloading update…');self.update_progress.setValue(self.bar.updater.progress_value)
 
     def refresh_displays(self):
         screens=QApplication.screens();position=self.bar.settings.get('floating_position') or {}
